@@ -36,3 +36,151 @@
     transform: rotate(360deg);
   }
 }
+
+/* Legal Document Preview Styles */
+.legal-document h1 {
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+  text-transform: uppercase;
+}
+
+.legal-document h2 {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.legal-document h3 {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.legal-document p {
+  margin-bottom: 0.6rem;
+  line-height: 1.8;
+}
+
+.legal-document ul {
+  list-style: none;
+  padding-left: 1.5rem;
+}
+
+.legal-document ul li {
+  margin-bottom: 0.4rem;
+  line-height: 1.8;
+}
+
+.legal-document ol {
+  padding-left: 1.5rem;
+}
+
+.legal-document ol li {
+  margin-bottom: 0.6rem;
+  line-height: 1.8;
+}
+
+.legal-document hr {
+  border: none;
+  border-top: 1px solid #999;
+  margin: 1rem 0;
+}
+
+.legal-document strong {
+  font-weight: 700;
+}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  /* Hide everything except the document content */
+  body > * {
+    display: none !important;
+  }
+
+  .print-area {
+    display: block !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 25mm 30mm 25mm 30mm;
+  }
+
+  body {
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 12pt !important;
+    line-height: 1.8 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .print-area h1 {
+    font-size: 14pt;
+    font-weight: bold;
+    text-align: center;
+    text-transform: uppercase;
+    margin-bottom: 8pt;
+    page-break-after: avoid;
+  }
+
+  .print-area h2 {
+    font-size: 13pt;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 10pt;
+    margin-bottom: 6pt;
+    page-break-after: avoid;
+  }
+
+  .print-area h3 {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-top: 8pt;
+    margin-bottom: 4pt;
+    page-break-after: avoid;
+  }
+
+  .print-area p {
+    margin-bottom: 6pt;
+    text-align: justify;
+    orphans: 3;
+    widows: 3;
+  }
+
+  .print-area ol,
+  .print-area ul {
+    padding-left: 18pt;
+    margin-bottom: 6pt;
+  }
+
+  .print-area li {
+    margin-bottom: 4pt;
+  }
+
+  .print-area strong {
+    font-weight: bold;
+  }
+
+  .print-area em {
+    font-style: italic;
+  }
+
+  .print-area hr {
+    border: none;
+    border-top: 1px solid #000;
+    margin: 8pt 0;
+  }
+
+  /* Page break helpers */
+  .page-break {
+    page-break-before: always;
+  }
+}

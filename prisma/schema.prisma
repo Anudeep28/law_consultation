@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionPlan {
+  TRIAL
+  SINGLE
+  MONTHLY
+}
+
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+}
+
+enum ConsultationStatus {
+  BOOKED
+  CANCELLED
+  COMPLETED
+}
+
+enum ConsultationMode {
+  CHAT
+  CALL
+}
+
+enum MessageSender {
+  USER
+  LAWYER
+  SYSTEM
+}
+
+model User {
+  id                 String           @id @default(cuid())
+  email              String           @unique
+  name               String
+  passwordHash       String
+  subscriptionPlan   SubscriptionPlan @default(TRIAL)
+  subscriptionExpiry DateTime?
+  documentCredits    Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  payments           Payment[]
+  documents          Document[]
+  consultations      Consultation[]
+}
+
+model Lawyer {
+  id                String         @id @default(cuid())
+  slug              String         @unique
+  name              String
+  title             String
+  bio               String
+  practiceAreas     String[]
+  languages         String[]
+  experienceYears   Int
+  barCouncil        String
+  enrollmentNumber  String
+  fee                Int
+  rating             Float
+  reviewCount        Int
+  isVerified         Boolean        @default(false)
+  avatarUrl          String?
+  availability      Json
+  consultations     Consultation[]
+}
+
+model ConsultationMessage {
+  id              String        @id @default(cuid())
+  consultationId  String
+  sender          MessageSender
+  content         String
+  createdAt       DateTime      @default(now())
+  consultation    Consultation  @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId, createdAt])
+}
+
+model Consultation {
+  id          String             @id @default(cuid())
+  userId      String
+  lawyerId    String
+  startsAt    DateTime
+  endsAt      DateTime
+  topic       String
+  notes       String
+  mode        ConsultationMode   @default(CHAT)
+  status      ConsultationStatus @default(BOOKED)
+  meetingUrl  String?
+  messages    ConsultationMessage[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lawyer      Lawyer             @relation(fields: [lawyerId], references: [id])
+
+  @@unique([lawyerId, startsAt])
+  @@index([userId, startsAt])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  razorpayOrderId   String        @unique
+  razorpayPaymentId String?       @unique
+  plan              SubscriptionPlan
+  amount            Int
+  status            PaymentStatus @default(CREATED)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  content    String   @default("")
+  templateId String?
+  category   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+}

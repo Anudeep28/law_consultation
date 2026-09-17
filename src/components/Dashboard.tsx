@@ -1,0 +1,268 @@
+import React, { useEffect, useState } from 'react';
+import { useAuthStore } from '../stores/authStore';
+import { useDocumentStore } from '../stores/documentStore';
+import { DocumentEditor } from './DocumentEditor';
+import { DocumentList } from './DocumentList';
+import { SubscriptionView } from './SubscriptionView';
+import { ConsultationsView } from './ConsultationsView';
+import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, MessagesSquare } from 'lucide-react';
+
+export const Dashboard: React.FC = () => {
+  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription'>('editor');
+  const [showNewDocModal, setShowNewDocModal] = useState(false);
+  const { user, logout } = useAuthStore();
+  const { documents, createDocument, setCurrentDocument, loadDocuments, clearDocuments } = useDocumentStore();
+
+  useEffect(() => {
+    void loadDocuments();
+  }, [loadDocuments]);
+
+  const handleNewBlankDocument = async () => {
+    const document = await createDocument('Untitled Document');
+    setShowNewDocModal(false);
+    setActiveView(document ? 'editor' : 'subscription');
+  };
+
+  const handleNewFromTemplate = () => {
+    const expiry = user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).getTime() : 0;
+    const hasTimedAccess = (user?.subscriptionPlan === 'trial' || user?.subscriptionPlan === 'monthly') && expiry > Date.now();
+    if (!hasTimedAccess && !user?.documentCredits) {
+      setShowNewDocModal(false);
+      setActiveView('subscription');
+      return;
+    }
+    setShowNewDocModal(false);
+    setActiveView('editor');
+    // Signal DocumentEditor to open template selector via a small delay
+    setTimeout(() => {
+      (window as any).__openTemplateSelector?.();
+    }, 100);
+  };
+
+  const handleNewDocument = () => {
+    setShowNewDocModal(true);
+  };
+
+  const handleEditDocument = (document: any) => {
+    setCurrentDocument(document);
+    setActiveView('editor');
+  };
+
+  const handleLogout = () => {
+    clearDocuments();
+    logout();
+  };
+
+  const getSubscriptionStatusColor = () => {
+    if (!user) return 'text-gray-500';
+    const isExpired = user.subscriptionExpiry && new Date(user.subscriptionExpiry).getTime() <= Date.now();
+    if (isExpired && user.subscriptionPlan !== 'single') return 'text-red-600';
+    switch (user.subscriptionStatus) {
+      case 'active':
+        return 'text-green-600';
+      case 'trial':
+        return 'text-yellow-600';
+      case 'expired':
+        return 'text-red-600';
+      default:
+        return 'text-gray-500';
+    }
+  };
+
+  const getSubscriptionStatusText = () => {
+    if (!user) return 'Unknown';
+    const isExpired = user.subscriptionExpiry && new Date(user.subscriptionExpiry).getTime() <= Date.now();
+    if (isExpired && user.subscriptionPlan !== 'single') return 'Expired';
+    switch (user.subscriptionStatus) {
+      case 'active':
+        return 'Active';
+      case 'trial':
+        const daysLeft = user.subscriptionExpiry
+          ? Math.ceil((new Date(user.subscriptionExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : 0;
+        return `Trial (${daysLeft} days left)`;
+      case 'expired':
+        return 'Expired';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-[#fffaf0]">
+      {/* Sidebar */}
+      <div className="w-64 bg-white border-r border-[#eadbc1] shadow-lg flex flex-col">
+        <div className="p-6">
+          <h1 className="text-2xl font-bold text-[#32151b]">Law Writer</h1>
+          <p className="text-sm text-[#8c6b54] mt-1">Professional Legal Documents</p>
+        </div>
+
+        <nav className="mt-6 flex-1">
+          <div className="px-4 space-y-2">
+            <button
+              onClick={() => setActiveView('editor')}
+              className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeView === 'editor'
+                  ? 'bg-[#fff4d6] text-[#701f2f]'
+                  : 'text-[#6f5a49] hover:bg-[#fffaf0]'
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              <span>Document Editor</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('documents')}
+              className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeView === 'documents'
+                  ? 'bg-[#fff4d6] text-[#701f2f]'
+                  : 'text-[#6f5a49] hover:bg-[#fffaf0]'
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              <span>My Documents</span>
+              {documents.length > 0 && (
+                <span className="ml-auto bg-[#f4c95d] text-[#3f1420] text-xs px-2 py-1 rounded-full font-semibold">
+                  {documents.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveView('consultations')}
+              className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeView === 'consultations'
+                  ? 'bg-[#fff4d6] text-[#701f2f]'
+                  : 'text-[#6f5a49] hover:bg-[#fffaf0]'
+              }`}
+            >
+              <MessagesSquare className="w-5 h-5" />
+              <span>Consult a Lawyer</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('subscription')}
+              className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeView === 'subscription'
+                  ? 'bg-[#fff4d6] text-[#701f2f]'
+                  : 'text-[#6f5a49] hover:bg-[#fffaf0]'
+              }`}
+            >
+              <CreditCard className="w-5 h-5" />
+              <span>Subscription</span>
+            </button>
+          </div>
+        </nav>
+
+        <div className="p-4 border-t border-[#eadbc1]">
+          <div className="flex items-center space-x-3 mb-3">
+            <UserCircle className="w-8 h-8 text-[#a89580]" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[#32151b] truncate">
+                {user?.name}
+              </p>
+              <p className={`text-xs ${getSubscriptionStatusColor()}`}>
+                {getSubscriptionStatusText()}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 text-sm text-[#3f1420] bg-[#f8f1e5] rounded-lg hover:bg-[#f2e4cc] transition"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="bg-white border-b border-[#eadbc1] px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-[#32151b]">
+                {activeView === 'editor' && 'Document Editor'}
+                {activeView === 'documents' && 'My Documents'}
+                {activeView === 'consultations' && 'Lawyer Consultations'}
+                {activeView === 'subscription' && 'Subscription Management'}
+              </h2>
+              <p className="text-sm text-[#6f5a49] mt-1">
+                {activeView === 'editor' && 'Create and edit legal documents with AI-powered transcription'}
+                {activeView === 'documents' && `You have ${documents.length} document${documents.length !== 1 ? 's' : ''}`}
+                {activeView === 'consultations' && 'Book a private 10-minute session with a verified lawyer'}
+                {activeView === 'subscription' && 'Manage your subscription and billing'}
+              </p>
+            </div>
+            
+            {activeView === 'documents' && (
+              <button
+                onClick={handleNewDocument}
+                className="flex items-center space-x-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg hover:bg-[#541522] transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Document</span>
+              </button>
+            )}
+            {activeView === 'editor' && (
+              <button
+                onClick={handleNewDocument}
+                className="flex items-center space-x-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg hover:bg-[#541522] transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Document</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden">
+          {activeView === 'editor' && <DocumentEditor />}
+          {activeView === 'documents' && <DocumentList onNewDocument={handleNewDocument} onEditDocument={handleEditDocument} />}
+          {activeView === 'consultations' && <ConsultationsView />}
+          {activeView === 'subscription' && <SubscriptionView />}
+        </div>
+      </div>
+
+      {/* New Document Modal */}
+      {showNewDocModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl border border-[#eadbc1] shadow-2xl p-6 w-full max-w-sm">
+            <h2 className="text-lg font-bold text-[#32151b] mb-1">Create New Document</h2>
+            <p className="text-sm text-[#8c6b54] mb-5">Start from scratch or pick a template</p>
+            <div className="space-y-3">
+              <button
+                onClick={handleNewBlankDocument}
+                className="w-full flex items-center space-x-4 p-4 border-2 border-[#eadbc1] rounded-xl hover:border-[#b8862d] hover:bg-[#fffaf0] transition text-left"
+              >
+                <FilePlus className="w-8 h-8 text-[#8c6b54]" />
+                <div>
+                  <p className="font-semibold text-[#32151b]">Blank Document</p>
+                  <p className="text-xs text-[#8c6b54]">Start with an empty document</p>
+                </div>
+              </button>
+              <button
+                onClick={handleNewFromTemplate}
+                className="w-full flex items-center space-x-4 p-4 border-2 border-[#eadbc1] rounded-xl hover:border-[#b8862d] hover:bg-[#fffaf0] transition text-left"
+              >
+                <LayoutTemplate className="w-8 h-8 text-[#b8862d]" />
+                <div>
+                  <p className="font-semibold text-[#32151b]">From Template</p>
+                  <p className="text-xs text-[#8c6b54]">Choose from legal document templates</p>
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={() => setShowNewDocModal(false)}
+              className="mt-4 w-full text-sm text-[#8c6b54] hover:text-[#6f5a49]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
