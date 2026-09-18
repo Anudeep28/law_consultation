@@ -5,17 +5,20 @@ import { DocumentEditor } from './DocumentEditor';
 import { DocumentList } from './DocumentList';
 import { SubscriptionView } from './SubscriptionView';
 import { ConsultationsView } from './ConsultationsView';
-import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, MessagesSquare } from 'lucide-react';
+import { LawyerConsultationsView } from './LawyerConsultationsView';
+import { LawyerProfileView } from './LawyerProfileView';
+import { AdminLawyerReviewView } from './AdminLawyerReviewView';
+import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, MessagesSquare, ShieldCheck } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription'>('editor');
-  const [showNewDocModal, setShowNewDocModal] = useState(false);
   const { user, logout } = useAuthStore();
+  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
+  const [showNewDocModal, setShowNewDocModal] = useState(false);
   const { documents, createDocument, setCurrentDocument, loadDocuments, clearDocuments } = useDocumentStore();
 
   useEffect(() => {
-    void loadDocuments();
-  }, [loadDocuments]);
+    if (user?.role === 'lawyer') void loadDocuments();
+  }, [loadDocuments, user?.role]);
 
   const handleNewBlankDocument = async () => {
     const document = await createDocument('Untitled Document');
@@ -99,6 +102,9 @@ export const Dashboard: React.FC = () => {
 
         <nav className="mt-6 flex-1">
           <div className="px-4 space-y-2">
+            {user?.role === 'admin' && <button onClick={() => setActiveView('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><ShieldCheck className="w-5 h-5" /><span>Lawyer Applications</span></button>}
+            {user?.role === 'lawyer' && <>
+            <button onClick={() => setActiveView('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'profile' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><UserCircle className="w-5 h-5" /><span>Professional Profile</span></button>
             <button
               onClick={() => setActiveView('editor')}
               className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
@@ -127,8 +133,9 @@ export const Dashboard: React.FC = () => {
                 </span>
               )}
             </button>
+            </>}
 
-            <button
+            {user?.role !== 'admin' && <button
               onClick={() => setActiveView('consultations')}
               className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeView === 'consultations'
@@ -137,10 +144,10 @@ export const Dashboard: React.FC = () => {
               }`}
             >
               <MessagesSquare className="w-5 h-5" />
-              <span>Consult a Lawyer</span>
-            </button>
+              <span>{user?.role === 'lawyer' ? 'Client Consultations' : 'Consult a Lawyer'}</span>
+            </button>}
 
-            <button
+            {user?.role === 'lawyer' && <button
               onClick={() => setActiveView('subscription')}
               className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeView === 'subscription'
@@ -150,7 +157,7 @@ export const Dashboard: React.FC = () => {
             >
               <CreditCard className="w-5 h-5" />
               <span>Subscription</span>
-            </button>
+            </button>}
           </div>
         </nav>
 
@@ -161,8 +168,8 @@ export const Dashboard: React.FC = () => {
               <p className="text-sm font-medium text-[#32151b] truncate">
                 {user?.name}
               </p>
-              <p className={`text-xs ${getSubscriptionStatusColor()}`}>
-                {getSubscriptionStatusText()}
+              <p className={`text-xs ${user?.role === 'lawyer' ? getSubscriptionStatusColor() : 'text-[#8c6b54]'}`}>
+                {user?.role === 'lawyer' ? getSubscriptionStatusText() : user?.role === 'admin' ? 'Administrator' : 'Client account'}
               </p>
             </div>
           </div>
@@ -187,12 +194,16 @@ export const Dashboard: React.FC = () => {
                 {activeView === 'documents' && 'My Documents'}
                 {activeView === 'consultations' && 'Lawyer Consultations'}
                 {activeView === 'subscription' && 'Subscription Management'}
+                {activeView === 'profile' && 'Professional Profile'}
+                {activeView === 'admin' && 'Lawyer Applications'}
               </h2>
               <p className="text-sm text-[#6f5a49] mt-1">
                 {activeView === 'editor' && 'Create and edit legal documents with AI-powered transcription'}
                 {activeView === 'documents' && `You have ${documents.length} document${documents.length !== 1 ? 's' : ''}`}
-                {activeView === 'consultations' && 'Book a private 10-minute session with a verified lawyer'}
+                {activeView === 'consultations' && (user?.role === 'lawyer' ? 'Manage scheduled client sessions and active chats' : 'Book a private 10-minute session with a verified lawyer')}
                 {activeView === 'subscription' && 'Manage your subscription and billing'}
+                {activeView === 'profile' && 'Complete the details clients will see after approval'}
+                {activeView === 'admin' && 'Verify lawyer credentials before publishing profiles'}
               </p>
             </div>
             
@@ -221,8 +232,10 @@ export const Dashboard: React.FC = () => {
         <div className="flex-1 overflow-hidden">
           {activeView === 'editor' && <DocumentEditor />}
           {activeView === 'documents' && <DocumentList onNewDocument={handleNewDocument} onEditDocument={handleEditDocument} />}
-          {activeView === 'consultations' && <ConsultationsView />}
+          {activeView === 'consultations' && (user?.role === 'lawyer' ? <LawyerConsultationsView /> : <ConsultationsView />)}
           {activeView === 'subscription' && <SubscriptionView />}
+          {activeView === 'profile' && <LawyerProfileView />}
+          {activeView === 'admin' && <AdminLawyerReviewView />}
         </div>
       </div>
 

@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
+import { UserRole } from '../../types';
 
 interface RegisterProps {
   onToggleMode: () => void;
 }
 
 export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
+  const [role, setRole] = useState<UserRole>('client');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [barCouncil, setBarCouncil] = useState('');
+  const [enrollmentNumber, setEnrollmentNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -27,9 +31,9 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
       return;
     }
     
-    const success = await register({ name, email, password });
-    if (!success) {
-      setError('Registration failed. Please try again.');
+    const result = await register({ name, email, password, role, barCouncil, enrollmentNumber });
+    if (result !== true) {
+      setError(result);
     }
   };
 
@@ -38,13 +42,20 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-[#32151b]">
-            Create your Law Writer account
+            Create a {role} account
           </h2>
           <p className="mt-2 text-center text-sm text-[#6f5a49]">
-            Start your 2-day free trial with professional legal document writing
+            {role === 'lawyer' ? 'Your credentials will be reviewed before clients can book you' : 'Find and consult verified legal professionals'}
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="grid grid-cols-2 rounded-lg border border-[#e6d8c2] bg-white p-1">
+            {(['client', 'lawyer'] as UserRole[]).map((accountRole) => (
+              <button key={accountRole} type="button" onClick={() => setRole(accountRole)} className={`rounded-md px-3 py-2 text-sm font-semibold ${role === accountRole ? 'bg-[#701f2f] text-white' : 'text-[#6f5a49]'}`}>
+                {accountRole === 'client' ? 'Public / Client' : 'Lawyer'}
+              </button>
+            ))}
+          </div>
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
@@ -82,6 +93,16 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
+            {role === 'lawyer' && <>
+              <div>
+                <label htmlFor="barCouncil" className="block text-sm font-medium text-[#6f5a49]">Bar Council</label>
+                <input id="barCouncil" required value={barCouncil} onChange={(event) => setBarCouncil(event.target.value)} className="mt-1 block w-full px-3 py-2 border border-[#e6d8c2] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d]" placeholder="e.g. Bar Council of Delhi" />
+              </div>
+              <div>
+                <label htmlFor="enrollmentNumber" className="block text-sm font-medium text-[#6f5a49]">Enrollment Number</label>
+                <input id="enrollmentNumber" required value={enrollmentNumber} onChange={(event) => setEnrollmentNumber(event.target.value)} className="mt-1 block w-full px-3 py-2 border border-[#e6d8c2] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d]" placeholder="Your bar enrollment number" />
+              </div>
+            </>}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-[#6f5a49]">
                 Password

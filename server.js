@@ -25,6 +25,8 @@ const serializeUser = (user) => {
     id: user.id,
     email: user.email,
     name: user.name,
+    role: user.role.toLowerCase(),
+    lawyerProfile: user.lawyerProfile ? serializeLawyer(user.lawyerProfile) : undefined,
     subscriptionStatus: timedAccess
       ? (user.subscriptionPlan === 'TRIAL' ? 'trial' : 'active')
       : (user.documentCredits > 0 ? 'active' : 'expired'),
@@ -37,7 +39,10 @@ const serializeUser = (user) => {
 
 const userWithPayments = (id) => prisma.user.findUnique({
   where: { id },
-  include: { payments: { where: { status: 'PAID' }, select: { razorpayPaymentId: true } } },
+  include: {
+    payments: { where: { status: 'PAID' }, select: { razorpayPaymentId: true } },
+    lawyerProfile: true,
+  },
 });
 
 const authenticate = async (req, res, next) => {
@@ -54,14 +59,25 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+const requireRole = (role) => (req, res, next) => {
+  if (req.user.role !== role) return res.status(403).json({ error: `${role.toLowerCase()} access required` });
+  next();
+};
+
 const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
 app.post('/api/auth/register', async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
-  if (!name || !email || password.length < 6) {
-    return res.status(400).json({ error: 'Name, email, and a 6-character password are required' });
+  const role = String(req.body.role || 'client').toUpperCase();
+  const barCouncil = String(req.body.barCouncil || '').trim();
+  const enrollmentNumber = String(req.body.enrollmentNumber || '').trim();
+  if (!name || !email || password.length < 6 || !['CLIENT', 'LAWYER'].includes(role)) {
+    return res.status(400).json({ error: 'Name, email, account type, and a 6-character password are required' });
+  }
+  if (role === 'LAWYER' && (!barCouncil || !enrollmentNumber)) {
+    return res.status(400).json({ error: 'Bar Council and enrollment number are required for lawyers' });
   }
   if (!process.env.JWT_SECRET) return res.status(500).json({ error: 'JWT is not configured' });
   try {
@@ -71,12 +87,31 @@ app.post('/api/auth/register', async (req, res) => {
         name,
         email,
         passwordHash,
+        role,
         subscriptionExpiry: new Date(Date.now() + TRIAL_DURATION_MS),
+        lawyerProfile: role === 'LAWYER' ? {
+          create: {
+            slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${crypto.randomBytes(3).toString('hex')}`,
+            name,
+            title: 'Advocate',
+            bio: 'Lawyer profile pending verification.',
+            practiceAreas: [],
+            languages: ['English'],
+            experienceYears: 0,
+            barCouncil,
+            enrollmentNumber,
+            fee: 0,
+            rating: 0,
+            reviewCount: 0,
+            availability: { days: [1, 2, 3, 4, 5], start: '04:30', end: '12:30' },
+          },
+        } : undefined,
       },
+      include: { lawyerProfile: true },
     });
     res.status(201).json({ token: signToken(user.id), user: serializeUser(user) });
   } catch (error) {
-    if (error.code === 'P2002') return res.status(409).json({ error: 'An account with this email already exists' });
+    if (error.code === 'P2002') return res.status(409).json({ error: 'An account with this email or enrollment number already exists' });
     res.status(500).json({ error: 'Unable to create account' });
   }
 });
@@ -84,14 +119,19 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
+  const role = String(req.body.role || 'client').toUpperCase();
+  if (!['CLIENT', 'LAWYER', 'ADMIN'].includes(role)) return res.status(400).json({ error: 'Invalid account type' });
   if (!process.env.JWT_SECRET) return res.status(500).json({ error: 'JWT is not configured' });
   try {
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { payments: { where: { status: 'PAID' }, select: { razorpayPaymentId: true } } },
+      include: {
+        payments: { where: { status: 'PAID' }, select: { razorpayPaymentId: true } },
+        lawyerProfile: true,
+      },
     });
-    if (!user || !await bcrypt.compare(password, user.passwordHash)) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    if (!user || user.role !== role || !await bcrypt.compare(password, user.passwordHash)) {
+      return res.status(401).json({ error: 'Invalid email, password, or account type' });
     }
     res.json({ token: signToken(user.id), user: serializeUser(user) });
   } catch {
@@ -119,7 +159,10 @@ const serializeLawyer = (lawyer) => ({
   rating: lawyer.rating,
   reviewCount: lawyer.reviewCount,
   isVerified: lawyer.isVerified,
+  approvalStatus: lawyer.approvalStatus.toLowerCase(),
+  rejectionReason: lawyer.rejectionReason || undefined,
   avatarUrl: lawyer.avatarUrl,
+  availability: lawyer.availability,
 });
 
 const serializeConsultation = (consultation) => ({
@@ -132,21 +175,102 @@ const serializeConsultation = (consultation) => ({
   status: consultation.status.toLowerCase(),
   meetingUrl: consultation.meetingUrl,
   lawyer: serializeLawyer(consultation.lawyer),
+  client: consultation.user ? { id: consultation.user.id, name: consultation.user.name, email: consultation.user.email } : undefined,
 });
 
-app.get('/api/lawyers', authenticate, async (req, res) => {
+app.put('/api/lawyer/profile', authenticate, requireRole('LAWYER'), async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  const title = String(req.body.title || '').trim();
+  const bio = String(req.body.bio || '').trim();
+  const practiceAreas = Array.isArray(req.body.practiceAreas) ? [...new Set(req.body.practiceAreas.map((value) => String(value).trim()).filter(Boolean))] : [];
+  const languages = Array.isArray(req.body.languages) ? [...new Set(req.body.languages.map((value) => String(value).trim()).filter(Boolean))] : [];
+  const experienceYears = Number(req.body.experienceYears);
+  const barCouncil = String(req.body.barCouncil || '').trim();
+  const enrollmentNumber = String(req.body.enrollmentNumber || '').trim();
+  const fee = Number(req.body.fee);
+  const avatarUrl = String(req.body.avatarUrl || '').trim() || null;
+  const availability = req.body.availability;
+  const validAvailability = availability && Array.isArray(availability.days) && availability.days.length > 0
+    && availability.days.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    && /^\d{2}:\d{2}$/.test(availability.start) && /^\d{2}:\d{2}$/.test(availability.end) && availability.start < availability.end;
+  if (!name || !title || bio.length < 40 || bio.length > 2000 || !practiceAreas.length || !languages.length
+    || !Number.isInteger(experienceYears) || experienceYears < 0 || experienceYears > 80
+    || !barCouncil || !enrollmentNumber || !Number.isInteger(fee) || fee < 100
+    || (avatarUrl && !/^https:\/\//i.test(avatarUrl)) || !validAvailability) {
+    return res.status(400).json({ error: 'Complete all professional profile fields with valid information' });
+  }
   try {
-    const lawyers = await prisma.lawyer.findMany({ orderBy: [{ rating: 'desc' }, { reviewCount: 'desc' }] });
+    const current = await prisma.lawyer.findUnique({ where: { userId: req.user.id } });
+    if (!current) return res.status(404).json({ error: 'Lawyer profile not found' });
+    const credentialsChanged = current.barCouncil !== barCouncil || current.enrollmentNumber !== enrollmentNumber;
+    const lawyer = await prisma.$transaction(async (transaction) => {
+      await transaction.user.update({ where: { id: req.user.id }, data: { name } });
+      return transaction.lawyer.update({
+        where: { userId: req.user.id },
+        data: {
+          name, title, bio, practiceAreas, languages, experienceYears, barCouncil, enrollmentNumber, fee, avatarUrl,
+          availability: { days: [...new Set(availability.days)].sort(), start: availability.start, end: availability.end },
+          approvalStatus: credentialsChanged || current.approvalStatus !== 'APPROVED' ? 'PENDING' : 'APPROVED',
+          isVerified: credentialsChanged ? false : current.isVerified,
+          rejectionReason: null,
+        },
+      });
+    });
+    const user = await userWithPayments(req.user.id);
+    res.json({ lawyer: serializeLawyer(lawyer), user: serializeUser(user) });
+  } catch (error) {
+    if (error.code === 'P2002') return res.status(409).json({ error: 'This enrollment number is already in use' });
+    res.status(500).json({ error: 'Unable to save lawyer profile' });
+  }
+});
+
+app.get('/api/admin/lawyers', authenticate, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const lawyers = await prisma.lawyer.findMany({ orderBy: [{ approvalStatus: 'asc' }, { name: 'asc' }] });
+    res.json({ lawyers: lawyers.map(serializeLawyer) });
+  } catch {
+    res.status(500).json({ error: 'Unable to load lawyer applications' });
+  }
+});
+
+app.patch('/api/admin/lawyers/:id/review', authenticate, requireRole('ADMIN'), async (req, res) => {
+  const decision = String(req.body.decision || '').toUpperCase();
+  const rejectionReason = String(req.body.rejectionReason || '').trim();
+  if (!['APPROVED', 'REJECTED'].includes(decision) || (decision === 'REJECTED' && rejectionReason.length < 10)) {
+    return res.status(400).json({ error: 'Choose approve or provide a rejection reason of at least 10 characters' });
+  }
+  try {
+    const application = await prisma.lawyer.findUnique({ where: { id: req.params.id } });
+    if (!application) return res.status(404).json({ error: 'Lawyer profile not found' });
+    if (application.approvalStatus !== 'PENDING') return res.status(409).json({ error: 'Only pending applications can be reviewed' });
+    const lawyer = await prisma.lawyer.update({
+      where: { id: req.params.id },
+      data: {
+        approvalStatus: decision,
+        isVerified: decision === 'APPROVED',
+        rejectionReason: decision === 'REJECTED' ? rejectionReason : null,
+      },
+    });
+    res.json({ lawyer: serializeLawyer(lawyer) });
+  } catch (error) {
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Lawyer profile not found' });
+    res.status(500).json({ error: 'Unable to review lawyer profile' });
+  }
+});
+
+app.get('/api/lawyers', authenticate, requireRole('CLIENT'), async (req, res) => {
+  try {
+    const lawyers = await prisma.lawyer.findMany({ where: { isVerified: true }, orderBy: [{ rating: 'desc' }, { reviewCount: 'desc' }] });
     res.json({ lawyers: lawyers.map(serializeLawyer) });
   } catch {
     res.status(500).json({ error: 'Unable to load lawyers' });
   }
 });
 
-app.get('/api/lawyers/:id/slots', authenticate, async (req, res) => {
+app.get('/api/lawyers/:id/slots', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
     const lawyer = await prisma.lawyer.findUnique({ where: { id: req.params.id } });
-    if (!lawyer) return res.status(404).json({ error: 'Lawyer not found' });
+    if (!lawyer || !lawyer.isVerified) return res.status(404).json({ error: 'Lawyer not found' });
     const from = new Date();
     from.setUTCMinutes(Math.ceil(from.getUTCMinutes() / 10) * 10, 0, 0);
     const until = new Date(from.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -178,7 +302,22 @@ app.get('/api/lawyers/:id/slots', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/consultations', authenticate, async (req, res) => {
+app.get('/api/lawyer/consultations', authenticate, requireRole('LAWYER'), async (req, res) => {
+  try {
+    const lawyer = await prisma.lawyer.findUnique({ where: { userId: req.user.id } });
+    if (!lawyer) return res.status(404).json({ error: 'Lawyer profile not found' });
+    const consultations = await prisma.consultation.findMany({
+      where: { lawyerId: lawyer.id },
+      include: { lawyer: true, user: { select: { id: true, name: true, email: true } } },
+      orderBy: { startsAt: 'asc' },
+    });
+    res.json({ consultations: consultations.map(serializeConsultation) });
+  } catch {
+    res.status(500).json({ error: 'Unable to load consultations' });
+  }
+});
+
+app.get('/api/consultations', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
     const consultations = await prisma.consultation.findMany({
       where: { userId: req.user.id },
@@ -191,7 +330,7 @@ app.get('/api/consultations', authenticate, async (req, res) => {
   }
 });
 
-app.post('/api/consultations', authenticate, async (req, res) => {
+app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, res) => {
   const lawyerId = String(req.body.lawyerId || '');
   const topic = String(req.body.topic || '').trim();
   const notes = String(req.body.notes || '').trim();
@@ -204,7 +343,7 @@ app.post('/api/consultations', authenticate, async (req, res) => {
   const endsAt = new Date(startsAt.getTime() + 10 * 60 * 1000);
   try {
     const lawyer = await prisma.lawyer.findUnique({ where: { id: lawyerId } });
-    if (!lawyer) return res.status(404).json({ error: 'Lawyer not found' });
+    if (!lawyer || !lawyer.isVerified) return res.status(404).json({ error: 'Lawyer not found' });
     const schedule = lawyer.availability;
     const [startHour, startMinute] = schedule.start.split(':').map(Number);
     const [endHour, endMinute] = schedule.end.split(':').map(Number);
@@ -242,7 +381,11 @@ app.post('/api/consultations', authenticate, async (req, res) => {
 app.get('/api/consultations/:id/messages', authenticate, async (req, res) => {
   try {
     const consultation = await prisma.consultation.findFirst({
-      where: { id: req.params.id, userId: req.user.id, mode: 'CHAT' },
+      where: {
+        id: req.params.id,
+        mode: 'CHAT',
+        ...(req.user.role === 'LAWYER' ? { lawyer: { userId: req.user.id } } : { userId: req.user.id }),
+      },
       select: { id: true },
     });
     if (!consultation) return res.status(404).json({ error: 'Chat consultation not found' });
@@ -264,7 +407,7 @@ app.post('/api/consultations/:id/messages', authenticate, async (req, res) => {
     const consultation = await prisma.consultation.findFirst({
       where: {
         id: req.params.id,
-        userId: req.user.id,
+        ...(req.user.role === 'LAWYER' ? { lawyer: { userId: req.user.id } } : { userId: req.user.id }),
         mode: 'CHAT',
         status: 'BOOKED',
         startsAt: { lte: new Date(now.getTime() + 10 * 60 * 1000) },
@@ -274,7 +417,7 @@ app.post('/api/consultations/:id/messages', authenticate, async (req, res) => {
     });
     if (!consultation) return res.status(400).json({ error: 'Chat opens 10 minutes before the booked session and closes when it ends' });
     const message = await prisma.consultationMessage.create({
-      data: { consultationId: consultation.id, sender: 'USER', content },
+      data: { consultationId: consultation.id, sender: req.user.role === 'LAWYER' ? 'LAWYER' : 'USER', content },
     });
     res.status(201).json({ message: { ...message, sender: message.sender.toLowerCase() } });
   } catch {
@@ -282,7 +425,7 @@ app.post('/api/consultations/:id/messages', authenticate, async (req, res) => {
   }
 });
 
-app.patch('/api/consultations/:id/cancel', authenticate, async (req, res) => {
+app.patch('/api/consultations/:id/cancel', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
     const cancelled = await prisma.consultation.updateMany({
       where: { id: req.params.id, userId: req.user.id, status: 'BOOKED', startsAt: { gt: new Date() } },
@@ -326,7 +469,7 @@ const razorpayRequest = (method, path, body) => new Promise((resolve, reject) =>
   request.end();
 });
 
-app.post('/api/payments/order', authenticate, async (req, res) => {
+app.post('/api/payments/order', authenticate, requireRole('LAWYER'), async (req, res) => {
   const planKey = String(req.body.plan || '');
   const plan = PLANS[planKey];
   if (!plan) return res.status(400).json({ error: 'Invalid plan' });
@@ -355,7 +498,7 @@ app.post('/api/payments/order', authenticate, async (req, res) => {
   }
 });
 
-app.post('/api/payments/verify', authenticate, async (req, res) => {
+app.post('/api/payments/verify', authenticate, requireRole('LAWYER'), async (req, res) => {
   const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = req.body;
   try {
     const payment = await prisma.payment.findFirst({
@@ -414,7 +557,7 @@ app.post('/api/payments/verify', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/documents', authenticate, async (req, res) => {
+app.get('/api/documents', authenticate, requireRole('LAWYER'), async (req, res) => {
   const documents = await prisma.document.findMany({
     where: { userId: req.user.id },
     orderBy: { updatedAt: 'desc' },
@@ -422,7 +565,7 @@ app.get('/api/documents', authenticate, async (req, res) => {
   res.json({ documents });
 });
 
-app.post('/api/documents', authenticate, async (req, res) => {
+app.post('/api/documents', authenticate, requireRole('LAWYER'), async (req, res) => {
   const title = String(req.body.title || '').trim() || 'Untitled Document';
   try {
     const document = await prisma.$transaction(async (tx) => {
@@ -457,7 +600,7 @@ app.post('/api/documents', authenticate, async (req, res) => {
   }
 });
 
-app.patch('/api/documents/:id', authenticate, async (req, res) => {
+app.patch('/api/documents/:id', authenticate, requireRole('LAWYER'), async (req, res) => {
   const data = {};
   if (typeof req.body.title === 'string' && req.body.title.trim()) data.title = req.body.title.trim();
   if (typeof req.body.content === 'string') data.content = req.body.content;
@@ -474,7 +617,7 @@ app.patch('/api/documents/:id', authenticate, async (req, res) => {
   }
 });
 
-app.post('/api/documents/:id/duplicate', authenticate, async (req, res) => {
+app.post('/api/documents/:id/duplicate', authenticate, requireRole('LAWYER'), async (req, res) => {
   const source = await prisma.document.findFirst({ where: { id: req.params.id, userId: req.user.id } });
   if (!source) return res.status(404).json({ error: 'Document not found' });
   req.body = {
@@ -505,7 +648,7 @@ app.post('/api/documents/:id/duplicate', authenticate, async (req, res) => {
   }
 });
 
-app.delete('/api/documents/:id', authenticate, async (req, res) => {
+app.delete('/api/documents/:id', authenticate, requireRole('LAWYER'), async (req, res) => {
   const deleted = await prisma.document.deleteMany({ where: { id: req.params.id, userId: req.user.id } });
   if (!deleted.count) return res.status(404).json({ error: 'Document not found' });
   res.status(204).end();

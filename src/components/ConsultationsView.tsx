@@ -130,7 +130,7 @@ export const ConsultationsView: React.FC = () => {
               {filteredLawyers.map((lawyer) => (
                 <article key={lawyer.id} className="group overflow-hidden rounded-2xl border border-[#eadbc1] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
                   <div className="flex gap-4">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-[#fff1c7] bg-gradient-to-br from-[#f4c95d] to-[#d69f37] text-lg font-bold text-[#3f1420] shadow-sm">{lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
+                    {lawyer.avatarUrl ? <img src={lawyer.avatarUrl} alt={`${lawyer.name} profile`} className="h-16 w-16 shrink-0 rounded-full border-4 border-[#fff1c7] object-cover shadow-sm" /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-[#fff1c7] bg-gradient-to-br from-[#f4c95d] to-[#d69f37] text-lg font-bold text-[#3f1420] shadow-sm">{lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5"><h3 className="font-bold text-[#32151b]">{lawyer.name}</h3>{lawyer.isVerified && <BadgeCheck className="h-4 w-4 text-[#b8862d]" />}</div>
                       <p className="text-sm font-semibold text-[#8a2637]">{lawyer.title}</p>

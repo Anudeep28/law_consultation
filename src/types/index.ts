@@ -1,9 +1,12 @@
 export type PaidPlan = 'single' | 'monthly';
+export type UserRole = 'client' | 'lawyer' | 'admin';
 
 export interface User {
   id: string;
   email: string;
   name: string;
+  role: UserRole;
+  lawyerProfile?: Lawyer;
   subscriptionStatus: 'active' | 'trial' | 'expired';
   subscriptionPlan: 'trial' | PaidPlan;
   subscriptionExpiry?: Date;
@@ -26,7 +29,10 @@ export interface Lawyer {
   rating: number;
   reviewCount: number;
   isVerified: boolean;
+  approvalStatus: 'draft' | 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
   avatarUrl?: string;
+  availability: { days: number[]; start: string; end: string };
 }
 
 export interface Consultation {
@@ -39,6 +45,7 @@ export interface Consultation {
   status: 'booked' | 'cancelled' | 'completed';
   meetingUrl?: string;
   lawyer: Lawyer;
+  client?: Pick<User, 'id' | 'name' | 'email'>;
 }
 
 export interface ConsultationMessage {

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
+import { UserRole } from '../../types';
 
 interface LoginProps {
   onToggleMode: () => void;
 }
 
 export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
+  const [role, setRole] = useState<UserRole>('client');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,7 +17,7 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
     e.preventDefault();
     setError('');
     
-    const success = await login(email, password);
+    const success = await login(email, password, role);
     if (!success) {
       setError('Invalid email or password');
     }
@@ -26,13 +28,20 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-[#32151b]">
-            Sign in to Law Writer
+            {role === 'lawyer' ? 'Lawyer sign in' : role === 'admin' ? 'Administrator sign in' : 'Client sign in'}
           </h2>
           <p className="mt-2 text-center text-sm text-[#6f5a49]">
-            Professional legal document writing with AI-powered transcription
+            {role === 'lawyer' ? 'Manage your profile, consultations, and legal documents' : role === 'admin' ? 'Review and approve lawyer profiles' : 'Connect with verified lawyers for legal guidance'}
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="grid grid-cols-3 rounded-lg border border-[#e6d8c2] bg-white p-1">
+            {(['client', 'lawyer', 'admin'] as UserRole[]).map((accountRole) => (
+              <button key={accountRole} type="button" onClick={() => setRole(accountRole)} className={`rounded-md px-2 py-2 text-xs font-semibold ${role === accountRole ? 'bg-[#701f2f] text-white' : 'text-[#6f5a49]'}`}>
+                {accountRole === 'client' ? 'Client' : accountRole === 'lawyer' ? 'Lawyer' : 'Admin'}
+              </button>
+            ))}
+          </div>
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}

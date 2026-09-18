@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Clock, Send, ShieldCheck, X } from 'lucide-react';
 import { apiRequest, ApiError } from '../services/api';
 import { Consultation, ConsultationMessage } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
 interface ConsultationChatProps {
   consultation: Consultation;
@@ -12,6 +13,7 @@ const remainingTime = (endsAt: string) => Math.max(0, Math.ceil((new Date(endsAt
 const formatRemaining = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
 export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation, onClose }) => {
+  const role = useAuthStore((state) => state.user?.role);
   const [messages, setMessages] = useState<ConsultationMessage[]>([]);
   const [content, setContent] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(() => remainingTime(consultation.endsAt));
@@ -69,11 +71,12 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
         <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-800">Do not share passwords, OTPs, payment details, or unnecessary identity documents in chat.</div>
         <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#fffaf0]">
           <div className="mx-auto max-w-md rounded-lg bg-white border p-3 text-center text-xs text-gray-600">Your 10-minute consultation is about <strong>{consultation.topic}</strong>. Messages are stored with this booking.</div>
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${message.sender === 'user' ? 'bg-[#701f2f] text-white' : 'bg-white border text-gray-800'}`}><p>{message.content}</p><p className={`mt-1 text-[10px] ${message.sender === 'user' ? 'text-rose-200' : 'text-gray-400'}`}>{message.sender === 'lawyer' ? consultation.lawyer.name : message.sender} · {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
-            </div>
-          ))}
+          {messages.map((message) => {
+            const isOwn = message.sender === role;
+            return <div key={message.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-[#701f2f] text-white' : 'bg-white border text-gray-800'}`}><p>{message.content}</p><p className={`mt-1 text-[10px] ${isOwn ? 'text-rose-200' : 'text-gray-400'}`}>{message.sender === 'lawyer' ? consultation.lawyer.name : consultation.client?.name || 'Client'} · {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
+            </div>;
+          })}
           {!messages.length && <p className="text-center text-sm text-gray-400 pt-8">No messages yet. Send your first question when the lawyer joins.</p>}
         </main>
 

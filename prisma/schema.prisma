@@ -36,11 +36,26 @@ enum MessageSender {
   SYSTEM
 }
 
+enum UserRole {
+  CLIENT
+  LAWYER
+  ADMIN
+}
+
+enum LawyerApprovalStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id                 String           @id @default(cuid())
   email              String           @unique
   name               String
   passwordHash       String
+  role               UserRole         @default(CLIENT)
+  lawyerProfile      Lawyer?
   subscriptionPlan   SubscriptionPlan @default(TRIAL)
   subscriptionExpiry DateTime?
   documentCredits    Int              @default(0)
@@ -53,6 +68,8 @@ model User {
 
 model Lawyer {
   id                String         @id @default(cuid())
+  userId            String?        @unique
+  user              User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   slug              String         @unique
   name              String
   title             String
@@ -61,14 +78,16 @@ model Lawyer {
   languages         String[]
   experienceYears   Int
   barCouncil        String
-  enrollmentNumber  String
+  enrollmentNumber  String         @unique
   fee                Int
   rating             Float
   reviewCount        Int
-  isVerified         Boolean        @default(false)
+  isVerified         Boolean                 @default(false)
+  approvalStatus     LawyerApprovalStatus    @default(DRAFT)
+  rejectionReason    String?
   avatarUrl          String?
-  availability      Json
-  consultations     Consultation[]
+  availability       Json
+  consultations      Consultation[]
 }
 
 model ConsultationMessage {
