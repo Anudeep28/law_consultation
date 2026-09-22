@@ -167,6 +167,7 @@ const serializeLawyer = (lawyer) => ({
   barCouncil: lawyer.barCouncil,
   enrollmentNumber: lawyer.enrollmentNumber,
   fee: lawyer.fee,
+  documentFeePercent: lawyer.documentFeePercent,
   rating: lawyer.rating,
   reviewCount: lawyer.reviewCount,
   isVerified: lawyer.isVerified,
@@ -183,6 +184,7 @@ const serializeConsultation = (consultation) => ({
   topic: consultation.topic,
   notes: consultation.notes,
   mode: consultation.mode.toLowerCase(),
+  package: consultation.package.toLowerCase(),
   status: consultation.status.toLowerCase(),
   meetingUrl: consultation.meetingUrl,
   transcript: consultation.transcript || '',
@@ -243,6 +245,7 @@ app.put('/api/lawyer/profile', authenticate, requireRole('LAWYER'), async (req, 
   const barCouncil = String(req.body.barCouncil || '').trim();
   const enrollmentNumber = String(req.body.enrollmentNumber || '').trim();
   const fee = Number(req.body.fee);
+  const documentFeePercent = Number(req.body.documentFeePercent);
   const avatarUrl = String(req.body.avatarUrl || '').trim() || null;
   const availability = req.body.availability;
   const validAvailability = availability && Array.isArray(availability.days) && availability.days.length > 0
@@ -251,6 +254,7 @@ app.put('/api/lawyer/profile', authenticate, requireRole('LAWYER'), async (req, 
   if (!name || !title || bio.length < 40 || bio.length > 2000 || !practiceAreas.length || !languages.length
     || !Number.isInteger(experienceYears) || experienceYears < 0 || experienceYears > 80
     || !barCouncil || !enrollmentNumber || !Number.isInteger(fee) || fee < 100
+    || !Number.isInteger(documentFeePercent) || documentFeePercent < 0 || documentFeePercent > 500
     || (avatarUrl && !/^https:\/\//i.test(avatarUrl)) || !validAvailability) {
     return res.status(400).json({ error: 'Complete all professional profile fields with valid information' });
   }
@@ -263,7 +267,7 @@ app.put('/api/lawyer/profile', authenticate, requireRole('LAWYER'), async (req, 
       return transaction.lawyer.update({
         where: { userId: req.user.id },
         data: {
-          name, title, bio, practiceAreas, languages, experienceYears, barCouncil, enrollmentNumber, fee, avatarUrl,
+          name, title, bio, practiceAreas, languages, experienceYears, barCouncil, enrollmentNumber, fee, documentFeePercent, avatarUrl,
           availability: { days: [...new Set(availability.days)].sort(), start: availability.start, end: availability.end },
           approvalStatus: credentialsChanged || current.approvalStatus !== 'APPROVED' ? 'PENDING' : 'APPROVED',
           isVerified: credentialsChanged ? false : current.isVerified,
@@ -397,15 +401,19 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
   const topic = String(req.body.topic || '').trim();
   const notes = String(req.body.notes || '').trim();
   const mode = String(req.body.mode || 'chat').toUpperCase();
+  const packageInput = String(req.body.package || '').toUpperCase();
   const startsAt = new Date(req.body.startsAt);
-  if (!lawyerId || !['CHAT', 'CALL'].includes(mode) || !topic || topic.length > 100 || notes.length < 10 || notes.length > 1000 || Number.isNaN(startsAt.getTime())) {
-    return res.status(400).json({ error: 'Choose a slot and provide a topic and 10–1000 character summary' });
+  const consultationPackage = mode === 'CHAT' ? 'CALL_ONLY' : (['CALL_ONLY', 'CALL_WITH_DOCUMENT'].includes(packageInput) ? packageInput : null);
+  if (!lawyerId || !['CHAT', 'CALL'].includes(mode) || !consultationPackage || !topic || topic.length > 100 || notes.length < 10 || notes.length > 1000 || Number.isNaN(startsAt.getTime())) {
+    return res.status(400).json({ error: 'Choose a slot, consultation package, and provide a topic and 10–1000 character summary' });
   }
   if (startsAt.getTime() < Date.now() + 5 * 60 * 1000) return res.status(400).json({ error: 'This slot is no longer available' });
   const endsAt = new Date(startsAt.getTime() + 10 * 60 * 1000);
   try {
     const lawyer = await prisma.lawyer.findUnique({ where: { id: lawyerId } });
     if (!lawyer || !lawyer.isVerified) return res.status(404).json({ error: 'Lawyer not found' });
+    const documentFee = consultationPackage === 'CALL_WITH_DOCUMENT' ? Math.round(lawyer.fee * (lawyer.documentFeePercent / 100)) : 0;
+    const totalFee = lawyer.fee + documentFee;
     const schedule = lawyer.availability;
     const [startHour, startMinute] = schedule.start.split(':').map(Number);
     const [endHour, endMinute] = schedule.end.split(':').map(Number);
@@ -423,14 +431,14 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
     if (existing?.status === 'CANCELLED') {
       consultation = await prisma.consultation.update({
         where: { id: existing.id },
-        data: { userId: req.user.id, endsAt, topic, notes, mode, status: 'PENDING_PAYMENT', meetingUrl: null, messages: { deleteMany: {} } },
+        data: { userId: req.user.id, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT', meetingUrl: null, messages: { deleteMany: {} } },
         include: { lawyer: true },
       });
     } else if (existing) {
       return res.status(409).json({ error: 'This slot was just booked. Please choose another.' });
     } else {
       consultation = await prisma.consultation.create({
-        data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, status: 'PENDING_PAYMENT' },
+        data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT' },
         include: { lawyer: true },
       });
     }
@@ -438,7 +446,7 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
     const { keyId, keySecret } = razorpayCredentials();
     if (!keyId || !keySecret) return res.status(500).json({ error: 'Razorpay is not configured' });
     const order = await razorpayRequest('POST', '/v1/orders', {
-      amount: lawyer.fee,
+      amount: totalFee,
       currency: 'INR',
       receipt: `consultation_${consultation.id}`,
       notes: { consultationId: consultation.id, userId: req.user.id },
@@ -448,7 +456,7 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
         userId: req.user.id,
         razorpayOrderId: order.id,
         plan: 'CONSULTATION',
-        amount: lawyer.fee,
+        amount: totalFee,
         consultationId: consultation.id,
       },
     });

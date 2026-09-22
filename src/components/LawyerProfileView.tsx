@@ -15,6 +15,7 @@ export const LawyerProfileView: React.FC = () => {
     name: profile?.name || user?.name || '', title: profile?.title || 'Advocate', bio: profile?.bio === 'Lawyer profile pending verification.' ? '' : profile?.bio || '',
     practiceAreas: profile?.practiceAreas || [], languages: profile?.languages || [], experienceYears: profile?.experienceYears || 0,
     barCouncil: profile?.barCouncil || '', enrollmentNumber: profile?.enrollmentNumber || '', fee: profile?.fee || 0,
+    documentFeePercent: profile?.documentFeePercent ?? 50,
     avatarUrl: profile?.avatarUrl || '', availability: profile?.availability || { days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00' },
   });
   const [errors, setErrors] = useState<LawyerProfileErrors>({});
@@ -52,6 +53,7 @@ export const LawyerProfileView: React.FC = () => {
       <label className="text-sm font-medium">Languages (comma separated)<input className={inputClass} value={form.languages.join(', ')} onChange={(e) => setField('languages', splitList(e.target.value))} />{errors.languages && <small className="text-red-600">{errors.languages}</small>}</label>
       <label className="text-sm font-medium">Years of experience<input type="number" min="0" max="80" className={inputClass} value={form.experienceYears} onChange={(e) => setField('experienceYears', Number(e.target.value))} />{errors.experienceYears && <small className="text-red-600">{errors.experienceYears}</small>}</label>
       <label className="text-sm font-medium">10-minute consultation fee (₹)<input type="number" min="1" className={inputClass} value={form.fee / 100} onChange={(e) => setField('fee', Math.round(Number(e.target.value) * 100))} />{errors.fee && <small className="text-red-600">{errors.fee}</small>}</label>
+      <label className="text-sm font-medium">Document add-on percentage (%)<input type="number" min="0" max="500" className={inputClass} value={form.documentFeePercent} onChange={(e) => setField('documentFeePercent', Number(e.target.value))} />{errors.documentFeePercent && <small className="text-red-600">{errors.documentFeePercent}</small>}</label>
       <label className="text-sm font-medium">Bar Council<input className={inputClass} value={form.barCouncil} onChange={(e) => setField('barCouncil', e.target.value)} />{errors.barCouncil && <small className="text-red-600">{errors.barCouncil}</small>}</label>
       <label className="text-sm font-medium">Enrollment number<input className={inputClass} value={form.enrollmentNumber} onChange={(e) => setField('enrollmentNumber', e.target.value)} />{errors.enrollmentNumber && <small className="text-red-600">{errors.enrollmentNumber}</small>}</label>
       <label className="text-sm font-medium md:col-span-2">Profile photo URL<input type="url" placeholder="https://..." className={inputClass} value={form.avatarUrl} onChange={(e) => setField('avatarUrl', e.target.value)} />{errors.avatarUrl && <small className="text-red-600">{errors.avatarUrl}</small>}</label>

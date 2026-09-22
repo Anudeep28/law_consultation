@@ -26,6 +26,7 @@ export interface Lawyer {
   barCouncil: string;
   enrollmentNumber: string;
   fee: number;
+  documentFeePercent: number;
   rating: number;
   reviewCount: number;
   isVerified: boolean;
@@ -42,6 +43,7 @@ export interface Consultation {
   topic: string;
   notes: string;
   mode: 'chat' | 'call';
+  package: 'call_only' | 'call_with_document';
   status: 'pending_payment' | 'booked' | 'cancelled' | 'completed';
   meetingUrl?: string;
   transcript?: string;

@@ -32,6 +32,11 @@ enum ConsultationMode {
   CALL
 }
 
+enum ConsultationPackage {
+  CALL_ONLY
+  CALL_WITH_DOCUMENT
+}
+
 enum MessageSender {
   USER
   LAWYER
@@ -87,6 +92,7 @@ model Lawyer {
   barCouncil        String
   enrollmentNumber  String         @unique
   fee                Int
+  documentFeePercent Int            @default(50)
   rating             Float
   reviewCount        Int
   isVerified         Boolean                 @default(false)
@@ -117,6 +123,7 @@ model Consultation {
   topic       String
   notes       String
   mode        ConsultationMode   @default(CHAT)
+  package     ConsultationPackage @default(CALL_ONLY)
   status      ConsultationStatus @default(BOOKED)
   meetingUrl  String?
   transcript  String?

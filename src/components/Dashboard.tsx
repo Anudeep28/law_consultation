@@ -241,6 +241,11 @@ export const Dashboard: React.FC = () => {
           {activeView === 'profile' && <LawyerProfileView />}
           {activeView === 'admin' && <AdminLawyerReviewView />}
         </div>
+
+        <footer className="border-t border-[#eadbc1] bg-white px-6 py-3 text-xs text-[#8c6b54] flex justify-between items-center shrink-0">
+          <span>Built by Eneru 2026</span>
+          <span>Powered by ElevenLabs and DeepSeek</span>
+        </footer>
       </div>
 
       {/* New Document Modal */}

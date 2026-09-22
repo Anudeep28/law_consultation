@@ -8,6 +8,7 @@ export interface LawyerProfileInput {
   barCouncil: string;
   enrollmentNumber: string;
   fee: number;
+  documentFeePercent: number;
   avatarUrl: string;
   availability: { days: number[]; start: string; end: string };
 }
@@ -25,6 +26,7 @@ export const validateLawyerProfile = (profile: LawyerProfileInput): LawyerProfil
   if (!profile.barCouncil.trim()) errors.barCouncil = 'Enter your Bar Council';
   if (!profile.enrollmentNumber.trim()) errors.enrollmentNumber = 'Enter your enrollment number';
   if (!Number.isInteger(profile.fee) || profile.fee < 100) errors.fee = 'Consultation fee must be at least ₹1';
+  if (!Number.isInteger(profile.documentFeePercent) || profile.documentFeePercent < 0 || profile.documentFeePercent > 500) errors.documentFeePercent = 'Document fee percentage must be between 0 and 500';
   if (profile.avatarUrl && !/^https:\/\//i.test(profile.avatarUrl)) errors.avatarUrl = 'Use a secure https:// image URL';
   if (!profile.availability.days.length || !/^\d{2}:\d{2}$/.test(profile.availability.start) || !/^\d{2}:\d{2}$/.test(profile.availability.end) || profile.availability.start >= profile.availability.end) errors.availability = 'Choose working days and a valid start and end time';
   return errors;

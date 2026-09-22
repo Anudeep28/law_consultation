@@ -19,6 +19,7 @@ export const ConsultationsView: React.FC = () => {
   const [slots, setSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState('');
   const [mode, setMode] = useState<'chat' | 'call'>('chat');
+  const [packageSelection, setPackageSelection] = useState<'call_only' | 'call_with_document'>('call_only');
   const [activeChat, setActiveChat] = useState<Consultation | null>(null);
   const [topic, setTopic] = useState('');
   const [notes, setNotes] = useState('');
@@ -53,6 +54,7 @@ export const ConsultationsView: React.FC = () => {
   const openBooking = async (lawyer: Lawyer, consultationMode: 'chat' | 'call') => {
     setSelectedLawyer(lawyer);
     setMode(consultationMode);
+    setPackageSelection('call_only');
     setSelectedSlot('');
     setTopic('');
     setNotes('');
@@ -73,7 +75,7 @@ export const ConsultationsView: React.FC = () => {
     setError('');
     try {
       await consultationCheckout(
-        { lawyer: selectedLawyer, startsAt: selectedSlot, topic, notes, mode },
+        { lawyer: selectedLawyer, startsAt: selectedSlot, topic, notes, mode, package: mode === 'call' ? packageSelection : 'call_only' },
         user,
       );
       await loadConsultations();
@@ -167,7 +169,7 @@ export const ConsultationsView: React.FC = () => {
               const canOpenChat = consultation.mode === 'chat' && consultation.status === 'booked' && new Date(consultation.startsAt).getTime() - 10 * 60 * 1000 <= now && new Date(consultation.endsAt).getTime() > now;
               return <article key={consultation.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-[#f4c95d] text-[#3f1420] flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
-                <div className="flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold text-gray-900">{consultation.lawyer.name}</h3><span className={`text-xs px-2 py-0.5 rounded-full ${consultation.status === 'booked' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{consultation.status === 'pending_payment' ? 'awaiting payment' : consultation.status}</span><span className="text-xs capitalize text-gray-500 flex items-center gap-1">{consultation.mode === 'chat' ? <MessageCircle className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}{consultation.mode}</span></div><p className="text-sm text-gray-700 mt-1">{consultation.topic}</p><p className="flex items-center gap-1 text-sm text-gray-500 mt-2"><Clock className="w-4 h-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
+                <div className="flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold text-gray-900">{consultation.lawyer.name}</h3><span className={`text-xs px-2 py-0.5 rounded-full ${consultation.status === 'booked' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{consultation.status === 'pending_payment' ? 'awaiting payment' : consultation.status}</span><span className="text-xs capitalize text-gray-500 flex items-center gap-1">{consultation.mode === 'chat' ? <MessageCircle className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}{consultation.mode}</span>{consultation.mode === 'call' && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{consultation.package === 'call_with_document' ? 'Call + legal document' : 'Call only'}</span>}</div><p className="text-sm text-gray-700 mt-1">{consultation.topic}</p><p className="flex items-center gap-1 text-sm text-gray-500 mt-2"><Clock className="w-4 h-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
                 <div className="flex gap-2">{canOpenChat && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 px-3 py-2 bg-[#701f2f] text-white text-sm rounded-lg"><MessageCircle className="w-4 h-4" />Open chat</button>}{consultation.status === 'booked' && consultation.mode === 'call' && consultation.meetingUrl && new Date(consultation.endsAt).getTime() > now && <a href={consultation.meetingUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-[#701f2f] text-white text-sm rounded-lg"><Video className="w-4 h-4" />Join call</a>}{(upcoming || consultation.status === 'pending_payment') && <button onClick={() => cancelConsultation(consultation.id)} className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">Cancel</button>}</div>
                 <div className="w-full md:basis-full"><ConsultationDeliverables consultationId={consultation.id} role="client" /></div>
               </article>;
@@ -179,15 +181,32 @@ export const ConsultationsView: React.FC = () => {
       {selectedLawyer && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <form onSubmit={bookConsultation} className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b flex justify-between"><div><h2 className="font-bold text-lg text-gray-900">Book a {mode} with {selectedLawyer.name}</h2><p className="text-sm text-gray-500">{formatFee(selectedLawyer.fee / 10)}/min · 10 minutes · {formatFee(selectedLawyer.fee)} total</p></div><button type="button" onClick={() => setSelectedLawyer(null)}><X className="w-5 h-5 text-gray-500" /></button></div>
+            <div className="p-5 border-b flex justify-between"><div><h2 className="font-bold text-lg text-gray-900">Book a {mode} with {selectedLawyer.name}</h2><p className="text-sm text-gray-500">{formatFee(selectedLawyer.fee / 10)}/min · 10 minutes · {formatFee(mode === 'call' && packageSelection === 'call_with_document' ? selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)) : selectedLawyer.fee)} total</p></div><button type="button" onClick={() => setSelectedLawyer(null)}><X className="w-5 h-5 text-gray-500" /></button></div>
             <div className="p-5 space-y-5">
               <div><label className="block text-sm font-medium text-gray-700 mb-2">Select a time</label><div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto">{slots.map((slot) => <button key={slot} type="button" onClick={() => setSelectedSlot(slot)} className={`p-2 rounded-lg border text-xs ${selectedSlot === slot ? 'border-[#701f2f] bg-[#fff1f3] text-[#701f2f]' : 'border-[#eadbc1] hover:border-[#b8862d]'}`}>{formatDateTime(slot)}</button>)}</div>{!slots.length && <p className="text-sm text-gray-500">No slots available in the next 14 days.</p>}</div>
+              {mode === 'call' && selectedLawyer && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Choose package</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button type="button" onClick={() => setPackageSelection('call_only')} className={`rounded-xl border-2 p-3 text-left transition ${packageSelection === 'call_only' ? 'border-[#701f2f] bg-[#fff1f3]' : 'border-[#eadbc1] hover:border-[#b8862d]'}`}>
+                      <p className="text-sm font-semibold text-[#32151b]">Call only</p>
+                      <p className="text-xs text-gray-500 mt-1">10-minute call</p>
+                      <p className="text-sm font-bold text-[#701f2f] mt-2">{formatFee(selectedLawyer.fee)}</p>
+                    </button>
+                    <button type="button" onClick={() => setPackageSelection('call_with_document')} className={`rounded-xl border-2 p-3 text-left transition ${packageSelection === 'call_with_document' ? 'border-[#701f2f] bg-[#fff1f3]' : 'border-[#eadbc1] hover:border-[#b8862d]'}`}>
+                      <p className="text-sm font-semibold text-[#32151b]">Call + legal document</p>
+                      <p className="text-xs text-gray-500 mt-1">Call plus a drafted document</p>
+                      <p className="text-sm font-bold text-[#701f2f] mt-2">{formatFee(selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)))}</p>
+                    </button>
+                  </div>
+                </div>
+              )}
               <div><label className="block text-sm font-medium text-gray-700 mb-1">What do you need help with?</label><input required maxLength={100} value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="e.g. Review a rental dispute" className="w-full px-3 py-2 border rounded-lg" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Brief matter summary</label><textarea required minLength={10} maxLength={1000} rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Share the key facts and your questions. Avoid unnecessary sensitive information." className="w-full px-3 py-2 border rounded-lg" /><p className="text-xs text-gray-500 mt-1">Booking does not create a lawyer-client relationship. The lawyer may need to complete a conflict check.</p></div>
               <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-center text-xs text-gray-600"><span className="flex items-center justify-center gap-1"><ShieldCheck className="w-4 h-4 text-green-600" />Private</span><span className="flex items-center justify-center gap-1"><BadgeCheck className="w-4 h-4 text-blue-600" />Verified</span><span className="flex items-center justify-center gap-1"><Clock className="w-4 h-4 text-[#b8862d]" />10 minutes</span></div>
               {error && <p className="text-sm text-red-600">{error}</p>}
             </div>
-            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><button disabled={!selectedSlot || notes.length < 10 || isSubmitting} className="px-4 py-2 bg-[#701f2f] text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Processing...' : `Pay ${selectedLawyer ? formatFee(selectedLawyer.fee) : ''} & book`}</button></div>
+            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><button disabled={!selectedSlot || notes.length < 10 || isSubmitting} className="px-4 py-2 bg-[#701f2f] text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Processing...' : `Pay ${selectedLawyer ? formatFee(mode === 'call' && packageSelection === 'call_with_document' ? selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)) : selectedLawyer.fee) : ''} & book`}</button></div>
           </form>
         </div>
       )}

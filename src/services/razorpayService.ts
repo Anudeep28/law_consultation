@@ -81,6 +81,7 @@ export const consultationCheckout = async (booking: {
   topic: string;
   notes: string;
   mode: 'chat' | 'call';
+  package: 'call_only' | 'call_with_document';
 }, user: User): Promise<Consultation> => {
   await loadCheckout();
   const { consultation, order } = await apiRequest<ConsultationOrderResponse>('/api/consultations', {
@@ -91,6 +92,7 @@ export const consultationCheckout = async (booking: {
       topic: booking.topic,
       notes: booking.notes,
       mode: booking.mode,
+      package: booking.package,
     }),
   });
 

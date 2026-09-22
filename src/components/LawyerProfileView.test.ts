@@ -10,6 +10,7 @@ const validProfile = {
   barCouncil: 'Bar Council of Delhi',
   enrollmentNumber: 'D/1234/2018',
   fee: 150000,
+  documentFeePercent: 50,
   avatarUrl: 'https://example.com/profile.jpg',
   availability: { days: [1, 2, 3], start: '09:00', end: '17:00' },
 };
@@ -38,5 +39,14 @@ test('rejects invalid experience, fee, photo, and availability', () => {
     fee: expect.any(String),
     avatarUrl: expect.any(String),
     availability: expect.any(String),
+  });
+});
+
+test('rejects invalid document fee percentage', () => {
+  expect(validateLawyerProfile({ ...validProfile, documentFeePercent: -10 })).toMatchObject({
+    documentFeePercent: expect.any(String),
+  });
+  expect(validateLawyerProfile({ ...validProfile, documentFeePercent: 501 })).toMatchObject({
+    documentFeePercent: expect.any(String),
   });
 });
