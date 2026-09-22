@@ -122,6 +122,10 @@
     background: #fff !important;
   }
 
+  .print-area[data-language="mr"] {
+    font-family: 'Kruti Dev', 'Kruti Dev 010', 'Mangal', serif !important;
+  }
+
   .print-area h1 {
     font-size: 14pt;
     font-weight: bold;

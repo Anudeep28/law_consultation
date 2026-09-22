@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useDocumentStore } from '../stores/documentStore';
+import { supportedLanguages } from '../data/languages';
+import { getDocumentFontFamily } from '../utils/documentFonts';
 import { TemplateSelector } from './TemplateSelector';
 import { TemplateFillerModal } from './TemplateFillerModal';
 import { TranscriptionControls } from './TranscriptionControls';
@@ -22,6 +24,7 @@ export const DocumentEditor: React.FC = () => {
   const {
     currentDocument,
     updateDocument,
+    updateDocumentLanguage,
     renameDocument,
     createDocument,
     selectionStart,
@@ -124,6 +127,7 @@ export const DocumentEditor: React.FC = () => {
     const div = window.document.createElement('div');
     div.id = '__print_area__';
     div.className = 'print-area';
+    div.setAttribute('data-language', currentDocument?.language || 'en');
     // Convert markdown to basic HTML for printing
     const html = (currentDocument?.content || '')
       .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -257,6 +261,16 @@ export const DocumentEditor: React.FC = () => {
             {currentDocument.category}
           </span>
         )}
+        <select
+          value={currentDocument.language || 'en'}
+          onChange={(e) => updateDocumentLanguage(currentDocument.id, e.target.value)}
+          className="text-xs border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] px-2 py-1 focus:outline-none focus:border-[#b8862d]"
+          aria-label="Document language"
+        >
+          {supportedLanguages.map((lang) => (
+            <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
+          ))}
+        </select>
         <span className="text-xs text-[#8c6b54] whitespace-nowrap">
           {wordCount} word{wordCount !== 1 ? 's' : ''}
         </span>
@@ -355,7 +369,10 @@ export const DocumentEditor: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {isPreviewMode ? (
           <div className="flex-1 p-6 overflow-y-auto bg-[#fffcf6]">
-            <div className="max-w-4xl mx-auto prose prose-lg max-w-none legal-document">
+            <div
+              className="max-w-4xl mx-auto prose prose-lg max-w-none legal-document"
+              style={{ fontFamily: getDocumentFontFamily(currentDocument.language) }}
+            >
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {currentDocument.content}
               </ReactMarkdown>
@@ -371,7 +388,8 @@ export const DocumentEditor: React.FC = () => {
             onClick={handleSelectionChange}
             onFocus={handleSelectionChange}
             placeholder="Start typing your legal document here, or use voice transcription..."
-            className="flex-1 p-6 border-0 resize-none focus:outline-none font-mono text-sm bg-[#fffcf6] h-full overflow-y-auto"
+            className="flex-1 p-6 border-0 resize-none focus:outline-none text-sm bg-[#fffcf6] h-full overflow-y-auto"
+            style={{ fontFamily: getDocumentFontFamily(currentDocument.language) }}
           />
         )}
       </div>

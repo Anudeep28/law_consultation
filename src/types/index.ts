@@ -95,6 +95,7 @@ export interface Document {
   content: string;
   templateId?: string;
   category?: string;
+  language?: string;
   createdAt: Date;
   updatedAt: Date;
   userId: string;

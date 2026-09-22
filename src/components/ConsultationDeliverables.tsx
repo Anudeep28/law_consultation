@@ -78,6 +78,7 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
     id: deliverable.id,
     title: deliverable.title,
     content: deliverable.content,
+    language: deliverable.document?.language,
     createdAt: new Date(deliverable.createdAt),
     updatedAt: new Date(deliverable.deliveredAt || deliverable.createdAt),
     userId: '',

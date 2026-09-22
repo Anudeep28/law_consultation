@@ -3,6 +3,7 @@ import { Document } from '../types';
 import { saveAs } from 'file-saver';
 import { Document as DocxDocument, Packer, Paragraph, TextRun } from 'docx';
 import { jsPDF } from 'jspdf';
+import { getDocumentFontName } from '../utils/documentFonts';
 
 interface ExportOptionsProps {
   document: Document;
@@ -19,6 +20,8 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     saveAs(blob, `${filename}.md`);
   };
 
+  const documentFont = getDocumentFontName(document.language);
+
   const parseInlineRuns = (text: string): TextRun[] => {
     const runs: TextRun[] = [];
     const regex = /\*\*(.*?)\*\*|\*(.*?)\*/g;
@@ -26,17 +29,17 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     let match: RegExpExecArray | null;
     while ((match = regex.exec(text)) !== null) {
       if (match.index > last) {
-        runs.push(new TextRun({ text: text.substring(last, match.index) }));
+        runs.push(new TextRun({ text: text.substring(last, match.index), font: documentFont }));
       }
       if (match[1] !== undefined) {
-        runs.push(new TextRun({ text: match[1], bold: true }));
+        runs.push(new TextRun({ text: match[1], bold: true, font: documentFont }));
       } else if (match[2] !== undefined) {
-        runs.push(new TextRun({ text: match[2], italics: true }));
+        runs.push(new TextRun({ text: match[2], italics: true, font: documentFont }));
       }
       last = match.index + match[0].length;
     }
-    if (last < text.length) runs.push(new TextRun({ text: text.substring(last) }));
-    return runs.length ? runs : [new TextRun({ text })];
+    if (last < text.length) runs.push(new TextRun({ text: text.substring(last), font: documentFont }));
+    return runs.length ? runs : [new TextRun({ text, font: documentFont })];
   };
 
   const exportAsDocx = async () => {
@@ -45,17 +48,17 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
       const paragraphs = lines.map(line => {
         if (line.startsWith('# ')) {
           return new Paragraph({
-            children: [new TextRun({ text: line.substring(2), bold: true, size: 32 })],
+            children: [new TextRun({ text: line.substring(2), bold: true, size: 32, font: documentFont })],
             heading: 'Title',
           });
         } else if (line.startsWith('## ')) {
           return new Paragraph({
-            children: [new TextRun({ text: line.substring(3), bold: true, size: 28 })],
+            children: [new TextRun({ text: line.substring(3), bold: true, size: 28, font: documentFont })],
             heading: 'Heading1',
           });
         } else if (line.startsWith('### ')) {
           return new Paragraph({
-            children: [new TextRun({ text: line.substring(4), bold: true, size: 24 })],
+            children: [new TextRun({ text: line.substring(4), bold: true, size: 24, font: documentFont })],
             heading: 'Heading2',
           });
         } else if (line.startsWith('- ')) {
@@ -68,7 +71,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
             children: parseInlineRuns(line),
           });
         } else if (line.trim() === '') {
-          return new Paragraph({ text: '' });
+          return new Paragraph({ children: [new TextRun({ text: '', font: documentFont })] });
         } else {
           return new Paragraph({ children: parseInlineRuns(line) });
         }
@@ -107,7 +110,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
 
       const addWrappedText = (text: string, fontSize: number, style: string, extraSpacing = 0) => {
         pdf.setFontSize(fontSize);
-        pdf.setFont('helvetica', style);
+        pdf.setFont(document.language === 'mr' ? 'helvetica' : 'times', style);
         const wrapped = pdf.splitTextToSize(text, maxWidth);
         wrapped.forEach((wrappedLine: string) => {
           if (yPosition > pageHeight - bottomMargin) {

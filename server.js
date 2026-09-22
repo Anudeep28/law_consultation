@@ -647,6 +647,7 @@ app.post('/api/consultations/:id/draft', authenticate, requireRole('LAWYER'), as
           title: requestedTitle || `Draft – ${consultation.topic}`.slice(0, 120),
           content,
           category: 'consultation',
+          language: 'en',
         },
       });
       const deliverable = await tx.deliverable.create({
@@ -714,7 +715,7 @@ app.post('/api/consultations/:id/deliverables/:deliverableId/translate', authent
     const title = `${deliverable.title} – ${languageName}`.slice(0, 120);
     const result = await prisma.$transaction(async (tx) => {
       const document = await tx.document.create({
-        data: { userId: req.user.id, title, content, category: 'consultation' },
+        data: { userId: req.user.id, title, content, category: 'consultation', language: languageCode },
       });
       const translatedDeliverable = await tx.deliverable.create({
         data: { consultationId: consultation.id, documentId: document.id, title },
@@ -924,6 +925,7 @@ app.post('/api/documents', authenticate, requireRole('LAWYER'), async (req, res)
           content: String(req.body.content || ''),
           templateId: req.body.templateId || null,
           category: req.body.category || null,
+          language: req.body.language || 'en',
         },
       });
     });
@@ -941,6 +943,7 @@ app.patch('/api/documents/:id', authenticate, requireRole('LAWYER'), async (req,
   const data = {};
   if (typeof req.body.title === 'string' && req.body.title.trim()) data.title = req.body.title.trim();
   if (typeof req.body.content === 'string') data.content = req.body.content;
+  if (typeof req.body.language === 'string') data.language = req.body.language;
   try {
     const updated = await prisma.document.updateMany({
       where: { id: req.params.id, userId: req.user.id },
@@ -962,6 +965,7 @@ app.post('/api/documents/:id/duplicate', authenticate, requireRole('LAWYER'), as
     content: source.content,
     templateId: source.templateId,
     category: source.category,
+    language: source.language,
   };
   const expiry = req.user.subscriptionExpiry?.getTime() || 0;
   const timedAccess = (req.user.subscriptionPlan === 'TRIAL' || req.user.subscriptionPlan === 'MONTHLY')

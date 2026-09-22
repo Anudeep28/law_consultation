@@ -1,9 +1,17 @@
-class Document {}
+class Document {
+  constructor(props) {
+    this.sections = props?.sections || [];
+  }
+}
 class Paragraph {
-  constructor() {}
+  constructor(props) {
+    this.props = props;
+  }
 }
 class TextRun {
-  constructor() {}
+  constructor(props) {
+    this.props = props;
+  }
 }
 
 const Packer = {

@@ -20,8 +20,9 @@ interface DocumentState {
 
   // Document actions
   loadDocuments: () => Promise<void>;
-  createDocument: (title: string, templateId?: string, category?: string) => Promise<Document | null>;
+  createDocument: (title: string, templateId?: string, category?: string, language?: string) => Promise<Document | null>;
   updateDocument: (id: string, content: string) => void;
+  updateDocumentLanguage: (id: string, language: string) => void;
   renameDocument: (id: string, title: string) => void;
   duplicateDocument: (id: string) => Promise<Document | null>;
   deleteDocument: (id: string) => Promise<void>;
@@ -55,11 +56,11 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         }
       },
 
-      createDocument: async (title: string, templateId?: string, category?: string) => {
+      createDocument: async (title: string, templateId?: string, category?: string, language?: string) => {
         try {
           const result = await apiRequest<{ document: Document; user: User }>('/api/documents', {
             method: 'POST',
-            body: JSON.stringify({ title, templateId, category }),
+            body: JSON.stringify({ title, templateId, category, language: language || 'en' }),
           });
           useAuthStore.getState().setUser(result.user);
           const document = normalizeDocument(result.document);
@@ -86,6 +87,22 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         void apiRequest(`/api/documents/${id}`, {
           method: 'PATCH',
           body: JSON.stringify({ title }),
+        });
+      },
+
+      updateDocumentLanguage: (id: string, language: string) => {
+        set((state) => ({
+          documents: state.documents.map((doc) =>
+            doc.id === id ? { ...doc, language, updatedAt: new Date() } : doc
+          ),
+          currentDocument:
+            state.currentDocument?.id === id
+              ? { ...state.currentDocument, language, updatedAt: new Date() }
+              : state.currentDocument,
+        }));
+        void apiRequest(`/api/documents/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ language }),
         });
       },
 
