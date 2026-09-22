@@ -5,8 +5,6 @@ import { translateText } from '../services/deepseekService';
 import { supportedLanguages } from '../data/languages';
 import { Mic, Pause, Play, Square, Undo2 } from 'lucide-react';
 
-const ELEVENLABS_API_KEY = process.env.REACT_APP_ELEVENLABS_API_KEY || '';
-
 export const TranscriptionControls: React.FC = () => {
   const [inputLanguage, setInputLanguage] = useState('en');
   const [outputLanguage, setOutputLanguage] = useState('en');
@@ -87,12 +85,12 @@ export const TranscriptionControls: React.FC = () => {
     }
 
     try {
-      const connected = await elevenLabsService.connect(ELEVENLABS_API_KEY, inputLanguage);
+      const connected = await elevenLabsService.connect('', inputLanguage);
       if (connected) {
         const recording = await elevenLabsService.startRecording();
         if (recording) {
           setIsConnected(true);
-          startTranscription(currentDocument.id, ELEVENLABS_API_KEY, inputLanguage, outputLanguage);
+          startTranscription(currentDocument.id, '', inputLanguage, outputLanguage);
         }
       }
     } catch (error) {

@@ -1,13 +1,24 @@
 require('dotenv').config();
 const crypto = require('crypto');
+const http = require('http');
 const https = require('https');
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { Server: SocketServer } = require('socket.io');
 const prisma = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const PENDING_PAYMENT_TTL_MS = 15 * 60 * 1000;
+
+const razorpayCredentials = () => {
+  const live = process.env.RAZORPAY_ENV === 'live';
+  return {
+    keyId: live ? process.env.RAZORPAY_KEY_ID_LIVE : process.env.RAZORPAY_KEY_ID,
+    keySecret: live ? process.env.RAZORPAY_KEY_SECRET_LIVE : process.env.RAZORPAY_KEY_SECRET,
+  };
+};
 const PLANS = {
   single: { amount: 1000, name: 'Single document' },
   monthly: { amount: 49900, name: 'Monthly subscription' },
@@ -174,9 +185,53 @@ const serializeConsultation = (consultation) => ({
   mode: consultation.mode.toLowerCase(),
   status: consultation.status.toLowerCase(),
   meetingUrl: consultation.meetingUrl,
+  transcript: consultation.transcript || '',
   lawyer: serializeLawyer(consultation.lawyer),
   client: consultation.user ? { id: consultation.user.id, name: consultation.user.name, email: consultation.user.email } : undefined,
 });
+
+const serializeDeliverable = (deliverable, { includeDocument = false } = {}) => ({
+  id: deliverable.id,
+  consultationId: deliverable.consultationId,
+  documentId: deliverable.documentId,
+  title: deliverable.title,
+  content: deliverable.content,
+  status: deliverable.status.toLowerCase(),
+  deliveredAt: deliverable.deliveredAt,
+  createdAt: deliverable.createdAt,
+  ...(includeDocument && deliverable.document ? { document: deliverable.document } : {}),
+});
+
+const translationLanguages = new Map([
+  ['en', 'English'], ['hi', 'Hindi'], ['bn', 'Bengali'], ['te', 'Telugu'], ['mr', 'Marathi'],
+  ['ta', 'Tamil'], ['ur', 'Urdu'], ['gu', 'Gujarati'], ['kn', 'Kannada'], ['ml', 'Malayalam'],
+  ['pa', 'Punjabi'], ['or', 'Odia'], ['as', 'Assamese'], ['ne', 'Nepali'], ['sd', 'Sindhi'],
+  ['kok', 'Konkani'], ['ks', 'Kashmiri'], ['doi', 'Dogri'], ['mni', 'Manipuri'], ['sa', 'Sanskrit'],
+  ['bho', 'Bhojpuri'], ['raj', 'Rajasthani'],
+]);
+
+const deepseekChat = async (systemPrompt, userPrompt) => {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) throw new Error('DEEPSEEK_API_KEY is not configured');
+  const response = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.3,
+    }),
+  });
+  if (!response.ok) throw new Error(`DeepSeek API error: ${response.status}`);
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content?.trim() || '';
+};
 
 app.put('/api/lawyer/profile', authenticate, requireRole('LAWYER'), async (req, res) => {
   const name = String(req.body.name || '').trim();
@@ -267,15 +322,21 @@ app.get('/api/lawyers', authenticate, requireRole('CLIENT'), async (req, res) =>
   }
 });
 
+const expireStalePendingConsultations = () => prisma.consultation.updateMany({
+  where: { status: 'PENDING_PAYMENT', createdAt: { lt: new Date(Date.now() - PENDING_PAYMENT_TTL_MS) } },
+  data: { status: 'CANCELLED' },
+});
+
 app.get('/api/lawyers/:id/slots', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
+    await expireStalePendingConsultations();
     const lawyer = await prisma.lawyer.findUnique({ where: { id: req.params.id } });
     if (!lawyer || !lawyer.isVerified) return res.status(404).json({ error: 'Lawyer not found' });
     const from = new Date();
     from.setUTCMinutes(Math.ceil(from.getUTCMinutes() / 10) * 10, 0, 0);
     const until = new Date(from.getTime() + 14 * 24 * 60 * 60 * 1000);
     const bookings = await prisma.consultation.findMany({
-      where: { lawyerId: lawyer.id, status: 'BOOKED', startsAt: { gte: from, lt: until } },
+      where: { lawyerId: lawyer.id, status: { in: ['BOOKED', 'PENDING_PAYMENT'] }, startsAt: { gte: from, lt: until } },
       select: { startsAt: true },
     });
     const booked = new Set(bookings.map((booking) => booking.startsAt.toISOString()));
@@ -319,6 +380,7 @@ app.get('/api/lawyer/consultations', authenticate, requireRole('LAWYER'), async 
 
 app.get('/api/consultations', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
+    await expireStalePendingConsultations();
     const consultations = await prisma.consultation.findMany({
       where: { userId: req.user.id },
       include: { lawyer: true },
@@ -352,29 +414,98 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
       return res.status(400).json({ error: 'Invalid consultation slot' });
     }
     const overlapping = await prisma.consultation.findFirst({
-      where: { userId: req.user.id, status: 'BOOKED', startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
+      where: { userId: req.user.id, status: { in: ['BOOKED', 'PENDING_PAYMENT'] }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
     });
     if (overlapping) return res.status(409).json({ error: 'You already have a consultation at this time' });
+    await expireStalePendingConsultations();
     const existing = await prisma.consultation.findUnique({ where: { lawyerId_startsAt: { lawyerId, startsAt } } });
     let consultation;
     if (existing?.status === 'CANCELLED') {
       consultation = await prisma.consultation.update({
         where: { id: existing.id },
-        data: { userId: req.user.id, endsAt, topic, notes, mode, status: 'BOOKED', meetingUrl: null, messages: { deleteMany: {} } },
+        data: { userId: req.user.id, endsAt, topic, notes, mode, status: 'PENDING_PAYMENT', meetingUrl: null, messages: { deleteMany: {} } },
         include: { lawyer: true },
       });
     } else if (existing) {
       return res.status(409).json({ error: 'This slot was just booked. Please choose another.' });
     } else {
       consultation = await prisma.consultation.create({
-        data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode },
+        data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, status: 'PENDING_PAYMENT' },
         include: { lawyer: true },
       });
     }
-    res.status(201).json({ consultation: serializeConsultation(consultation) });
+
+    const { keyId, keySecret } = razorpayCredentials();
+    if (!keyId || !keySecret) return res.status(500).json({ error: 'Razorpay is not configured' });
+    const order = await razorpayRequest('POST', '/v1/orders', {
+      amount: lawyer.fee,
+      currency: 'INR',
+      receipt: `consultation_${consultation.id}`,
+      notes: { consultationId: consultation.id, userId: req.user.id },
+    });
+    await prisma.payment.create({
+      data: {
+        userId: req.user.id,
+        razorpayOrderId: order.id,
+        plan: 'CONSULTATION',
+        amount: lawyer.fee,
+        consultationId: consultation.id,
+      },
+    });
+    res.status(201).json({
+      consultation: serializeConsultation(consultation),
+      order: { orderId: order.id, amount: order.amount, currency: order.currency, keyId },
+    });
   } catch (error) {
     if (error.code === 'P2002') return res.status(409).json({ error: 'This slot was just booked. Please choose another.' });
     res.status(500).json({ error: 'Unable to book consultation' });
+  }
+});
+
+app.post('/api/consultations/:id/verify-payment', authenticate, requireRole('CLIENT'), async (req, res) => {
+  const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = req.body;
+  try {
+    const payment = await prisma.payment.findFirst({
+      where: { razorpayOrderId: orderId, userId: req.user.id, consultationId: req.params.id },
+      include: { consultation: { include: { lawyer: true } } },
+    });
+    if (!payment || !payment.consultation) return res.status(400).json({ error: 'Unknown payment order' });
+    if (payment.consultation.status === 'BOOKED') {
+      return res.json({ verified: true, consultation: serializeConsultation(payment.consultation) });
+    }
+
+    const { keySecret } = razorpayCredentials();
+    const expectedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(`${orderId}|${paymentId}`)
+      .digest('hex');
+    const expectedBuffer = Buffer.from(expectedSignature);
+    const signatureBuffer = Buffer.from(String(signature || ''));
+    if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
+      return res.status(400).json({ error: 'Invalid payment signature' });
+    }
+
+    const meetingUrl = payment.consultation.mode === 'CALL'
+      ? `https://meet.jit.si/law-writer-${crypto.randomBytes(12).toString('hex')}`
+      : null;
+    const consultation = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.payment.updateMany({
+        where: { id: payment.id, status: 'CREATED' },
+        data: { status: 'PAID', razorpayPaymentId: paymentId },
+      });
+      if (claimed.count !== 1) throw new Error('Payment has already been applied');
+      return tx.consultation.update({
+        where: { id: payment.consultation.id, status: 'PENDING_PAYMENT' },
+        data: { status: 'BOOKED', meetingUrl },
+        include: { lawyer: true },
+      });
+    });
+    res.json({ verified: true, consultation: serializeConsultation(consultation) });
+  } catch (error) {
+    if (error.code === 'P2002' || error.code === 'P2025' || error.message === 'Payment has already been applied') {
+      return res.status(409).json({ error: 'Payment has already been applied' });
+    }
+    res.status(500).json({ error: 'Unable to verify payment' });
   }
 });
 
@@ -419,16 +550,211 @@ app.post('/api/consultations/:id/messages', authenticate, async (req, res) => {
     const message = await prisma.consultationMessage.create({
       data: { consultationId: consultation.id, sender: req.user.role === 'LAWYER' ? 'LAWYER' : 'USER', content },
     });
-    res.status(201).json({ message: { ...message, sender: message.sender.toLowerCase() } });
+    const serialized = { ...message, sender: message.sender.toLowerCase() };
+    io.to(`consultation:${consultation.id}`).emit('chat:message', serialized);
+    res.status(201).json({ message: serialized });
   } catch {
     res.status(500).json({ error: 'Unable to send message' });
+  }
+});
+
+const findParticipantConsultation = (consultationId, user) => prisma.consultation.findFirst({
+  where: {
+    id: consultationId,
+    status: { in: ['BOOKED', 'COMPLETED'] },
+    ...(user.role === 'LAWYER' ? { lawyer: { userId: user.id } } : { userId: user.id }),
+  },
+});
+
+app.post('/api/consultations/:id/transcript', authenticate, async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  if (!text || text.length > 20000) return res.status(400).json({ error: 'Transcript text must be between 1 and 20000 characters' });
+  try {
+    const consultation = await findParticipantConsultation(req.params.id, req.user);
+    if (!consultation) return res.status(404).json({ error: 'Consultation not found' });
+    const speaker = req.user.role === 'LAWYER' ? 'Lawyer' : 'Client';
+    const updated = await prisma.consultation.update({
+      where: { id: consultation.id },
+      data: { transcript: (consultation.transcript ? `${consultation.transcript}\n` : '') + `${speaker}: ${text}` },
+    });
+    res.json({ transcript: updated.transcript });
+  } catch {
+    res.status(500).json({ error: 'Unable to save transcript' });
+  }
+});
+
+app.put('/api/consultations/:id/transcript', authenticate, requireRole('LAWYER'), async (req, res) => {
+  const transcript = String(req.body.transcript || '');
+  if (transcript.length > 100000) return res.status(400).json({ error: 'Transcript is too long' });
+  try {
+    const consultation = await findParticipantConsultation(req.params.id, req.user);
+    if (!consultation) return res.status(404).json({ error: 'Consultation not found' });
+    const updated = await prisma.consultation.update({
+      where: { id: consultation.id },
+      data: { transcript },
+    });
+    res.json({ transcript: updated.transcript });
+  } catch {
+    res.status(500).json({ error: 'Unable to update transcript' });
+  }
+});
+
+app.post('/api/consultations/:id/draft', authenticate, requireRole('LAWYER'), async (req, res) => {
+  try {
+    const consultation = await prisma.consultation.findFirst({
+      where: {
+        id: req.params.id,
+        lawyer: { userId: req.user.id },
+        status: { in: ['BOOKED', 'COMPLETED'] },
+      },
+      include: {
+        messages: { orderBy: { createdAt: 'asc' } },
+        user: { select: { name: true } },
+      },
+    });
+    if (!consultation) return res.status(404).json({ error: 'Consultation not found' });
+
+    const sections = [
+      consultation.notes ? `Client's booking notes:\n${consultation.notes}` : '',
+      consultation.messages.length
+        ? `Chat transcript:\n${consultation.messages.map((message) => `${message.sender === 'LAWYER' ? 'Lawyer' : 'Client'}: ${message.content}`).join('\n')}`
+        : '',
+      consultation.transcript ? `Voice transcript:\n${consultation.transcript}` : '',
+    ].filter(Boolean);
+    if (!sections.length) return res.status(400).json({ error: 'There is no consultation content to draft from yet' });
+
+    const requestedTitle = String(req.body.title || '').trim();
+    const content = await deepseekChat(
+      'You are a drafting assistant for an Indian advocate. Draft a professional legal document in GitHub-flavored markdown based on the consultation material provided. ' +
+      'Use only the facts present in the material; where information a court would expect is missing, insert a clearly marked placeholder like [TODO: client\'s full address]. ' +
+      'Do not invent names, dates, case numbers, or citations. Do not include explanations or commentary outside the document itself.',
+      `Consultation topic: ${consultation.topic}\nClient name: ${consultation.user?.name || 'Client'}\n\n${sections.join('\n\n')}`
+    );
+    if (!content) return res.status(502).json({ error: 'The drafting service returned an empty document' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const document = await tx.document.create({
+        data: {
+          userId: req.user.id,
+          title: requestedTitle || `Draft – ${consultation.topic}`.slice(0, 120),
+          content,
+          category: 'consultation',
+        },
+      });
+      const deliverable = await tx.deliverable.create({
+        data: { consultationId: consultation.id, documentId: document.id, title: document.title },
+        include: { document: true },
+      });
+      return { document, deliverable };
+    });
+    res.status(201).json({
+      document: result.document,
+      deliverable: serializeDeliverable(result.deliverable, { includeDocument: true }),
+    });
+  } catch (error) {
+    if (error.message?.startsWith('DeepSeek')) return res.status(502).json({ error: error.message });
+    res.status(500).json({ error: 'Unable to generate draft' });
+  }
+});
+
+app.get('/api/consultations/:id/deliverables', authenticate, async (req, res) => {
+  try {
+    const consultation = await findParticipantConsultation(req.params.id, req.user)
+      || await prisma.consultation.findFirst({
+        where: {
+          id: req.params.id,
+          ...(req.user.role === 'LAWYER' ? { lawyer: { userId: req.user.id } } : { userId: req.user.id }),
+        },
+      });
+    if (!consultation) return res.status(404).json({ error: 'Consultation not found' });
+    const isLawyer = req.user.role === 'LAWYER';
+    const deliverables = await prisma.deliverable.findMany({
+      where: { consultationId: consultation.id, ...(isLawyer ? {} : { status: 'DELIVERED' }) },
+      include: { document: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ deliverables: deliverables.map((deliverable) => serializeDeliverable(deliverable, { includeDocument: isLawyer })) });
+  } catch {
+    res.status(500).json({ error: 'Unable to load deliverables' });
+  }
+});
+
+app.post('/api/consultations/:id/deliverables/:deliverableId/translate', authenticate, requireRole('LAWYER'), async (req, res) => {
+  const languageCode = String(req.body.language || '').trim();
+  const languageName = translationLanguages.get(languageCode);
+  if (!languageName) return res.status(400).json({ error: 'Select a supported translation language' });
+
+  try {
+    const consultation = await prisma.consultation.findFirst({
+      where: { id: req.params.id, lawyer: { userId: req.user.id } },
+    });
+    if (!consultation) return res.status(404).json({ error: 'Consultation not found' });
+    const deliverable = await prisma.deliverable.findFirst({
+      where: { id: req.params.deliverableId, consultationId: consultation.id },
+      include: { document: true },
+    });
+    if (!deliverable) return res.status(404).json({ error: 'Deliverable not found' });
+
+    const sourceContent = deliverable.document?.content || deliverable.content;
+    if (!sourceContent.trim()) return res.status(400).json({ error: 'The draft has no content to translate' });
+    const content = await deepseekChat(
+      `You are a precise legal translator. Translate the legal document into ${languageName}. Preserve its meaning, names, dates, citations, placeholders, headings, lists, and GitHub-flavored markdown structure. Do not add, remove, summarize, explain, or provide commentary. Output only the translated document.`,
+      sourceContent
+    );
+    if (!content) return res.status(502).json({ error: 'The translation service returned an empty document' });
+
+    const title = `${deliverable.title} – ${languageName}`.slice(0, 120);
+    const result = await prisma.$transaction(async (tx) => {
+      const document = await tx.document.create({
+        data: { userId: req.user.id, title, content, category: 'consultation' },
+      });
+      const translatedDeliverable = await tx.deliverable.create({
+        data: { consultationId: consultation.id, documentId: document.id, title },
+        include: { document: true },
+      });
+      return { document, deliverable: translatedDeliverable };
+    });
+    res.status(201).json({
+      document: result.document,
+      deliverable: serializeDeliverable(result.deliverable, { includeDocument: true }),
+    });
+  } catch (error) {
+    if (error.message?.startsWith('DeepSeek')) return res.status(502).json({ error: error.message });
+    res.status(500).json({ error: 'Unable to translate document' });
+  }
+});
+
+app.post('/api/consultations/:id/deliverables/:deliverableId/deliver', authenticate, requireRole('LAWYER'), async (req, res) => {
+  try {
+    const consultation = await prisma.consultation.findFirst({
+      where: { id: req.params.id, lawyer: { userId: req.user.id } },
+    });
+    if (!consultation) return res.status(404).json({ error: 'Consultation not found' });
+    const deliverable = await prisma.deliverable.findFirst({
+      where: { id: req.params.deliverableId, consultationId: consultation.id },
+      include: { document: true },
+    });
+    if (!deliverable) return res.status(404).json({ error: 'Deliverable not found' });
+    if (deliverable.status === 'DELIVERED') return res.status(409).json({ error: 'This document has already been delivered' });
+    const updated = await prisma.deliverable.update({
+      where: { id: deliverable.id },
+      data: {
+        status: 'DELIVERED',
+        deliveredAt: new Date(),
+        content: deliverable.document?.content || deliverable.content,
+      },
+      include: { document: true },
+    });
+    res.json({ deliverable: serializeDeliverable(updated, { includeDocument: true }) });
+  } catch {
+    res.status(500).json({ error: 'Unable to deliver document' });
   }
 });
 
 app.patch('/api/consultations/:id/cancel', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
     const cancelled = await prisma.consultation.updateMany({
-      where: { id: req.params.id, userId: req.user.id, status: 'BOOKED', startsAt: { gt: new Date() } },
+      where: { id: req.params.id, userId: req.user.id, status: { in: ['BOOKED', 'PENDING_PAYMENT'] }, startsAt: { gt: new Date() } },
       data: { status: 'CANCELLED' },
     });
     if (!cancelled.count) return res.status(400).json({ error: 'Only upcoming booked consultations can be cancelled' });
@@ -439,7 +765,8 @@ app.patch('/api/consultations/:id/cancel', authenticate, requireRole('CLIENT'), 
 });
 
 const razorpayRequest = (method, path, body) => new Promise((resolve, reject) => {
-  const credentials = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+  const { keyId, keySecret } = razorpayCredentials();
+  const credentials = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
   const request = https.request({
     hostname: 'api.razorpay.com',
     path,
@@ -473,7 +800,8 @@ app.post('/api/payments/order', authenticate, requireRole('LAWYER'), async (req,
   const planKey = String(req.body.plan || '');
   const plan = PLANS[planKey];
   if (!plan) return res.status(400).json({ error: 'Invalid plan' });
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+  const { keyId, keySecret } = razorpayCredentials();
+  if (!keyId || !keySecret) {
     return res.status(500).json({ error: 'Razorpay is not configured' });
   }
 
@@ -492,7 +820,7 @@ app.post('/api/payments/order', authenticate, requireRole('LAWYER'), async (req,
         amount: plan.amount,
       },
     });
-    res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID });
+    res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId });
   } catch (error) {
     res.status(502).json({ error: error.message || 'Unable to create payment order' });
   }
@@ -508,8 +836,9 @@ app.post('/api/payments/verify', authenticate, requireRole('LAWYER'), async (req
     if (!payment) return res.status(400).json({ error: 'Unknown payment order' });
     if (payment.status === 'PAID') return res.status(409).json({ error: 'Payment has already been applied' });
 
+    const { keySecret } = razorpayCredentials();
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .createHmac('sha256', keySecret)
       .update(`${orderId}|${paymentId}`)
       .digest('hex');
     const expectedBuffer = Buffer.from(expectedSignature);
@@ -656,7 +985,7 @@ app.delete('/api/documents/:id', authenticate, requireRole('LAWYER'), async (req
 
 app.get('/api/scribe-token', async (req, res) => {
   try {
-    const apiKey = process.env.REACT_APP_ELEVENLABS_API_KEY;
+    const apiKey = process.env.ELEVENLABS_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ error: 'API key not configured' });
     }
@@ -680,6 +1009,60 @@ app.get('/api/scribe-token', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Proxy server running on http://localhost:${PORT}`);
+const findChatConsultation = (consultationId, user, { withinWindow = false } = {}) => {
+  const now = new Date();
+  return prisma.consultation.findFirst({
+    where: {
+      id: consultationId,
+      mode: 'CHAT',
+      status: 'BOOKED',
+      ...(user.role === 'LAWYER' ? { lawyer: { userId: user.id } } : { userId: user.id }),
+      ...(withinWindow ? { startsAt: { lte: new Date(now.getTime() + 10 * 60 * 1000) }, endsAt: { gt: now } } : {}),
+    },
+    select: { id: true },
+  });
+};
+
+const server = http.createServer(app);
+const io = new SocketServer(server, { cors: { origin: true, credentials: true } });
+
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token || !process.env.JWT_SECRET) return next(new Error('Authentication required'));
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user) return next(new Error('Invalid authentication token'));
+    socket.user = user;
+    next();
+  } catch {
+    next(new Error('Invalid or expired authentication token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  socket.on('chat:join', async (payload, callback) => {
+    const consultationId = String(payload?.consultationId || '');
+    const consultation = await findChatConsultation(consultationId, socket.user);
+    if (!consultation) return callback?.({ error: 'Chat consultation not found' });
+    socket.join(`consultation:${consultation.id}`);
+    callback?.({ ok: true });
+  });
+
+  socket.on('chat:message', async (payload, callback) => {
+    const consultationId = String(payload?.consultationId || '');
+    const content = String(payload?.content || '').trim();
+    if (!content || content.length > 2000) return callback?.({ error: 'Message must be between 1 and 2000 characters' });
+    const consultation = await findChatConsultation(consultationId, socket.user, { withinWindow: true });
+    if (!consultation) return callback?.({ error: 'Chat opens 10 minutes before the booked session and closes when it ends' });
+    const message = await prisma.consultationMessage.create({
+      data: { consultationId: consultation.id, sender: socket.user.role === 'LAWYER' ? 'LAWYER' : 'USER', content },
+    });
+    io.to(`consultation:${consultation.id}`).emit('chat:message', { ...message, sender: message.sender.toLowerCase() });
+    callback?.({ ok: true });
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`API + realtime server running on http://localhost:${PORT}`);
 });

@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BadgeCheck, Calendar, Clock, Languages, MessageCircle, Phone, Search, ShieldCheck, Star, Video, X } from 'lucide-react';
 import { apiRequest, ApiError } from '../services/api';
+import { consultationCheckout } from '../services/razorpayService';
+import { useAuthStore } from '../stores/authStore';
 import { Consultation, Lawyer } from '../types';
 import { ConsultationChat } from './ConsultationChat';
+import { ConsultationDeliverables } from './ConsultationDeliverables';
 
 const formatFee = (fee: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(fee / 100);
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
 export const ConsultationsView: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
   const [tab, setTab] = useState<'lawyers' | 'bookings'>('lawyers');
   const [lawyers, setLawyers] = useState<Lawyer[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -64,14 +68,14 @@ export const ConsultationsView: React.FC = () => {
 
   const bookConsultation = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selectedLawyer || !selectedSlot) return;
+    if (!selectedLawyer || !selectedSlot || !user) return;
     setIsSubmitting(true);
     setError('');
     try {
-      await apiRequest('/api/consultations', {
-        method: 'POST',
-        body: JSON.stringify({ lawyerId: selectedLawyer.id, startsAt: selectedSlot, topic, notes, mode }),
-      });
+      await consultationCheckout(
+        { lawyer: selectedLawyer, startsAt: selectedSlot, topic, notes, mode },
+        user,
+      );
       await loadConsultations();
       setSelectedLawyer(null);
       setTab('bookings');
@@ -163,8 +167,9 @@ export const ConsultationsView: React.FC = () => {
               const canOpenChat = consultation.mode === 'chat' && consultation.status === 'booked' && new Date(consultation.startsAt).getTime() - 10 * 60 * 1000 <= now && new Date(consultation.endsAt).getTime() > now;
               return <article key={consultation.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-[#f4c95d] text-[#3f1420] flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
-                <div className="flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold text-gray-900">{consultation.lawyer.name}</h3><span className={`text-xs px-2 py-0.5 rounded-full ${consultation.status === 'booked' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{consultation.status}</span><span className="text-xs capitalize text-gray-500 flex items-center gap-1">{consultation.mode === 'chat' ? <MessageCircle className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}{consultation.mode}</span></div><p className="text-sm text-gray-700 mt-1">{consultation.topic}</p><p className="flex items-center gap-1 text-sm text-gray-500 mt-2"><Clock className="w-4 h-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
-                <div className="flex gap-2">{canOpenChat && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 px-3 py-2 bg-[#701f2f] text-white text-sm rounded-lg"><MessageCircle className="w-4 h-4" />Open chat</button>}{upcoming && consultation.mode === 'call' && consultation.meetingUrl && <a href={consultation.meetingUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-[#701f2f] text-white text-sm rounded-lg"><Video className="w-4 h-4" />Join call</a>}{upcoming && <button onClick={() => cancelConsultation(consultation.id)} className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">Cancel</button>}</div>
+                <div className="flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold text-gray-900">{consultation.lawyer.name}</h3><span className={`text-xs px-2 py-0.5 rounded-full ${consultation.status === 'booked' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{consultation.status === 'pending_payment' ? 'awaiting payment' : consultation.status}</span><span className="text-xs capitalize text-gray-500 flex items-center gap-1">{consultation.mode === 'chat' ? <MessageCircle className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}{consultation.mode}</span></div><p className="text-sm text-gray-700 mt-1">{consultation.topic}</p><p className="flex items-center gap-1 text-sm text-gray-500 mt-2"><Clock className="w-4 h-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
+                <div className="flex gap-2">{canOpenChat && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 px-3 py-2 bg-[#701f2f] text-white text-sm rounded-lg"><MessageCircle className="w-4 h-4" />Open chat</button>}{consultation.status === 'booked' && consultation.mode === 'call' && consultation.meetingUrl && new Date(consultation.endsAt).getTime() > now && <a href={consultation.meetingUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-[#701f2f] text-white text-sm rounded-lg"><Video className="w-4 h-4" />Join call</a>}{(upcoming || consultation.status === 'pending_payment') && <button onClick={() => cancelConsultation(consultation.id)} className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">Cancel</button>}</div>
+                <div className="w-full md:basis-full"><ConsultationDeliverables consultationId={consultation.id} role="client" /></div>
               </article>;
             })}
           </div>
@@ -182,7 +187,7 @@ export const ConsultationsView: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-center text-xs text-gray-600"><span className="flex items-center justify-center gap-1"><ShieldCheck className="w-4 h-4 text-green-600" />Private</span><span className="flex items-center justify-center gap-1"><BadgeCheck className="w-4 h-4 text-blue-600" />Verified</span><span className="flex items-center justify-center gap-1"><Clock className="w-4 h-4 text-[#b8862d]" />10 minutes</span></div>
               {error && <p className="text-sm text-red-600">{error}</p>}
             </div>
-            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><button disabled={!selectedSlot || notes.length < 10 || isSubmitting} className="px-4 py-2 bg-[#701f2f] text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Booking...' : 'Confirm booking'}</button></div>
+            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><button disabled={!selectedSlot || notes.length < 10 || isSubmitting} className="px-4 py-2 bg-[#701f2f] text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Processing...' : `Pay ${selectedLawyer ? formatFee(selectedLawyer.fee) : ''} & book`}</button></div>
           </form>
         </div>
       )}

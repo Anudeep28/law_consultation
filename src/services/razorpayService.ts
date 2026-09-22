@@ -1,5 +1,5 @@
 import { apiRequest } from './api';
-import { PaidPlan, User } from '../types';
+import { Consultation, Lawyer, PaidPlan, User } from '../types';
 
 interface RazorpayResponse {
   razorpay_order_id: string;
@@ -60,6 +60,58 @@ export const checkout = async (plan: PaidPlan, user: User): Promise<User> => {
           );
           if (!result.verified || result.plan !== plan) throw new Error('Payment verification failed');
           resolve(result.user);
+        } catch (error) {
+          reject(error);
+        }
+      },
+      modal: { ondismiss: () => reject(new Error('Payment was cancelled')) },
+    });
+    razorpay.open();
+  });
+};
+
+interface ConsultationOrderResponse {
+  consultation: Consultation;
+  order: { orderId: string; amount: number; currency: string; keyId: string };
+}
+
+export const consultationCheckout = async (booking: {
+  lawyer: Lawyer;
+  startsAt: string;
+  topic: string;
+  notes: string;
+  mode: 'chat' | 'call';
+}, user: User): Promise<Consultation> => {
+  await loadCheckout();
+  const { consultation, order } = await apiRequest<ConsultationOrderResponse>('/api/consultations', {
+    method: 'POST',
+    body: JSON.stringify({
+      lawyerId: booking.lawyer.id,
+      startsAt: booking.startsAt,
+      topic: booking.topic,
+      notes: booking.notes,
+      mode: booking.mode,
+    }),
+  });
+
+  return new Promise((resolve, reject) => {
+    const razorpay = new window.Razorpay({
+      key: order.keyId,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'Law Writer',
+      description: `Consultation with ${booking.lawyer.name}`,
+      order_id: order.orderId,
+      prefill: { name: user.name, email: user.email },
+      theme: { color: '#4f46e5' },
+      handler: async (payment) => {
+        try {
+          const result = await apiRequest<{ verified: boolean; consultation: Consultation }>(
+            `/api/consultations/${consultation.id}/verify-payment`,
+            { method: 'POST', body: JSON.stringify(payment) },
+          );
+          if (!result.verified) throw new Error('Payment verification failed');
+          resolve(result.consultation);
         } catch (error) {
           reject(error);
         }

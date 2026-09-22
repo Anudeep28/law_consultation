@@ -3,7 +3,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 module.exports = function (app) {
   app.get('/api/scribe-token', async (req, res) => {
     try {
-      const apiKey = process.env.REACT_APP_ELEVENLABS_API_KEY;
+      const apiKey = process.env.ELEVENLABS_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: 'API key not configured' });
       }

@@ -42,10 +42,23 @@ export interface Consultation {
   topic: string;
   notes: string;
   mode: 'chat' | 'call';
-  status: 'booked' | 'cancelled' | 'completed';
+  status: 'pending_payment' | 'booked' | 'cancelled' | 'completed';
   meetingUrl?: string;
+  transcript?: string;
   lawyer: Lawyer;
   client?: Pick<User, 'id' | 'name' | 'email'>;
+}
+
+export interface Deliverable {
+  id: string;
+  consultationId: string;
+  documentId?: string;
+  title: string;
+  content: string;
+  status: 'draft' | 'delivered';
+  deliveredAt?: string;
+  createdAt: string;
+  document?: Document;
 }
 
 export interface ConsultationMessage {

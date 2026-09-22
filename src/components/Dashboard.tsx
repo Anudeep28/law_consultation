@@ -47,7 +47,11 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleEditDocument = (document: any) => {
-    setCurrentDocument(document);
+    setCurrentDocument({
+      ...document,
+      createdAt: new Date(document.createdAt),
+      updatedAt: new Date(document.updatedAt),
+    });
     setActiveView('editor');
   };
 
@@ -232,7 +236,7 @@ export const Dashboard: React.FC = () => {
         <div className="flex-1 overflow-hidden">
           {activeView === 'editor' && <DocumentEditor />}
           {activeView === 'documents' && <DocumentList onNewDocument={handleNewDocument} onEditDocument={handleEditDocument} />}
-          {activeView === 'consultations' && (user?.role === 'lawyer' ? <LawyerConsultationsView /> : <ConsultationsView />)}
+          {activeView === 'consultations' && (user?.role === 'lawyer' ? <LawyerConsultationsView onOpenDocument={(document) => { void loadDocuments(); handleEditDocument(document); }} /> : <ConsultationsView />)}
           {activeView === 'subscription' && <SubscriptionView />}
           {activeView === 'profile' && <LawyerProfileView />}
           {activeView === 'admin' && <AdminLawyerReviewView />}

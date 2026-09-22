@@ -1,61 +1,67 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Clock, Send, ShieldCheck, X } from 'lucide-react';
-import { apiRequest, ApiError } from '../services/api';
-import { Consultation, ConsultationMessage } from '../types';
+import { Socket } from 'socket.io-client';
+import { apiRequest } from '../services/api';
+import { connectSocket } from '../services/socketService';
+import { Consultation, ConsultationMessage, Document } from '../types';
 import { useAuthStore } from '../stores/authStore';
+import { ConsultationRecorder } from './ConsultationRecorder';
+import { ConsultationDeliverables } from './ConsultationDeliverables';
 
 interface ConsultationChatProps {
   consultation: Consultation;
   onClose: () => void;
+  onOpenDocument?: (document: Document) => void;
 }
 
 const remainingTime = (endsAt: string) => Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / 1000));
 const formatRemaining = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
-export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation, onClose }) => {
+export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation, onClose, onOpenDocument }) => {
   const role = useAuthStore((state) => state.user?.role);
   const [messages, setMessages] = useState<ConsultationMessage[]>([]);
   const [content, setContent] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(() => remainingTime(consultation.endsAt));
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
-
-  const loadMessages = useCallback(async () => {
-    try {
-      const result = await apiRequest<{ messages: ConsultationMessage[] }>(`/api/consultations/${consultation.id}/messages`);
-      setMessages(result.messages);
-    } catch {
-      setError('Unable to load chat messages.');
-    }
-  }, [consultation.id]);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    void loadMessages();
-    const messageTimer = window.setInterval(() => void loadMessages(), 5000);
+    const socket = connectSocket();
+    socketRef.current = socket;
+    const onMessage = (message: ConsultationMessage) => {
+      setMessages((current) => current.some((existing) => existing.id === message.id) ? current : [...current, message]);
+    };
+    socket.on('chat:message', onMessage);
+    socket.on('connect', () => {
+      socket.emit('chat:join', { consultationId: consultation.id }, (response: { ok?: boolean; error?: string }) => {
+        if (response?.error) setError(response.error);
+      });
+    });
+    socket.connect();
+    apiRequest<{ messages: ConsultationMessage[] }>(`/api/consultations/${consultation.id}/messages`)
+      .then((result) => setMessages(result.messages))
+      .catch(() => setError('Unable to load chat messages.'));
     const countdownTimer = window.setInterval(() => setSecondsLeft(remainingTime(consultation.endsAt)), 1000);
     return () => {
-      window.clearInterval(messageTimer);
       window.clearInterval(countdownTimer);
+      socket.off('chat:message', onMessage);
+      socket.disconnect();
+      socketRef.current = null;
     };
-  }, [consultation.endsAt, loadMessages]);
+  }, [consultation.id, consultation.endsAt]);
 
-  const sendMessage = async (event: React.FormEvent) => {
+  const sendMessage = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!content.trim() || !secondsLeft) return;
+    const socket = socketRef.current;
+    if (!content.trim() || !secondsLeft || !socket) return;
     setIsSending(true);
     setError('');
-    try {
-      const result = await apiRequest<{ message: ConsultationMessage }>(`/api/consultations/${consultation.id}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content }),
-      });
-      setMessages((current) => [...current, result.message]);
-      setContent('');
-    } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : 'Unable to send message.');
-    } finally {
+    socket.emit('chat:message', { consultationId: consultation.id, content }, (response: { ok?: boolean; error?: string }) => {
       setIsSending(false);
-    }
+      if (response?.error) setError(response.error);
+      else setContent('');
+    });
   };
 
   return (
@@ -81,6 +87,8 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
         </main>
 
         {error && <p className="px-4 py-2 text-sm text-red-600 border-t">{error}</p>}
+        {secondsLeft > 0 && <div className="px-3 pt-3 border-t"><ConsultationRecorder consultationId={consultation.id} /></div>}
+        {role === 'lawyer' && <div className="px-3 pt-3"><ConsultationDeliverables consultationId={consultation.id} role="lawyer" onOpenDocument={onOpenDocument} /></div>}
         <form onSubmit={sendMessage} className="p-3 border-t flex gap-2">
           <input value={content} onChange={(event) => setContent(event.target.value)} maxLength={2000} disabled={!secondsLeft} placeholder={secondsLeft ? 'Type your message...' : 'This consultation has ended'} className="flex-1 px-3 py-2 border rounded-lg disabled:bg-gray-100" />
           <button disabled={!content.trim() || !secondsLeft || isSending} className="flex items-center gap-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg disabled:opacity-50"><Send className="w-4 h-4" />Send</button>
