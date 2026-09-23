@@ -2,6 +2,7 @@ require('dotenv').config();
 const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
+const path = require('path');
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -1020,6 +1021,12 @@ app.get('/api/scribe-token', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.join(__dirname, 'build');
+  app.use(express.static(buildPath));
+  app.get('*', (req, res) => res.sendFile(path.join(buildPath, 'index.html')));
+}
 
 const findChatConsultation = (consultationId, user, { withinWindow = false } = {}) => {
   const now = new Date();
