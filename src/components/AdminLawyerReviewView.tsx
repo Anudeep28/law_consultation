@@ -6,6 +6,7 @@ import { Lawyer } from '../types';
 export const AdminLawyerReviewView: React.FC = () => {
   const [lawyers, setLawyers] = useState<Lawyer[]>([]);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [credentialChecks, setCredentialChecks] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -19,6 +20,10 @@ export const AdminLawyerReviewView: React.FC = () => {
 
   const review = async (lawyer: Lawyer, decision: 'approved' | 'rejected') => {
     setError('');
+    if (decision === 'approved' && !credentialChecks[lawyer.id]) {
+      setError('Confirm that the enrolment was checked against the relevant State Bar Council record before approval.');
+      return;
+    }
     try {
       const result = await apiRequest<{ lawyer: Lawyer }>(
         `/api/admin/lawyers/${lawyer.id}/review`,
@@ -51,7 +56,7 @@ export const AdminLawyerReviewView: React.FC = () => {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-[#32151b]">Lawyer applications</h1>
@@ -68,7 +73,7 @@ export const AdminLawyerReviewView: React.FC = () => {
           {lawyers.map((lawyer) => (
             <article
               key={lawyer.id}
-              className="rounded-2xl border border-[#eadbc1] bg-white p-6 shadow-sm"
+              className="rounded-2xl border border-[#eadbc1] bg-white p-4 shadow-sm sm:p-6"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -116,6 +121,10 @@ export const AdminLawyerReviewView: React.FC = () => {
               <div className="mt-5 border-t border-[#f0e4d2] pt-4">
                 {lawyer.approvalStatus === 'pending' ? (
                   <>
+                    <label className="mb-3 flex items-start gap-2 rounded-lg bg-[#fffaf0] p-3 text-sm text-[#5f4635]">
+                      <input type="checkbox" className="mt-1" checked={credentialChecks[lawyer.id] || false} onChange={(event) => setCredentialChecks((current) => ({ ...current, [lawyer.id]: event.target.checked }))} />
+                      <span>I checked the enrolment number and name against the relevant State Bar Council roll or official record. Format validation alone is not proof of enrolment.</span>
+                    </label>
                     <textarea
                       value={reasons[lawyer.id] || ''}
                       onChange={(e) =>
@@ -139,7 +148,8 @@ export const AdminLawyerReviewView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => review(lawyer, 'approved')}
-                        className="flex items-center gap-2 rounded-lg bg-[#701f2f] px-4 py-2 text-sm font-semibold text-white"
+                        disabled={!credentialChecks[lawyer.id]}
+                        className="flex items-center gap-2 rounded-lg bg-[#701f2f] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <BadgeCheck className="h-4 w-4" />
                         Approve

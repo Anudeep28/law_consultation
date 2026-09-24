@@ -8,7 +8,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
-  register: (userData: { name: string; email: string; password: string; role: UserRole; barCouncil?: string; enrollmentNumber?: string }) => Promise<true | string>;
+  register: (userData: { name: string; email: string; phone: string; password: string; role: UserRole; barCouncil?: string; enrollmentNumber?: string }) => Promise<true | string>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   setUser: (user: User) => void;

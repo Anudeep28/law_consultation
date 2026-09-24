@@ -10,6 +10,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
   const [role, setRole] = useState<UserRole>('client');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [barCouncil, setBarCouncil] = useState('');
   const [enrollmentNumber, setEnrollmentNumber] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +32,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
       return;
     }
     
-    const result = await register({ name, email, password, role, barCouncil, enrollmentNumber });
+    const result = await register({ name, email, phone, password, role, barCouncil, enrollmentNumber });
     if (result !== true) {
       setError(result);
     }
@@ -92,6 +93,11 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+            </div>
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-[#6f5a49]">Mobile number</label>
+              <input id="phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel" required className="mt-1 block w-full rounded-md border border-[#e6d8c2] bg-[#fffcf6] px-3 py-2 text-[#32151b] focus:border-[#b8862d] focus:outline-none" placeholder="10-digit Indian mobile number" value={phone} onChange={(event) => setPhone(event.target.value)} />
+              <p className="mt-1 text-xs text-[#8c6b54]">We will verify this number with an OTP after registration.</p>
             </div>
             {role === 'lawyer' && <>
               <div>

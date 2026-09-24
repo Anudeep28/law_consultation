@@ -66,6 +66,8 @@ model User {
   email              String           @unique
   name               String
   passwordHash       String
+  phone              String?          @unique
+  phoneVerifiedAt    DateTime?
   role               UserRole         @default(CLIENT)
   lawyerProfile      Lawyer?
   subscriptionPlan   SubscriptionPlan @default(TRIAL)

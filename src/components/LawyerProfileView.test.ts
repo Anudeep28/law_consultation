@@ -1,4 +1,4 @@
-import { validateLawyerProfile } from './lawyerProfileValidation';
+import { isPlausibleEnrollmentNumber, parseCommaSeparatedList, validateLawyerProfile } from './lawyerProfileValidation';
 
 const validProfile = {
   name: 'Asha Rao',
@@ -14,6 +14,15 @@ const validProfile = {
   avatarUrl: 'https://example.com/profile.jpg',
   availability: { days: [1, 2, 3], start: '09:00', end: '17:00' },
 };
+
+test('parses comma-separated profile lists after editing', () => {
+  expect(parseCommaSeparatedList('English, Hindi, Tamil, hindi, ')).toEqual(['English', 'Hindi', 'Tamil']);
+});
+
+test('checks the basic State Bar Council enrolment-number structure', () => {
+  expect(isPlausibleEnrollmentNumber('D/1234/2018')).toBe(true);
+  expect(isPlausibleEnrollmentNumber('not-an-enrolment')).toBe(false);
+});
 
 test('accepts a complete lawyer profile', () => {
   expect(validateLawyerProfile(validProfile)).toEqual({});

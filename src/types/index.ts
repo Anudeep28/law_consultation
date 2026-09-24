@@ -6,6 +6,8 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  phone?: string;
+  isPhoneVerified: boolean;
   lawyerProfile?: Lawyer;
   subscriptionStatus: 'active' | 'trial' | 'expired';
   subscriptionPlan: 'trial' | PaidPlan;

@@ -25,6 +25,23 @@ const PLANS = {
   monthly: { amount: 49900, name: 'Monthly subscription' },
 };
 const TRIAL_DURATION_MS = 2 * 24 * 60 * 60 * 1000;
+const otpRequests = new Map();
+
+const normalizeIndianPhone = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  const nationalNumber = digits.startsWith('91') && digits.length === 12 ? digits.slice(2) : digits;
+  return /^[6-9]\d{9}$/.test(nationalNumber) ? `91${nationalNumber}` : '';
+};
+
+const isPlausibleEnrollmentNumber = (value) => /^[A-Z]{1,8}[/-][A-Z0-9-]{1,12}[/-](?:19|20)\d{2}$/i.test(value);
+
+const allowOtpRequest = (userId) => {
+  const now = Date.now();
+  const attempts = (otpRequests.get(userId) || []).filter((time) => now - time < 60 * 60 * 1000);
+  if (attempts.length >= 5 || (attempts.length && now - attempts[attempts.length - 1] < 60 * 1000)) return false;
+  otpRequests.set(userId, [...attempts, now]);
+  return true;
+};
 
 app.use(express.json());
 
@@ -38,6 +55,8 @@ const serializeUser = (user) => {
     email: user.email,
     name: user.name,
     role: user.role.toLowerCase(),
+    phone: user.phone || undefined,
+    isPhoneVerified: Boolean(user.phoneVerifiedAt),
     lawyerProfile: user.lawyerProfile ? serializeLawyer(user.lawyerProfile) : undefined,
     subscriptionStatus: timedAccess
       ? (user.subscriptionPlan === 'TRIAL' ? 'trial' : 'active')
@@ -82,14 +101,15 @@ app.post('/api/auth/register', async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
+  const phone = normalizeIndianPhone(req.body.phone);
   const role = String(req.body.role || 'client').toUpperCase();
   const barCouncil = String(req.body.barCouncil || '').trim();
   const enrollmentNumber = String(req.body.enrollmentNumber || '').trim();
-  if (!name || !email || password.length < 6 || !['CLIENT', 'LAWYER'].includes(role)) {
-    return res.status(400).json({ error: 'Name, email, account type, and a 6-character password are required' });
+  if (!name || !email || !phone || password.length < 6 || !['CLIENT', 'LAWYER'].includes(role)) {
+    return res.status(400).json({ error: 'Name, email, valid Indian mobile number, account type, and a 6-character password are required' });
   }
-  if (role === 'LAWYER' && (!barCouncil || !enrollmentNumber)) {
-    return res.status(400).json({ error: 'Bar Council and enrollment number are required for lawyers' });
+  if (role === 'LAWYER' && (!barCouncil || !isPlausibleEnrollmentNumber(enrollmentNumber))) {
+    return res.status(400).json({ error: 'Bar Council and an enrollment number in the council format (for example D/1234/2018) are required for lawyers' });
   }
   if (!process.env.JWT_SECRET) return res.status(500).json({ error: 'JWT is not configured' });
   try {
@@ -99,6 +119,7 @@ app.post('/api/auth/register', async (req, res) => {
         name,
         email,
         passwordHash,
+        phone,
         role,
         subscriptionExpiry: new Date(Date.now() + TRIAL_DURATION_MS),
         lawyerProfile: role === 'LAWYER' ? {
@@ -154,6 +175,45 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', authenticate, async (req, res) => {
   const user = await userWithPayments(req.user.id);
   res.json({ user: serializeUser(user) });
+});
+
+app.post('/api/auth/phone/send-otp', authenticate, async (req, res) => {
+  const phone = normalizeIndianPhone(req.body.phone);
+  if (!phone) return res.status(400).json({ error: 'Enter a valid Indian mobile number' });
+  if (!process.env.MSG91_AUTH_KEY || !process.env.MSG91_TEMPLATE_ID) return res.status(503).json({ error: 'Mobile verification is not configured' });
+  if (!allowOtpRequest(req.user.id)) return res.status(429).json({ error: 'Please wait before requesting another OTP' });
+  try {
+    const query = new URLSearchParams({ template_id: process.env.MSG91_TEMPLATE_ID, mobile: phone });
+    const response = await fetch(`https://control.msg91.com/api/v5/otp?${query}`, {
+      method: 'POST',
+      headers: { authkey: process.env.MSG91_AUTH_KEY },
+    });
+    const result = await response.json();
+    if (!response.ok || result.type === 'error') return res.status(502).json({ error: 'Unable to send OTP' });
+    await prisma.user.update({ where: { id: req.user.id }, data: { phone, phoneVerifiedAt: null } });
+    res.json({ message: 'OTP sent', phone: `******${phone.slice(-4)}` });
+  } catch (error) {
+    if (error.code === 'P2002') return res.status(409).json({ error: 'This mobile number is already linked to another account' });
+    res.status(502).json({ error: 'Unable to send OTP' });
+  }
+});
+
+app.post('/api/auth/phone/verify-otp', authenticate, async (req, res) => {
+  const otp = String(req.body.otp || '').trim();
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user?.phone || !/^\d{4,8}$/.test(otp)) return res.status(400).json({ error: 'Enter the OTP sent to your mobile number' });
+  if (!process.env.MSG91_AUTH_KEY) return res.status(503).json({ error: 'Mobile verification is not configured' });
+  try {
+    const query = new URLSearchParams({ otp, mobile: user.phone });
+    const response = await fetch(`https://control.msg91.com/api/v5/otp/verify?${query}`, { headers: { authkey: process.env.MSG91_AUTH_KEY } });
+    const result = await response.json();
+    if (!response.ok || result.type !== 'success') return res.status(400).json({ error: 'The OTP is invalid or expired' });
+    await prisma.user.update({ where: { id: user.id }, data: { phoneVerifiedAt: new Date() } });
+    const updatedUser = await userWithPayments(user.id);
+    res.json({ user: serializeUser(updatedUser) });
+  } catch {
+    res.status(502).json({ error: 'Unable to verify OTP' });
+  }
 });
 
 const serializeLawyer = (lawyer) => ({
@@ -254,7 +314,7 @@ app.put('/api/lawyer/profile', authenticate, requireRole('LAWYER'), async (req, 
     && /^\d{2}:\d{2}$/.test(availability.start) && /^\d{2}:\d{2}$/.test(availability.end) && availability.start < availability.end;
   if (!name || !title || bio.length < 40 || bio.length > 2000 || !practiceAreas.length || !languages.length
     || !Number.isInteger(experienceYears) || experienceYears < 0 || experienceYears > 80
-    || !barCouncil || !enrollmentNumber || !Number.isInteger(fee) || fee < 100
+    || !barCouncil || !isPlausibleEnrollmentNumber(enrollmentNumber) || !Number.isInteger(fee) || fee < 100
     || !Number.isInteger(documentFeePercent) || documentFeePercent < 0 || documentFeePercent > 500
     || (avatarUrl && !/^https:\/\//i.test(avatarUrl)) || !validAvailability) {
     return res.status(400).json({ error: 'Complete all professional profile fields with valid information' });
@@ -1082,6 +1142,26 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`API + realtime server running on http://localhost:${PORT}`);
-});
+const ensureDeploymentAdmin = async () => {
+  const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+  const password = String(process.env.ADMIN_PASSWORD || '');
+  if (!email && !password) return;
+  if (!email || password.length < 12) throw new Error('ADMIN_EMAIL and an ADMIN_PASSWORD of at least 12 characters are required together');
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && existing.role !== 'ADMIN') throw new Error('ADMIN_EMAIL is already assigned to a non-admin account');
+  const passwordHash = await bcrypt.hash(password, 12);
+  await prisma.user.upsert({
+    where: { email },
+    update: { name: process.env.ADMIN_NAME || 'Administrator', passwordHash, role: 'ADMIN' },
+    create: { email, name: process.env.ADMIN_NAME || 'Administrator', passwordHash, role: 'ADMIN' },
+  });
+};
+
+ensureDeploymentAdmin()
+  .then(() => server.listen(PORT, () => {
+    console.log(`API + realtime server running on http://localhost:${PORT}`);
+  }))
+  .catch((error) => {
+    console.error(`Server startup failed: ${error.message}`);
+    process.exitCode = 1;
+  });

@@ -8,17 +8,21 @@ import { ConsultationsView } from './ConsultationsView';
 import { LawyerConsultationsView } from './LawyerConsultationsView';
 import { LawyerProfileView } from './LawyerProfileView';
 import { AdminLawyerReviewView } from './AdminLawyerReviewView';
-import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, MessagesSquare, ShieldCheck } from 'lucide-react';
+import { PhoneVerification } from './PhoneVerification';
+import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessagesSquare, ShieldCheck, X } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
   const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
   const [showNewDocModal, setShowNewDocModal] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const { documents, createDocument, setCurrentDocument, loadDocuments, clearDocuments } = useDocumentStore();
 
   useEffect(() => {
     if (user?.role === 'lawyer') void loadDocuments();
   }, [loadDocuments, user?.role]);
+
+  useEffect(() => setIsMobileNavOpen(false), [activeView]);
 
   const handleNewBlankDocument = async () => {
     const document = await createDocument('Untitled Document');
@@ -96,12 +100,16 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#fffaf0]">
+    <div className="flex h-dvh min-h-0 bg-[#fffaf0]">
+      {isMobileNavOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setIsMobileNavOpen(false)} />}
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-[#eadbc1] shadow-lg flex flex-col">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-[#32151b]">Law Writer</h1>
-          <p className="text-sm text-[#8c6b54] mt-1">Professional Legal Documents</p>
+      <div className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-[#eadbc1] bg-white shadow-lg transition-transform lg:static lg:translate-x-0 ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-start justify-between p-6">
+          <div>
+            <h1 className="text-2xl font-bold text-[#32151b]">Law Writer</h1>
+            <p className="text-sm text-[#8c6b54] mt-1">Professional Legal Documents</p>
+          </div>
+          <button type="button" aria-label="Close navigation" className="rounded-lg p-2 text-[#6f5a49] lg:hidden" onClick={() => setIsMobileNavOpen(false)}><X className="h-5 w-5" /></button>
         </div>
 
         <nav className="mt-6 flex-1">
@@ -188,12 +196,13 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
-        <div className="bg-white border-b border-[#eadbc1] px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-[#32151b]">
+        <div className="border-b border-[#eadbc1] bg-white px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center justify-between gap-3">
+            <button type="button" aria-label="Open navigation" className="shrink-0 rounded-lg border border-[#eadbc1] p-2 text-[#701f2f] lg:hidden" onClick={() => setIsMobileNavOpen(true)}><Menu className="h-5 w-5" /></button>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-lg font-semibold text-[#32151b] sm:text-xl">
                 {activeView === 'editor' && 'Document Editor'}
                 {activeView === 'documents' && 'My Documents'}
                 {activeView === 'consultations' && 'Lawyer Consultations'}
@@ -201,7 +210,7 @@ export const Dashboard: React.FC = () => {
                 {activeView === 'profile' && 'Professional Profile'}
                 {activeView === 'admin' && 'Lawyer Applications'}
               </h2>
-              <p className="text-sm text-[#6f5a49] mt-1">
+              <p className="mt-1 hidden text-sm text-[#6f5a49] sm:block">
                 {activeView === 'editor' && 'Create and edit legal documents with AI-powered transcription'}
                 {activeView === 'documents' && `You have ${documents.length} document${documents.length !== 1 ? 's' : ''}`}
                 {activeView === 'consultations' && (user?.role === 'lawyer' ? 'Manage scheduled client sessions and active chats' : 'Book a private 10-minute session with a verified lawyer')}
@@ -217,7 +226,7 @@ export const Dashboard: React.FC = () => {
                 className="flex items-center space-x-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg hover:bg-[#541522] transition"
               >
                 <Plus className="w-4 h-4" />
-                <span>New Document</span>
+                <span className="hidden sm:inline">New Document</span>
               </button>
             )}
             {activeView === 'editor' && (
@@ -226,14 +235,16 @@ export const Dashboard: React.FC = () => {
                 className="flex items-center space-x-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg hover:bg-[#541522] transition"
               >
                 <Plus className="w-4 h-4" />
-                <span>New Document</span>
+                <span className="hidden sm:inline">New Document</span>
               </button>
             )}
           </div>
         </div>
 
+        <PhoneVerification />
+
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {activeView === 'editor' && <DocumentEditor />}
           {activeView === 'documents' && <DocumentList onNewDocument={handleNewDocument} onEditDocument={handleEditDocument} />}
           {activeView === 'consultations' && (user?.role === 'lawyer' ? <LawyerConsultationsView onOpenDocument={(document) => { void loadDocuments(); handleEditDocument(document); }} /> : <ConsultationsView />)}
@@ -242,7 +253,7 @@ export const Dashboard: React.FC = () => {
           {activeView === 'admin' && <AdminLawyerReviewView />}
         </div>
 
-        <footer className="border-t border-[#eadbc1] bg-white px-6 py-3 text-xs text-[#8c6b54] flex justify-between items-center shrink-0">
+        <footer className="hidden shrink-0 items-center justify-between border-t border-[#eadbc1] bg-white px-6 py-3 text-xs text-[#8c6b54] sm:flex">
           <span>Built by Eneru 2026</span>
           <span>Powered by ElevenLabs and DeepSeek</span>
         </footer>
@@ -250,8 +261,8 @@ export const Dashboard: React.FC = () => {
 
       {/* New Document Modal */}
       {showNewDocModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl border border-[#eadbc1] shadow-2xl p-6 w-full max-w-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[#eadbc1] bg-white p-5 shadow-2xl sm:p-6">
             <h2 className="text-lg font-bold text-[#32151b] mb-1">Create New Document</h2>
             <p className="text-sm text-[#8c6b54] mb-5">Start from scratch or pick a template</p>
             <div className="space-y-3">
