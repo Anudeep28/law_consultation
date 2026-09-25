@@ -54,6 +54,12 @@ enum UserRole {
   ADMIN
 }
 
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
 enum LawyerApprovalStatus {
   DRAFT
   PENDING
@@ -69,6 +75,9 @@ model User {
   phone              String?          @unique
   phoneVerifiedAt    DateTime?
   role               UserRole         @default(CLIENT)
+  accountStatus      AccountStatus     @default(ACTIVE)
+  statusReason       String?
+  statusChangedAt    DateTime?
   lawyerProfile      Lawyer?
   subscriptionPlan   SubscriptionPlan @default(TRIAL)
   subscriptionExpiry DateTime?
@@ -78,6 +87,9 @@ model User {
   payments           Payment[]
   documents          Document[]
   consultations      Consultation[]
+  reviews            LawyerReview[]
+  adminActions       AdminAuditLog[]  @relation("AdminActor")
+  accountAuditLogs   AdminAuditLog[]  @relation("AuditTarget")
 }
 
 model Lawyer {
@@ -103,6 +115,7 @@ model Lawyer {
   avatarUrl          String?
   availability       Json
   consultations      Consultation[]
+  reviews            LawyerReview[]
 }
 
 model ConsultationMessage {
@@ -136,9 +149,43 @@ model Consultation {
   user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   lawyer      Lawyer             @relation(fields: [lawyerId], references: [id])
   payment     Payment?
+  review      LawyerReview?
 
   @@unique([lawyerId, startsAt])
   @@index([userId, startsAt])
+}
+
+model LawyerReview {
+  id             String       @id @default(cuid())
+  consultationId String       @unique
+  lawyerId       String
+  userId         String
+  rating         Int
+  comment        String?
+  isVisible      Boolean      @default(true)
+  moderationReason String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  lawyer         Lawyer       @relation(fields: [lawyerId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lawyerId, isVisible, createdAt])
+  @@index([userId])
+}
+
+model AdminAuditLog {
+  id           String   @id @default(cuid())
+  adminId      String
+  targetUserId String
+  action       String
+  reason       String
+  createdAt    DateTime @default(now())
+  admin        User     @relation("AdminActor", fields: [adminId], references: [id])
+  targetUser   User     @relation("AuditTarget", fields: [targetUserId], references: [id])
+
+  @@index([targetUserId, createdAt])
+  @@index([adminId, createdAt])
 }
 
 model Payment {

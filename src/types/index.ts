@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  accountStatus: 'active' | 'suspended' | 'deactivated';
   phone?: string;
   isPhoneVerified: boolean;
   lawyerProfile?: Lawyer;
@@ -36,6 +37,15 @@ export interface Lawyer {
   rejectionReason?: string;
   avatarUrl?: string;
   availability: { days: number[]; start: string; end: string };
+  reviews?: LawyerReview[];
+}
+
+export interface LawyerReview {
+  id: string;
+  rating: number;
+  comment: string;
+  clientName?: string;
+  createdAt: string;
 }
 
 export interface Consultation {
@@ -51,6 +61,8 @@ export interface Consultation {
   transcript?: string;
   lawyer: Lawyer;
   client?: Pick<User, 'id' | 'name' | 'email'>;
+  review?: LawyerReview;
+  canReview?: boolean;
 }
 
 export interface Deliverable {

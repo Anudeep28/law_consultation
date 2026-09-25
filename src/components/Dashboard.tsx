@@ -8,12 +8,14 @@ import { ConsultationsView } from './ConsultationsView';
 import { LawyerConsultationsView } from './LawyerConsultationsView';
 import { LawyerProfileView } from './LawyerProfileView';
 import { AdminLawyerReviewView } from './AdminLawyerReviewView';
+import { AdminUsersView } from './AdminUsersView';
+import { AdminReviewsView } from './AdminReviewsView';
 import { PhoneVerification } from './PhoneVerification';
-import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessagesSquare, ShieldCheck, X } from 'lucide-react';
+import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessageSquareText, MessagesSquare, ShieldCheck, Users, X } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
+  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const { documents, createDocument, setCurrentDocument, loadDocuments, clearDocuments } = useDocumentStore();
@@ -114,7 +116,7 @@ export const Dashboard: React.FC = () => {
 
         <nav className="mt-6 flex-1">
           <div className="px-4 space-y-2">
-            {user?.role === 'admin' && <button onClick={() => setActiveView('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><ShieldCheck className="w-5 h-5" /><span>Lawyer Applications</span></button>}
+            {user?.role === 'admin' && <><button onClick={() => setActiveView('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><ShieldCheck className="w-5 h-5" /><span>Lawyer Applications</span></button><button onClick={() => setActiveView('admin-users')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-users' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><Users className="w-5 h-5" /><span>User Management</span></button><button onClick={() => setActiveView('admin-reviews')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-reviews' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><MessageSquareText className="w-5 h-5" /><span>Review Moderation</span></button></>}
             {user?.role === 'lawyer' && <>
             <button onClick={() => setActiveView('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'profile' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><UserCircle className="w-5 h-5" /><span>Professional Profile</span></button>
             <button
@@ -209,6 +211,8 @@ export const Dashboard: React.FC = () => {
                 {activeView === 'subscription' && 'Subscription Management'}
                 {activeView === 'profile' && 'Professional Profile'}
                 {activeView === 'admin' && 'Lawyer Applications'}
+                {activeView === 'admin-users' && 'User Management'}
+                {activeView === 'admin-reviews' && 'Review Moderation'}
               </h2>
               <p className="mt-1 hidden text-sm text-[#6f5a49] sm:block">
                 {activeView === 'editor' && 'Create and edit legal documents with AI-powered transcription'}
@@ -217,6 +221,8 @@ export const Dashboard: React.FC = () => {
                 {activeView === 'subscription' && 'Manage your subscription and billing'}
                 {activeView === 'profile' && 'Complete the details clients will see after approval'}
                 {activeView === 'admin' && 'Verify lawyer credentials before publishing profiles'}
+                {activeView === 'admin-users' && 'Manage client and lawyer account access'}
+                {activeView === 'admin-reviews' && 'Moderate client reviews and ratings'}
               </p>
             </div>
             
@@ -251,6 +257,8 @@ export const Dashboard: React.FC = () => {
           {activeView === 'subscription' && <SubscriptionView />}
           {activeView === 'profile' && <LawyerProfileView />}
           {activeView === 'admin' && <AdminLawyerReviewView />}
+          {activeView === 'admin-users' && <AdminUsersView />}
+          {activeView === 'admin-reviews' && <AdminReviewsView />}
         </div>
 
         <footer className="hidden shrink-0 items-center justify-between border-t border-[#eadbc1] bg-white px-6 py-3 text-xs text-[#8c6b54] sm:flex">

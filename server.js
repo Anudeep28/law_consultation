@@ -55,6 +55,7 @@ const serializeUser = (user) => {
     email: user.email,
     name: user.name,
     role: user.role.toLowerCase(),
+    accountStatus: user.accountStatus.toLowerCase(),
     phone: user.phone || undefined,
     isPhoneVerified: Boolean(user.phoneVerifiedAt),
     lawyerProfile: user.lawyerProfile ? serializeLawyer(user.lawyerProfile) : undefined,
@@ -83,6 +84,7 @@ const authenticate = async (req, res, next) => {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user) return res.status(401).json({ error: 'Invalid authentication token' });
+    if (user.accountStatus !== 'ACTIVE') return res.status(403).json({ error: 'This account is not active' });
     req.user = user;
     next();
   } catch {
@@ -166,6 +168,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user || user.role !== role || !await bcrypt.compare(password, user.passwordHash)) {
       return res.status(401).json({ error: 'Invalid email, password, or account type' });
     }
+    if (user.accountStatus !== 'ACTIVE') return res.status(403).json({ error: 'This account is suspended or deactivated' });
     res.json({ token: signToken(user.id), user: serializeUser(user) });
   } catch {
     res.status(500).json({ error: 'Unable to sign in' });
@@ -236,6 +239,13 @@ const serializeLawyer = (lawyer) => ({
   rejectionReason: lawyer.rejectionReason || undefined,
   avatarUrl: lawyer.avatarUrl,
   availability: lawyer.availability,
+  reviews: (lawyer.reviews || []).map((review) => ({
+    id: review.id,
+    rating: review.rating,
+    comment: review.comment || '',
+    createdAt: review.createdAt,
+    clientName: review.user?.name || 'Client',
+  })),
 });
 
 const serializeConsultation = (consultation) => ({
@@ -251,6 +261,13 @@ const serializeConsultation = (consultation) => ({
   transcript: consultation.transcript || '',
   lawyer: serializeLawyer(consultation.lawyer),
   client: consultation.user ? { id: consultation.user.id, name: consultation.user.name, email: consultation.user.email } : undefined,
+  review: consultation.review ? {
+    id: consultation.review.id,
+    rating: consultation.review.rating,
+    comment: consultation.review.comment || '',
+    createdAt: consultation.review.createdAt,
+  } : undefined,
+  canReview: consultation.payment?.status === 'PAID' && consultation.endsAt <= new Date() && ['BOOKED', 'COMPLETED'].includes(consultation.status) && !consultation.review,
 });
 
 const serializeDeliverable = (deliverable, { includeDocument = false } = {}) => ({
@@ -378,9 +395,76 @@ app.patch('/api/admin/lawyers/:id/review', authenticate, requireRole('ADMIN'), a
   }
 });
 
+app.get('/api/admin/users', authenticate, requireRole('ADMIN'), async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  const role = String(req.query.role || '').toUpperCase();
+  const status = String(req.query.status || '').toUpperCase();
+  const where = {
+    role: { not: 'ADMIN' },
+    ...(query ? { OR: [{ name: { contains: query, mode: 'insensitive' } }, { email: { contains: query, mode: 'insensitive' } }] } : {}),
+    ...(['CLIENT', 'LAWYER'].includes(role) ? { role } : {}),
+    ...(['ACTIVE', 'SUSPENDED', 'DEACTIVATED'].includes(status) ? { accountStatus: status } : {}),
+  };
+  try {
+    const users = await prisma.user.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, include: { lawyerProfile: true } });
+    res.json({ users: users.map((user) => ({ id: user.id, name: user.name, email: user.email, role: user.role.toLowerCase(), accountStatus: user.accountStatus.toLowerCase(), statusReason: user.statusReason || '', createdAt: user.createdAt, lawyerProfile: user.lawyerProfile ? serializeLawyer(user.lawyerProfile) : undefined })) });
+  } catch {
+    res.status(500).json({ error: 'Unable to load users' });
+  }
+});
+
+app.patch('/api/admin/users/:id/status', authenticate, requireRole('ADMIN'), async (req, res) => {
+  const status = String(req.body.status || '').toUpperCase();
+  const reason = String(req.body.reason || '').trim();
+  if (!['ACTIVE', 'SUSPENDED', 'DEACTIVATED'].includes(status) || (status !== 'ACTIVE' && reason.length < 10) || reason.length > 500) {
+    return res.status(400).json({ error: 'Choose a valid status and provide a reason of 10–500 characters' });
+  }
+  try {
+    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (target.role === 'ADMIN') return res.status(403).json({ error: 'Administrator accounts cannot be changed here' });
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({ where: { id: target.id }, data: { accountStatus: status, statusReason: status === 'ACTIVE' ? null : reason, statusChangedAt: new Date() } });
+      await tx.adminAuditLog.create({ data: { adminId: req.user.id, targetUserId: target.id, action: `ACCOUNT_${status}`, reason: reason || 'Account reactivated by administrator' } });
+      return updated;
+    });
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role.toLowerCase(), accountStatus: user.accountStatus.toLowerCase(), statusReason: user.statusReason || '', createdAt: user.createdAt } });
+  } catch {
+    res.status(500).json({ error: 'Unable to update account status' });
+  }
+});
+
+app.get('/api/admin/reviews', authenticate, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const reviews = await prisma.lawyerReview.findMany({ include: { user: { select: { name: true } }, lawyer: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json({ reviews: reviews.map((review) => ({ id: review.id, rating: review.rating, comment: review.comment || '', isVisible: review.isVisible, moderationReason: review.moderationReason || '', createdAt: review.createdAt, clientName: review.user.name, lawyerName: review.lawyer.name })) });
+  } catch {
+    res.status(500).json({ error: 'Unable to load reviews' });
+  }
+});
+
+app.patch('/api/admin/reviews/:id/moderation', authenticate, requireRole('ADMIN'), async (req, res) => {
+  const isVisible = Boolean(req.body.isVisible);
+  const reason = String(req.body.reason || '').trim();
+  if (!isVisible && (reason.length < 10 || reason.length > 500)) return res.status(400).json({ error: 'Provide a moderation reason of 10–500 characters' });
+  try {
+    const review = await prisma.lawyerReview.update({ where: { id: req.params.id }, data: { isVisible, moderationReason: isVisible ? null : reason } });
+    const aggregate = await prisma.lawyerReview.aggregate({ where: { lawyerId: review.lawyerId, isVisible: true }, _avg: { rating: true }, _count: true });
+    await prisma.lawyer.update({ where: { id: review.lawyerId }, data: { rating: aggregate._avg.rating || 0, reviewCount: aggregate._count } });
+    res.json({ review: { ...review, isVisible } });
+  } catch (error) {
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Review not found' });
+    res.status(500).json({ error: 'Unable to moderate review' });
+  }
+});
+
 app.get('/api/lawyers', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
-    const lawyers = await prisma.lawyer.findMany({ where: { isVerified: true }, orderBy: [{ rating: 'desc' }, { reviewCount: 'desc' }] });
+    const lawyers = await prisma.lawyer.findMany({
+      where: { isVerified: true, user: { accountStatus: 'ACTIVE' } },
+      include: { reviews: { where: { isVisible: true }, include: { user: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 10 } },
+      orderBy: [{ rating: 'desc' }, { reviewCount: 'desc' }],
+    });
     res.json({ lawyers: lawyers.map(serializeLawyer) });
   } catch {
     res.status(500).json({ error: 'Unable to load lawyers' });
@@ -448,7 +532,7 @@ app.get('/api/consultations', authenticate, requireRole('CLIENT'), async (req, r
     await expireStalePendingConsultations();
     const consultations = await prisma.consultation.findMany({
       where: { userId: req.user.id },
-      include: { lawyer: true },
+      include: { lawyer: true, payment: true, review: true },
       orderBy: { startsAt: 'asc' },
     });
     res.json({ consultations: consultations.map(serializeConsultation) });
@@ -575,6 +659,31 @@ app.post('/api/consultations/:id/verify-payment', authenticate, requireRole('CLI
       return res.status(409).json({ error: 'Payment has already been applied' });
     }
     res.status(500).json({ error: 'Unable to verify payment' });
+  }
+});
+
+app.post('/api/consultations/:id/review', authenticate, requireRole('CLIENT'), async (req, res) => {
+  const rating = Number(req.body.rating);
+  const comment = String(req.body.comment || '').trim();
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5 || comment.length > 2000) return res.status(400).json({ error: 'Rating must be 1–5 and the review must be under 2000 characters' });
+  try {
+    const consultation = await prisma.consultation.findFirst({
+      where: { id: req.params.id, userId: req.user.id, endsAt: { lte: new Date() }, status: { in: ['BOOKED', 'COMPLETED'] }, payment: { status: 'PAID' } },
+      include: { review: true },
+    });
+    if (!consultation) return res.status(403).json({ error: 'Only completed paid consultations can be reviewed' });
+    if (consultation.review) return res.status(409).json({ error: 'This consultation has already been reviewed' });
+    const review = await prisma.$transaction(async (tx) => {
+      const created = await tx.lawyerReview.create({ data: { consultationId: consultation.id, lawyerId: consultation.lawyerId, userId: req.user.id, rating, comment: comment || null } });
+      await tx.consultation.update({ where: { id: consultation.id }, data: { status: 'COMPLETED' } });
+      const aggregate = await tx.lawyerReview.aggregate({ where: { lawyerId: consultation.lawyerId, isVisible: true }, _avg: { rating: true }, _count: true });
+      await tx.lawyer.update({ where: { id: consultation.lawyerId }, data: { rating: aggregate._avg.rating || 0, reviewCount: aggregate._count } });
+      return created;
+    });
+    res.status(201).json({ review: { id: review.id, rating: review.rating, comment: review.comment || '', createdAt: review.createdAt } });
+  } catch (error) {
+    if (error.code === 'P2002') return res.status(409).json({ error: 'This consultation has already been reviewed' });
+    res.status(500).json({ error: 'Unable to save review' });
   }
 });
 
@@ -1111,7 +1220,7 @@ io.use(async (socket, next) => {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-    if (!user) return next(new Error('Invalid authentication token'));
+    if (!user || user.accountStatus !== 'ACTIVE') return next(new Error('Invalid authentication token'));
     socket.user = user;
     next();
   } catch {

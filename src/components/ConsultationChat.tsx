@@ -25,31 +25,32 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const isReadOnly = consultation.status === 'completed' || consultation.status === 'cancelled' || new Date(consultation.endsAt).getTime() <= Date.now();
 
   useEffect(() => {
-    const socket = connectSocket();
+    const socket = isReadOnly ? null : connectSocket();
     socketRef.current = socket;
     const onMessage = (message: ConsultationMessage) => {
       setMessages((current) => current.some((existing) => existing.id === message.id) ? current : [...current, message]);
     };
-    socket.on('chat:message', onMessage);
-    socket.on('connect', () => {
+    socket?.on('chat:message', onMessage);
+    socket?.on('connect', () => {
       socket.emit('chat:join', { consultationId: consultation.id }, (response: { ok?: boolean; error?: string }) => {
         if (response?.error) setError(response.error);
       });
     });
-    socket.connect();
+    socket?.connect();
     apiRequest<{ messages: ConsultationMessage[] }>(`/api/consultations/${consultation.id}/messages`)
       .then((result) => setMessages(result.messages))
       .catch(() => setError('Unable to load chat messages.'));
     const countdownTimer = window.setInterval(() => setSecondsLeft(remainingTime(consultation.endsAt)), 1000);
     return () => {
       window.clearInterval(countdownTimer);
-      socket.off('chat:message', onMessage);
-      socket.disconnect();
+      socket?.off('chat:message', onMessage);
+      socket?.disconnect();
       socketRef.current = null;
     };
-  }, [consultation.id, consultation.endsAt]);
+  }, [consultation.id, consultation.endsAt, isReadOnly]);
 
   const sendMessage = (event: React.FormEvent) => {
     event.preventDefault();
@@ -74,7 +75,7 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
           <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
         </header>
 
-        <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-800">Do not share passwords, OTPs, payment details, or unnecessary identity documents in chat.</div>
+        <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-800">{isReadOnly ? 'Read-only conversation history' : 'Do not share passwords, OTPs, payment details, or unnecessary identity documents in chat.'}</div>
         <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#fffaf0]">
           <div className="mx-auto max-w-md rounded-lg bg-white border p-3 text-center text-xs text-gray-600">Your 10-minute consultation is about <strong>{consultation.topic}</strong>. Messages are stored with this booking.</div>
           {messages.map((message) => {
@@ -89,10 +90,10 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
         {error && <p className="px-4 py-2 text-sm text-red-600 border-t">{error}</p>}
         {secondsLeft > 0 && <div className="px-3 pt-3 border-t"><ConsultationRecorder consultationId={consultation.id} /></div>}
         {role === 'lawyer' && <div className="px-3 pt-3"><ConsultationDeliverables consultationId={consultation.id} role="lawyer" onOpenDocument={onOpenDocument} /></div>}
-        <form onSubmit={sendMessage} className="p-3 border-t flex gap-2">
+        {!isReadOnly && <form onSubmit={sendMessage} className="p-3 border-t flex gap-2">
           <input value={content} onChange={(event) => setContent(event.target.value)} maxLength={2000} disabled={!secondsLeft} placeholder={secondsLeft ? 'Type your message...' : 'This consultation has ended'} className="flex-1 px-3 py-2 border rounded-lg disabled:bg-gray-100" />
           <button disabled={!content.trim() || !secondsLeft || isSending} className="flex items-center gap-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg disabled:opacity-50"><Send className="w-4 h-4" />Send</button>
-        </form>
+        </form>}
       </div>
     </div>
   );
