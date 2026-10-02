@@ -8,6 +8,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Server: SocketServer } = require('socket.io');
 const prisma = require('./db');
+const notifications = require('./server/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -65,6 +66,8 @@ const serializeUser = (user) => {
     subscriptionPlan: user.subscriptionPlan.toLowerCase(),
     subscriptionExpiry: expiry,
     documentCredits: user.documentCredits,
+    emailNotifications: user.emailNotifications,
+    pushNotifications: user.pushNotifications,
     appliedPaymentIds: (user.payments || []).map((payment) => payment.razorpayPaymentId).filter(Boolean),
   };
 };
@@ -650,9 +653,23 @@ app.post('/api/consultations/:id/verify-payment', authenticate, requireRole('CLI
       return tx.consultation.update({
         where: { id: payment.consultation.id, status: 'PENDING_PAYMENT' },
         data: { status: 'BOOKED', meetingUrl },
-        include: { lawyer: true },
+        include: { lawyer: { include: { user: true } }, user: true },
       });
     });
+
+    // Notify the lawyer about the new booking
+    if (consultation.lawyer?.userId) {
+      const startTime = new Date(consultation.startsAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+      await notifications.createNotification({
+        userId: consultation.lawyer.userId,
+        consultationId: consultation.id,
+        type: 'CONSULTATION_BOOKED',
+        title: 'New consultation booked',
+        body: `A ${consultation.mode.toLowerCase()} consultation "${consultation.topic}" was booked for ${startTime}.`,
+        channels: ['IN_APP', 'EMAIL'],
+      });
+    }
+
     res.json({ verified: true, consultation: serializeConsultation(consultation) });
   } catch (error) {
     if (error.code === 'P2002' || error.code === 'P2025' || error.message === 'Payment has already been applied') {
@@ -774,6 +791,97 @@ app.put('/api/consultations/:id/transcript', authenticate, requireRole('LAWYER')
     res.json({ transcript: updated.transcript });
   } catch {
     res.status(500).json({ error: 'Unable to update transcript' });
+  }
+});
+
+app.get('/api/notifications', authenticate, async (req, res) => {
+  try {
+    const notifications = await prisma.notification.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { consultation: { select: { id: true, topic: true, mode: true, startsAt: true } } },
+    });
+    const unreadCount = await prisma.notification.count({
+      where: { userId: req.user.id, read: false },
+    });
+    res.json({ notifications, unreadCount });
+  } catch {
+    res.status(500).json({ error: 'Unable to load notifications' });
+  }
+});
+
+app.patch('/api/notifications/:id/read', authenticate, async (req, res) => {
+  try {
+    const notification = await prisma.notification.updateMany({
+      where: { id: req.params.id, userId: req.user.id },
+      data: { read: true },
+    });
+    if (!notification.count) return res.status(404).json({ error: 'Notification not found' });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Unable to update notification' });
+  }
+});
+
+app.patch('/api/notifications/read-all', authenticate, async (req, res) => {
+  try {
+    await prisma.notification.updateMany({
+      where: { userId: req.user.id, read: false },
+      data: { read: true },
+    });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Unable to update notifications' });
+  }
+});
+
+app.get('/api/notifications/vapid-public-key', (req, res) => {
+  const key = process.env.VAPID_PUBLIC_KEY;
+  if (!key) return res.status(500).json({ error: 'Push notifications are not configured' });
+  res.json({ publicKey: key });
+});
+
+app.post('/api/notifications/subscribe', authenticate, async (req, res) => {
+  const endpoint = String(req.body.endpoint || '');
+  const p256dh = String(req.body.keys?.p256dh || '');
+  const auth = String(req.body.keys?.auth || '');
+  if (!endpoint || !p256dh || !auth) return res.status(400).json({ error: 'Invalid subscription' });
+  try {
+    await prisma.pushSubscription.upsert({
+      where: { endpoint },
+      update: { userId: req.user.id, p256dh, auth },
+      create: { userId: req.user.id, endpoint, p256dh, auth },
+    });
+    res.status(201).json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Unable to save subscription' });
+  }
+});
+
+app.delete('/api/notifications/subscribe', authenticate, async (req, res) => {
+  const endpoint = String(req.body.endpoint || '');
+  try {
+    await prisma.pushSubscription.deleteMany({
+      where: { endpoint, userId: req.user.id },
+    });
+    res.status(204).end();
+  } catch {
+    res.status(500).json({ error: 'Unable to remove subscription' });
+  }
+});
+
+app.patch('/api/users/notification-preferences', authenticate, async (req, res) => {
+  const emailNotifications = typeof req.body.emailNotifications === 'boolean' ? req.body.emailNotifications : undefined;
+  const pushNotifications = typeof req.body.pushNotifications === 'boolean' ? req.body.pushNotifications : undefined;
+  try {
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { ...(emailNotifications !== undefined && { emailNotifications }), ...(pushNotifications !== undefined && { pushNotifications }) },
+    });
+    res.json({ emailNotifications: updated.emailNotifications, pushNotifications: updated.pushNotifications });
+  } catch {
+    res.status(500).json({ error: 'Unable to update preferences' });
   }
 });
 
@@ -1213,6 +1321,7 @@ const findChatConsultation = (consultationId, user, { withinWindow = false } = {
 
 const server = http.createServer(app);
 const io = new SocketServer(server, { cors: { origin: true, credentials: true } });
+notifications.setSocketIo(io);
 
 io.use(async (socket, next) => {
   const token = socket.handshake.auth?.token;
@@ -1229,6 +1338,8 @@ io.use(async (socket, next) => {
 });
 
 io.on('connection', (socket) => {
+  socket.join(`user:${socket.user.id}`);
+
   socket.on('chat:join', async (payload, callback) => {
     const consultationId = String(payload?.consultationId || '');
     const consultation = await findChatConsultation(consultationId, socket.user);
@@ -1247,6 +1358,27 @@ io.on('connection', (socket) => {
       data: { consultationId: consultation.id, sender: socket.user.role === 'LAWYER' ? 'LAWYER' : 'USER', content },
     });
     io.to(`consultation:${consultation.id}`).emit('chat:message', { ...message, sender: message.sender.toLowerCase() });
+
+    // Notify the other participant
+    const fullConsultation = await prisma.consultation.findUnique({
+      where: { id: consultation.id },
+      include: { user: { select: { id: true, email: true } }, lawyer: { include: { user: { select: { id: true, email: true } } } } },
+    });
+    if (fullConsultation) {
+      const senderName = socket.user.name || (socket.user.role === 'LAWYER' ? 'Lawyer' : 'Client');
+      const recipientUserId = socket.user.role === 'LAWYER' ? fullConsultation.userId : fullConsultation.lawyer?.userId;
+      if (recipientUserId) {
+        await notifications.createNotification({
+          userId: recipientUserId,
+          consultationId: fullConsultation.id,
+          type: 'CHAT_MESSAGE',
+          title: `New message from ${senderName}`,
+          body: content.length > 120 ? `${content.slice(0, 120)}...` : content,
+          channels: ['IN_APP', 'EMAIL'],
+        });
+      }
+    }
+
     callback?.({ ok: true });
   });
 });
@@ -1267,9 +1399,12 @@ const ensureDeploymentAdmin = async () => {
 };
 
 ensureDeploymentAdmin()
-  .then(() => server.listen(PORT, () => {
-    console.log(`API + realtime server running on http://localhost:${PORT}`);
-  }))
+  .then(() => {
+    notifications.startReminderScheduler();
+    server.listen(PORT, () => {
+      console.log(`API + realtime server running on http://localhost:${PORT}`);
+    });
+  })
   .catch((error) => {
     console.error(`Server startup failed: ${error.message}`);
     process.exitCode = 1;

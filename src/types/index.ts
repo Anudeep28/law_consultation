@@ -15,6 +15,8 @@ export interface User {
   subscriptionExpiry?: Date;
   documentCredits: number;
   appliedPaymentIds: string[];
+  emailNotifications?: boolean;
+  pushNotifications?: boolean;
 }
 
 export interface Lawyer {
@@ -123,6 +125,20 @@ export interface TranscriptionSession {
   language: string;
   outputLanguage: string;
   apiKey: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  consultationId?: string;
+  type: 'CONSULTATION_REMINDER' | 'CONSULTATION_BOOKED' | 'CHAT_MESSAGE' | 'DELIVERABLE_READY';
+  channels: ('IN_APP' | 'EMAIL' | 'PUSH')[];
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  read: boolean;
+  createdAt: string;
+  consultation?: Pick<Consultation, 'id' | 'topic' | 'mode' | 'startsAt'>;
 }
 
 export interface Language {

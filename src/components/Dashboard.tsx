@@ -11,6 +11,8 @@ import { AdminLawyerReviewView } from './AdminLawyerReviewView';
 import { AdminUsersView } from './AdminUsersView';
 import { AdminReviewsView } from './AdminReviewsView';
 import { PhoneVerification } from './PhoneVerification';
+import { NotificationBell } from './NotificationBell';
+import { getSocket, disconnectSocket } from '../services/socket';
 import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessageSquareText, MessagesSquare, ShieldCheck, Users, X } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -20,9 +22,20 @@ export const Dashboard: React.FC = () => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const { documents, createDocument, setCurrentDocument, loadDocuments, clearDocuments } = useDocumentStore();
 
+  const userId = user?.id;
+
   useEffect(() => {
     if (user?.role === 'lawyer') void loadDocuments();
   }, [loadDocuments, user?.role]);
+
+  useEffect(() => {
+    if (userId) {
+      getSocket();
+    }
+    return () => {
+      disconnectSocket();
+    };
+  }, [userId]);
 
   useEffect(() => setIsMobileNavOpen(false), [activeView]);
 
@@ -244,6 +257,7 @@ export const Dashboard: React.FC = () => {
                 <span className="hidden sm:inline">New Document</span>
               </button>
             )}
+            <NotificationBell />
           </div>
         </div>
 
