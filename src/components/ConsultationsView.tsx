@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, Calendar, Clock, Languages, MessageCircle, Phone, Search, ShieldCheck, Star, Video, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Calendar, Clock, Languages, MessageCircle, Phone, Search, ShieldCheck, Star, Video, X } from 'lucide-react';
 import { apiRequest, ApiError } from '../services/api';
 import { consultationCheckout } from '../services/razorpayService';
 import { useAuthStore } from '../stores/authStore';
@@ -208,8 +208,16 @@ export const ConsultationsView: React.FC = () => {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Brief matter summary</label><textarea required minLength={10} maxLength={1000} rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Share the key facts and your questions. Avoid unnecessary sensitive information." className="w-full px-3 py-2 border rounded-lg" /><p className="text-xs text-gray-500 mt-1">Booking does not create a lawyer-client relationship. The lawyer may need to complete a conflict check.</p></div>
               <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-center text-xs text-gray-600"><span className="flex items-center justify-center gap-1"><ShieldCheck className="w-4 h-4 text-green-600" />Private</span><span className="flex items-center justify-center gap-1"><BadgeCheck className="w-4 h-4 text-blue-600" />Verified</span><span className="flex items-center justify-center gap-1"><Clock className="w-4 h-4 text-[#b8862d]" />10 minutes</span></div>
               {error && <p className="text-sm text-red-600">{error}</p>}
+              {!user?.isEmailVerified && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                    <p>Please verify your email address before booking. Check your inbox or resend the verification email from the notification banner.</p>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><button disabled={!selectedSlot || notes.length < 10 || isSubmitting} className="px-4 py-2 bg-[#701f2f] text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Processing...' : `Pay ${selectedLawyer ? formatFee(mode === 'call' && packageSelection === 'call_with_document' ? selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)) : selectedLawyer.fee) : ''} & book`}</button></div>
+            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><button disabled={!selectedSlot || notes.length < 10 || isSubmitting || !user?.isEmailVerified} className="px-4 py-2 bg-[#701f2f] text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Processing...' : `Pay ${selectedLawyer ? formatFee(mode === 'call' && packageSelection === 'call_with_document' ? selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)) : selectedLawyer.fee) : ''} & book`}</button></div>
           </form>
         </div>
       )}

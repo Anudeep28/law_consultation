@@ -97,6 +97,7 @@ model User {
   documentCredits    Int              @default(0)
   emailNotifications Boolean          @default(true)
   pushNotifications  Boolean          @default(true)
+  emailVerifiedAt    DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   payments           Payment[]
@@ -105,6 +106,7 @@ model User {
   reviews            LawyerReview[]
   notifications      Notification[]
   pushSubscriptions  PushSubscription[]
+  emailVerificationToken EmailVerificationToken?
   adminActions       AdminAuditLog[]  @relation("AdminActor")
   accountAuditLogs   AdminAuditLog[]  @relation("AuditTarget")
 }
@@ -202,6 +204,19 @@ model PushSubscription {
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
   @@index([userId])
 }
 

@@ -9,6 +9,7 @@ export interface User {
   accountStatus: 'active' | 'suspended' | 'deactivated';
   phone?: string;
   isPhoneVerified: boolean;
+  isEmailVerified: boolean;
   lawyerProfile?: Lawyer;
   subscriptionStatus: 'active' | 'trial' | 'expired';
   subscriptionPlan: 'trial' | PaidPlan;

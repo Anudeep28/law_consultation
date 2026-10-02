@@ -11,6 +11,7 @@ import { AdminLawyerReviewView } from './AdminLawyerReviewView';
 import { AdminUsersView } from './AdminUsersView';
 import { AdminReviewsView } from './AdminReviewsView';
 import { PhoneVerification } from './PhoneVerification';
+import { EmailVerificationBanner } from './EmailVerificationBanner';
 import { NotificationBell } from './NotificationBell';
 import { getSocket, disconnectSocket } from '../services/socket';
 import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessageSquareText, MessagesSquare, ShieldCheck, Users, X } from 'lucide-react';
@@ -262,6 +263,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <PhoneVerification />
+        <EmailVerificationBanner />
 
         {/* Content Area */}
         <div className="min-h-0 flex-1 overflow-hidden">

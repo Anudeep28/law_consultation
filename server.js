@@ -59,6 +59,7 @@ const serializeUser = (user) => {
     accountStatus: user.accountStatus.toLowerCase(),
     phone: user.phone || undefined,
     isPhoneVerified: Boolean(user.phoneVerifiedAt),
+    isEmailVerified: Boolean(user.emailVerifiedAt),
     lawyerProfile: user.lawyerProfile ? serializeLawyer(user.lawyerProfile) : undefined,
     subscriptionStatus: timedAccess
       ? (user.subscriptionPlan === 'TRIAL' ? 'trial' : 'active')
@@ -101,6 +102,35 @@ const requireRole = (role) => (req, res, next) => {
 };
 
 const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+const { sendEmail } = require('./server/notifications');
+
+const appUrl = process.env.APP_URL || 'http://localhost:3000';
+
+const sendVerificationEmail = async (user) => {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await prisma.emailVerificationToken.upsert({
+    where: { userId: user.id },
+    update: { token, expiresAt, usedAt: null },
+    create: { userId: user.id, token, expiresAt },
+  });
+  const verifyUrl = `${appUrl}/verify-email?token=${token}`;
+  await sendEmail({
+    to: user.email,
+    subject: 'Verify your email - Law Writer',
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color: #701f2f;">Welcome to Law Writer</h2>
+        <p>Hi ${user.name},</p>
+        <p>Please verify your email address by clicking the button below. This link expires in 24 hours.</p>
+        <a href="${verifyUrl}" style="display: inline-block; background: #701f2f; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Verify email address</a>
+        <p style="margin-top: 24px; font-size: 12px; color: #666;">If you didn't create this account, you can ignore this email.</p>
+      </div>
+    `,
+    text: `Welcome to Law Writer. Verify your email by opening this link: ${verifyUrl}. This link expires in 24 hours.`,
+  });
+};
 
 app.post('/api/auth/register', async (req, res) => {
   const name = String(req.body.name || '').trim();
@@ -147,6 +177,8 @@ app.post('/api/auth/register', async (req, res) => {
       },
       include: { lawyerProfile: true },
     });
+    // Send verification email asynchronously; don't block registration if it fails
+    sendVerificationEmail(user).catch((err) => console.error('[email-verify] Failed to send verification email:', err));
     res.status(201).json({ token: signToken(user.id), user: serializeUser(user) });
   } catch (error) {
     if (error.code === 'P2002') return res.status(409).json({ error: 'An account with this email or enrollment number already exists' });
@@ -181,6 +213,44 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', authenticate, async (req, res) => {
   const user = await userWithPayments(req.user.id);
   res.json({ user: serializeUser(user) });
+});
+
+app.post('/api/auth/send-verification-email', authenticate, async (req, res) => {
+  try {
+    if (req.user.emailVerifiedAt) return res.status(400).json({ error: 'Email is already verified' });
+    await sendVerificationEmail(req.user);
+    res.json({ message: 'Verification email sent' });
+  } catch (error) {
+    console.error('[email-verify] Resend verification failed:', error);
+    res.status(500).json({ error: 'Unable to send verification email' });
+  }
+});
+
+app.post('/api/auth/verify-email', async (req, res) => {
+  const token = String(req.query.token || req.body.token || '');
+  if (!token) return res.status(400).json({ error: 'Verification token is required' });
+  try {
+    const record = await prisma.emailVerificationToken.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+    if (!record || record.usedAt || record.expiresAt < new Date()) {
+      return res.status(400).json({ error: 'This verification link is invalid or has expired' });
+    }
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: record.userId },
+        data: { emailVerifiedAt: new Date() },
+      }),
+      prisma.emailVerificationToken.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      }),
+    ]);
+    res.json({ verified: true, email: record.user.email });
+  } catch {
+    res.status(500).json({ error: 'Unable to verify email' });
+  }
 });
 
 app.post('/api/auth/phone/send-otp', authenticate, async (req, res) => {
@@ -556,6 +626,7 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
     return res.status(400).json({ error: 'Choose a slot, consultation package, and provide a topic and 10–1000 character summary' });
   }
   if (startsAt.getTime() < Date.now() + 5 * 60 * 1000) return res.status(400).json({ error: 'This slot is no longer available' });
+  if (!req.user.emailVerifiedAt) return res.status(403).json({ error: 'Please verify your email address before booking a consultation' });
   const endsAt = new Date(startsAt.getTime() + 10 * 60 * 1000);
   try {
     const lawyer = await prisma.lawyer.findUnique({ where: { id: lawyerId } });

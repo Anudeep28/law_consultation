@@ -35,6 +35,12 @@ export const updateNotificationPreferences = (preferences: { emailNotifications?
     body: JSON.stringify(preferences),
   });
 
+export const sendVerificationEmail = () =>
+  apiRequest<{ message: string }>('/api/auth/send-verification-email', { method: 'POST' });
+
+export const verifyEmailToken = (token: string) =>
+  apiRequest<{ verified: true; email: string }>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'POST' });
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
