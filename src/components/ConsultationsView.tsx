@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BadgeCheck, Calendar, Clock, Languages, MessageCircle, Phone, Search, ShieldCheck, Star, Video, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Calendar, Clock, CreditCard, Languages, Lock, MessageCircle, Phone, Search, ShieldCheck, Star, Video, X } from 'lucide-react';
 import { apiRequest, ApiError } from '../services/api';
 import { consultationCheckout } from '../services/razorpayService';
 import { useAuthStore } from '../stores/authStore';
@@ -7,6 +7,7 @@ import { Consultation, Lawyer } from '../types';
 import { ConsultationChat } from './ConsultationChat';
 import { ConsultationDeliverables } from './ConsultationDeliverables';
 import { LawyerReviewForm } from './LawyerReviewForm';
+import { TrustSection } from './TrustSection';
 
 const formatFee = (fee: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(fee / 100);
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
@@ -114,7 +115,9 @@ export const ConsultationsView: React.FC = () => {
         </div>
       </section>
 
-      <div className="mx-auto max-w-6xl px-6 py-7">
+      <div className="mx-auto max-w-6xl px-6 py-7 space-y-6">
+        <TrustSection />
+
         <div className="mb-6 flex w-fit gap-1 rounded-full border border-[#eadbc1] bg-white p-1 shadow-sm">
           <button onClick={() => setTab('lawyers')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'lawyers' ? 'bg-[#701f2f] text-white shadow' : 'text-gray-600 hover:bg-[#fff6e3]'}`}>Consult lawyers</button>
           <button onClick={() => setTab('bookings')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'bookings' ? 'bg-[#701f2f] text-white shadow' : 'text-gray-600 hover:bg-[#fff6e3]'}`}>My consultations ({consultations.length})</button>
@@ -141,12 +144,25 @@ export const ConsultationsView: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5"><h3 className="font-bold text-[#32151b]">{lawyer.name}</h3>{lawyer.isVerified && <BadgeCheck className="h-4 w-4 text-[#b8862d]" />}</div>
                       <p className="text-sm font-semibold text-[#8a2637]">{lawyer.title}</p>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-600"><span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />{lawyer.rating} ({lawyer.reviewCount})</span><span>{lawyer.experienceYears} years experience</span></div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-600"><span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />{lawyer.rating} ({lawyer.reviewCount})</span><span>{lawyer.experienceYears} years experience</span><span>Bar Council: {lawyer.barCouncil}</span></div>
                     </div>
                   </div>
                   <p className="text-sm text-gray-600 mt-4 leading-6">{lawyer.bio}</p>
                   {!!lawyer.reviews?.length && <div className="mt-3 space-y-2">{lawyer.reviews.slice(0, 2).map((review) => <blockquote key={review.id} className="rounded-lg bg-[#fffaf0] p-3 text-xs text-gray-600"><span className="font-semibold text-[#32151b]">{review.rating}/5 · {review.clientName}</span>{review.comment && <p className="mt-1">“{review.comment}”</p>}</blockquote>)}</div>}
                   <div className="mt-3 flex flex-wrap gap-2">{lawyer.practiceAreas.map((area) => <span key={area} className="rounded-full bg-[#fff4d6] px-2.5 py-1 text-xs font-medium text-[#765116]">{area}</span>)}</div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-green-700">
+                      <ShieldCheck className="h-3 w-3" /> Verified
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#fff4d6] px-2 py-1 text-[#765116]">
+                      <Lock className="h-3 w-3" /> Confidential
+                    </span>
+                    {lawyer.isVerified && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-blue-700">
+                        <BadgeCheck className="h-3 w-3" /> Bar verified
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-4 border-t border-[#f0e4d2] pt-4">
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <p className="flex items-center gap-1 text-xs text-gray-500"><Languages className="w-3.5 h-3.5" />{lawyer.languages.join(', ')}</p>
@@ -207,6 +223,11 @@ export const ConsultationsView: React.FC = () => {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">What do you need help with?</label><input required maxLength={100} value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="e.g. Review a rental dispute" className="w-full px-3 py-2 border rounded-lg" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Brief matter summary</label><textarea required minLength={10} maxLength={1000} rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Share the key facts and your questions. Avoid unnecessary sensitive information." className="w-full px-3 py-2 border rounded-lg" /><p className="text-xs text-gray-500 mt-1">Booking does not create a lawyer-client relationship. The lawyer may need to complete a conflict check.</p></div>
               <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-center text-xs text-gray-600"><span className="flex items-center justify-center gap-1"><ShieldCheck className="w-4 h-4 text-green-600" />Private</span><span className="flex items-center justify-center gap-1"><BadgeCheck className="w-4 h-4 text-blue-600" />Verified</span><span className="flex items-center justify-center gap-1"><Clock className="w-4 h-4 text-[#b8862d]" />10 minutes</span></div>
+              <div className="flex flex-wrap items-center justify-center gap-4 rounded-lg border border-[#e6d8c2] bg-[#fffcf6] p-3 text-xs text-[#6f5a49]">
+                <span className="flex items-center gap-1"><Lock className="h-3.5 w-3.5 text-green-600" /> Secure payment</span>
+                <span className="flex items-center gap-1"><CreditCard className="h-3.5 w-3.5 text-[#701f2f]" /> Powered by Razorpay</span>
+                <span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-[#b8862d]" /> 100% encrypted</span>
+              </div>
               {error && <p className="text-sm text-red-600">{error}</p>}
               {!user?.isEmailVerified && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">

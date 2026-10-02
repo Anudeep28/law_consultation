@@ -13,6 +13,8 @@ import { AdminReviewsView } from './AdminReviewsView';
 import { PhoneVerification } from './PhoneVerification';
 import { EmailVerificationBanner } from './EmailVerificationBanner';
 import { NotificationBell } from './NotificationBell';
+import { PolicyModal } from './PolicyModal';
+import { policies, policyTitles } from '../data/policies';
 import { getSocket, disconnectSocket } from '../services/socket';
 import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessageSquareText, MessagesSquare, ShieldCheck, Users, X } from 'lucide-react';
 
@@ -21,6 +23,7 @@ export const Dashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [activePolicy, setActivePolicy] = useState<keyof typeof policies | null>(null);
   const { documents, createDocument, setCurrentDocument, loadDocuments, clearDocuments } = useDocumentStore();
 
   const userId = user?.id;
@@ -277,10 +280,40 @@ export const Dashboard: React.FC = () => {
           {activeView === 'admin-reviews' && <AdminReviewsView />}
         </div>
 
-        <footer className="hidden shrink-0 items-center justify-between border-t border-[#eadbc1] bg-white px-6 py-3 text-xs text-[#8c6b54] sm:flex">
-          <span>Built by Eneru 2026</span>
-          <span>Powered by ElevenLabs and DeepSeek</span>
+        <footer className="hidden shrink-0 flex-col gap-2 border-t border-[#eadbc1] bg-white px-6 py-3 text-xs text-[#8c6b54] sm:flex">
+          <div className="flex items-center justify-between">
+            <span>Built by Eneru 2026</span>
+            <span>Powered by ElevenLabs and DeepSeek</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Need help?{' '}
+              <a href={`mailto:${process.env.REACT_APP_SUPPORT_EMAIL || 'support@lawwriter.app'}`} className="text-[#701f2f] hover:underline">
+                {process.env.REACT_APP_SUPPORT_EMAIL || 'support@lawwriter.app'}
+              </a>
+            </span>
+            <div className="flex flex-wrap gap-4">
+              {(['terms', 'privacy', 'refunds', 'disclaimer'] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActivePolicy(key)}
+                  className="text-[#6f5a49] hover:text-[#701f2f] hover:underline"
+                >
+                  {policyTitles[key]}
+                </button>
+              ))}
+            </div>
+          </div>
         </footer>
+
+        {activePolicy && (
+          <PolicyModal
+            title={policyTitles[activePolicy]}
+            content={policies[activePolicy]}
+            onClose={() => setActivePolicy(null)}
+          />
+        )}
       </div>
 
       {/* New Document Modal */}
