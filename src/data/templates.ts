@@ -15,12 +15,28 @@ export const legalTemplates: LegalTemplate[] = [
 **IN THE MATTER OF:**
 
 **{{petitionerName}}**
+{{petitionerAddress}}
 ...Petitioner
 
 **VERSUS**
 
 **{{respondentName}}**
+{{respondentAddress}}
 ...Respondent
+
+---
+
+## **SYNOPSIS**
+
+{{synopsis}}
+
+---
+
+## **LIST OF DATES**
+
+{{listOfDates}}
+
+---
 
 ### **SPECIAL LEAVE PETITION UNDER ARTICLE 136 OF THE CONSTITUTION OF INDIA**
 
@@ -59,24 +75,39 @@ For the reasons stated above, it is most respectfully prayed that this Hon'ble C
 **{{petitionerName}}**
 Petitioner
 
+**Filed by:**
+
+**{{aorName}}**
+Advocate on Record for the Petitioner
+AOR Code: {{aorCode}}
+{{aorAddress}}
+Phone: {{aorPhone}}
+
 Dated: {{date}}
-Place: {{place}}`,
+Place: New Delhi`,
     fields: [
       { id: 'petitionerName', name: 'Petitioner Name', type: 'text', placeholder: 'Enter petitioner name', required: true },
+      { id: 'petitionerAddress', name: 'Petitioner Address', type: 'textarea', placeholder: 'Full address of petitioner', required: true },
       { id: 'respondentName', name: 'Respondent Name', type: 'text', placeholder: 'Enter respondent name', required: true },
+      { id: 'respondentAddress', name: 'Respondent Address', type: 'textarea', placeholder: 'Full address of respondent', required: true },
+      { id: 'synopsis', name: 'Synopsis', type: 'textarea', placeholder: 'Brief summary of the case and grounds for seeking leave', required: true },
+      { id: 'listOfDates', name: 'List of Dates', type: 'textarea', placeholder: 'Chronological list of key dates and events e.g.\n01.01.2023 - Suit filed\n15.06.2023 - Trial court judgment\n10.01.2024 - High Court dismissed appeal', required: true },
       { id: 'judgmentDate', name: 'Judgment Date', type: 'date', required: true },
-      { id: 'highCourtName', name: 'High Court Name', type: 'text', placeholder: 'Enter high court name', required: true },
+      { id: 'highCourtName', name: 'High Court Name', type: 'text', placeholder: 'e.g. High Court of Delhi', required: true },
       { id: 'caseTitle', name: 'Case Title', type: 'text', placeholder: 'Enter case title', required: true },
       { id: 'caseNumber', name: 'Case Number', type: 'text', placeholder: 'Enter case number', required: true },
+      { id: 'aorName', name: 'Advocate on Record (AOR) Name', type: 'text', placeholder: 'Name of AOR', required: true },
+      { id: 'aorCode', name: 'AOR Code', type: 'text', placeholder: 'e.g. R-123', required: true },
+      { id: 'aorAddress', name: 'AOR Office Address', type: 'textarea', placeholder: 'Chamber address, Supreme Court of India', required: true },
+      { id: 'aorPhone', name: 'AOR Phone', type: 'text', placeholder: 'Contact number', required: true },
       { id: 'date', name: 'Date', type: 'date', required: true },
-      { id: 'place', name: 'Place', type: 'text', placeholder: 'Enter place', required: true }
     ]
   },
   {
     id: 'bail-application',
     name: 'Bail Application',
     category: 'Criminal',
-    description: 'Application for bail under Section 437/439 of CrPC',
+    description: 'Application for bail under Section 480/483 BNSS (formerly Section 437/439 CrPC)',
     content: `# **IN THE COURT OF {{courtName}}**
 
 ## **STATE THROUGH {{policeStation}}**
@@ -87,11 +118,11 @@ Place: {{place}}`,
 **{{accusedName}}**
 ...Accused
 
-### **APPLICATION UNDER SECTION {{section}} OF CrPC FOR GRANT OF BAIL**
+### **APPLICATION UNDER SECTION {{section}} FOR GRANT OF BAIL**
 
 ## **MOST RESPECTFULLY SUBMITTED:**
 
-1. That the applicant/accused is in custody in connection with FIR No. {{firNumber}} dated {{firDate}} registered at Police Station {{policeStation}} for the offence punishable under Section {{ipcSections}} IPC.
+1. That the applicant/accused is in custody in connection with FIR No. {{firNumber}} dated {{firDate}} registered at Police Station {{policeStation}} for the offence punishable under Section(s) {{offenceSections}}.
 
 2. That the applicant is innocent and has been falsely implicated in the present case.
 
@@ -124,10 +155,10 @@ Dated: {{date}}`,
       { id: 'courtName', name: 'Court Name', type: 'text', placeholder: 'Enter court name', required: true },
       { id: 'policeStation', name: 'Police Station', type: 'text', placeholder: 'Enter police station', required: true },
       { id: 'accusedName', name: 'Accused Name', type: 'text', placeholder: 'Enter accused name', required: true },
-      { id: 'section', name: 'Section', type: 'select', options: ['437', '439'], required: true },
+      { id: 'section', name: 'Bail Section', type: 'select', options: ['480 BNSS (formerly 437 CrPC)', '483 BNSS (formerly 439 CrPC)', '437 CrPC (pre-July 2024 cases)', '439 CrPC (pre-July 2024 cases)'], required: true },
       { id: 'firNumber', name: 'FIR Number', type: 'text', placeholder: 'Enter FIR number', required: true },
       { id: 'firDate', name: 'FIR Date', type: 'date', required: true },
-      { id: 'ipcSections', name: 'IPC Sections', type: 'text', placeholder: 'Enter IPC sections', required: true },
+      { id: 'offenceSections', name: 'Offence Sections (BNS/IPC)', type: 'text', placeholder: 'e.g. 303(2) BNS or 420/468 IPC', required: true },
       { id: 'address', name: 'Address', type: 'textarea', placeholder: 'Enter permanent address', required: true },
       { id: 'advocateName', name: 'Advocate Name', type: 'text', placeholder: 'Enter advocate name', required: true },
       { id: 'date', name: 'Date', type: 'date', required: true }
@@ -341,12 +372,28 @@ Notary Public / Oath Commissioner`,
 **IN THE MATTER OF:**
 
 **{{petitionerName}}**
+{{petitionerAddress}}
 ...Petitioner
 
 **VERSUS**
 
 **{{respondentName}}**
+{{respondentAddress}}
 ...Respondent
+
+---
+
+## **SYNOPSIS**
+
+{{synopsis}}
+
+---
+
+## **LIST OF DATES**
+
+{{listOfDates}}
+
+---
 
 ### **WRIT PETITION UNDER ARTICLE 226 OF THE CONSTITUTION OF INDIA**
 
@@ -393,7 +440,11 @@ Place: {{place}}`,
       { id: 'writType', name: 'Writ Type', type: 'select', options: ['Certiorari', 'Mandamus', 'Habeas Corpus', 'Prohibition', 'Quo Warranto'], required: true },
       { id: 'year', name: 'Year', type: 'number', placeholder: 'Year', required: true },
       { id: 'petitionerName', name: 'Petitioner Name', type: 'text', placeholder: 'Enter petitioner name', required: true },
+      { id: 'petitionerAddress', name: 'Petitioner Address', type: 'textarea', placeholder: 'Full address of petitioner', required: true },
       { id: 'respondentName', name: 'Respondent Name', type: 'text', placeholder: 'Enter respondent name', required: true },
+      { id: 'respondentAddress', name: 'Respondent Address', type: 'textarea', placeholder: 'Full address of respondent', required: true },
+      { id: 'synopsis', name: 'Synopsis', type: 'textarea', placeholder: 'Brief summary of the case for quick reference by the court', required: true },
+      { id: 'listOfDates', name: 'List of Dates', type: 'textarea', placeholder: 'Chronological list of key dates and events', required: true },
       { id: 'petitionerDescription', name: 'Petitioner Description', type: 'text', placeholder: 'e.g. a citizen of India', required: true },
       { id: 'impugnedOrderDate', name: 'Impugned Order Date', type: 'date', required: true },
       { id: 'respondentAuthority', name: 'Respondent Authority', type: 'text', placeholder: 'e.g. the State of Maharashtra', required: true },
@@ -409,7 +460,7 @@ Place: {{place}}`,
     id: 'anticipatory-bail',
     name: 'Anticipatory Bail Application',
     category: 'Criminal',
-    description: 'Application for anticipatory bail under Section 438 CrPC',
+    description: 'Application for anticipatory bail under Section 482 BNSS (formerly Section 438 CrPC)',
     content: `# **IN THE COURT OF SESSIONS JUDGE / ADDITIONAL SESSIONS JUDGE**
 
 ## **{{courtName}}**
@@ -429,11 +480,11 @@ Residing at {{address}}
 Through {{policeStation}} Police Station
 ...Respondent
 
-### **APPLICATION UNDER SECTION 438 OF THE CODE OF CRIMINAL PROCEDURE FOR GRANT OF ANTICIPATORY BAIL**
+### **APPLICATION UNDER {{bailSection}} FOR GRANT OF ANTICIPATORY BAIL**
 
 ## **MOST RESPECTFULLY SUBMITTED:**
 
-1. That the applicant apprehends arrest in connection with FIR No. {{firNumber}} / Case Crime No. {{caseNumber}} registered at Police Station {{policeStation}} for the alleged offence under Section(s) {{ipcSections}} IPC.
+1. That the applicant apprehends arrest in connection with FIR No. {{firNumber}} / Case Crime No. {{caseNumber}} registered at Police Station {{policeStation}} for the alleged offence under Section(s) {{offenceSections}}.
 
 2. That the applicant is innocent and has been falsely implicated by the complainant due to {{motiveForFalseImplication}}.
 
@@ -465,9 +516,10 @@ Dated: {{date}}`,
       { id: 'address', name: 'Address', type: 'textarea', placeholder: 'Full residential address', required: true },
       { id: 'state', name: 'State', type: 'text', placeholder: 'State name', required: true },
       { id: 'policeStation', name: 'Police Station', type: 'text', placeholder: 'Police station name', required: true },
+      { id: 'bailSection', name: 'Applicable Section', type: 'select', options: ['Section 482 BNSS (formerly Section 438 CrPC)', 'Section 438 CrPC (pre-July 2024 cases)'], required: true },
       { id: 'firNumber', name: 'FIR Number', type: 'text', placeholder: 'FIR number if registered', required: false },
       { id: 'caseNumber', name: 'Case/Crime Number', type: 'text', placeholder: 'Case/Crime number', required: true },
-      { id: 'ipcSections', name: 'IPC/BNS Sections', type: 'text', placeholder: 'Enter applicable sections', required: true },
+      { id: 'offenceSections', name: 'Offence Sections (BNS/IPC)', type: 'text', placeholder: 'e.g. 318(4) BNS or 420/468 IPC', required: true },
       { id: 'motiveForFalseImplication', name: 'Motive for False Implication', type: 'textarea', placeholder: 'Describe the motive', required: true },
       { id: 'occupation', name: 'Occupation', type: 'text', placeholder: 'e.g. businessman, teacher', required: true },
       { id: 'yearsOfResidence', name: 'Years of Residence', type: 'number', placeholder: 'Number of years', required: true },

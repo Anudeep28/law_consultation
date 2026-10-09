@@ -6,10 +6,22 @@ describe('documentFonts', () => {
       expect(getDocumentFontFamily('en')).toContain('Times New Roman');
     });
 
-    it('returns Kruti Dev for Marathi', () => {
+    it('returns Devanagari font for Marathi', () => {
       const family = getDocumentFontFamily('mr');
-      expect(family).toContain('Kruti Dev');
+      expect(family).toContain('Noto Sans Devanagari');
       expect(family).toContain('Mangal');
+    });
+
+    it('returns script-specific fonts for Indian languages', () => {
+      expect(getDocumentFontFamily('hi')).toContain('Noto Sans Devanagari');
+      expect(getDocumentFontFamily('bn')).toContain('Noto Sans Bengali');
+      expect(getDocumentFontFamily('ta')).toContain('Noto Sans Tamil');
+      expect(getDocumentFontFamily('te')).toContain('Noto Sans Telugu');
+      expect(getDocumentFontFamily('kn')).toContain('Noto Sans Kannada');
+      expect(getDocumentFontFamily('ml')).toContain('Noto Sans Malayalam');
+      expect(getDocumentFontFamily('gu')).toContain('Noto Sans Gujarati');
+      expect(getDocumentFontFamily('pa')).toContain('Noto Sans Gurmukhi');
+      expect(getDocumentFontFamily('ur')).toContain('Noto Nastaliq Urdu');
     });
 
     it('defaults to Times New Roman when language is missing', () => {
@@ -26,8 +38,8 @@ describe('documentFonts', () => {
       expect(getDocumentFontName('en')).toBe('Times New Roman');
     });
 
-    it('returns Kruti Dev for Marathi', () => {
-      expect(getDocumentFontName('mr')).toBe('Kruti Dev');
+    it('returns Noto Sans Devanagari for Marathi', () => {
+      expect(getDocumentFontName('mr')).toBe('Noto Sans Devanagari');
     });
 
     it('defaults to Times New Roman when language is missing', () => {

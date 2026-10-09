@@ -3,7 +3,8 @@ import { Document } from '../types';
 import { saveAs } from 'file-saver';
 import { Document as DocxDocument, Packer, Paragraph, TextRun } from 'docx';
 import { jsPDF } from 'jspdf';
-import { getDocumentFontName } from '../utils/documentFonts';
+import html2canvas from 'html2canvas';
+import { getDocumentFontName, getDocumentFontFamily } from '../utils/documentFonts';
 
 interface ExportOptionsProps {
   document: Document;
@@ -95,7 +96,120 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     }
   };
 
-  const exportAsPdf = () => {
+  const isNonLatinDocument = document.language && document.language !== 'en';
+
+  const addPageNumbers = (pdf: jsPDF) => {
+    const totalPages = pdf.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(128, 128, 128);
+      pdf.text(
+        `Page ${i} of ${totalPages}`,
+        pdf.internal.pageSize.width / 2,
+        pdf.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+      pdf.setTextColor(0, 0, 0);
+    }
+  };
+
+  const markdownToHtml = (content: string): string => {
+    return content
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/^- (.+)$/gm, '<li style="margin-left:20px">• $1</li>')
+      .replace(/^\d+\. (.+)$/gm, '<li style="margin-left:20px">$1</li>')
+      .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #ccc;margin:12px 0"/>')
+      .replace(/\n\n/g, '<br/><br/>')
+      .replace(/\n/g, '<br/>');
+  };
+
+  const exportAsPdfCanvas = async () => {
+    try {
+      const fontFamily = getDocumentFontFamily(document.language);
+      const htmlContent = markdownToHtml(document.content);
+
+      const container = window.document.createElement('div');
+      container.style.cssText = `
+        position: absolute; left: -9999px; top: 0;
+        width: 640px; padding: 40px;
+        font-family: ${fontFamily};
+        font-size: 14px; line-height: 1.7; color: #000;
+        background: #fff;
+      `;
+      container.innerHTML = `
+        <style>
+          h1 { font-size: 22px; font-weight: bold; margin: 16px 0 8px; }
+          h2 { font-size: 18px; font-weight: bold; margin: 14px 0 6px; }
+          h3 { font-size: 16px; font-weight: bold; margin: 12px 0 4px; }
+          li { margin: 4px 0; }
+        </style>
+        ${htmlContent}
+      `;
+      window.document.body.appendChild(container);
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      window.document.body.removeChild(container);
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.width;
+      const pageHeight = pdf.internal.pageSize.height;
+      const margin = 15;
+      const usableWidth = pageWidth - margin * 2;
+      const usableHeight = pageHeight - margin * 2 - 10; // leave room for page number
+
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const scaledHeight = (usableWidth / imgWidth) * imgHeight;
+
+      if (scaledHeight <= usableHeight) {
+        pdf.addImage(imgData, 'JPEG', margin, margin, usableWidth, scaledHeight);
+      } else {
+        // Split across pages
+        const pageImgHeight = (usableHeight / usableWidth) * imgWidth;
+        let srcY = 0;
+        let pageIndex = 0;
+
+        while (srcY < imgHeight) {
+          if (pageIndex > 0) pdf.addPage();
+          const sliceHeight = Math.min(pageImgHeight, imgHeight - srcY);
+          const sliceCanvas = window.document.createElement('canvas');
+          sliceCanvas.width = imgWidth;
+          sliceCanvas.height = sliceHeight;
+          const ctx = sliceCanvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, imgWidth, sliceHeight);
+            ctx.drawImage(canvas, 0, srcY, imgWidth, sliceHeight, 0, 0, imgWidth, sliceHeight);
+          }
+          const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95);
+          const renderedHeight = (usableWidth / imgWidth) * sliceHeight;
+          pdf.addImage(sliceData, 'JPEG', margin, margin, usableWidth, renderedHeight);
+          srcY += sliceHeight;
+          pageIndex++;
+        }
+      }
+
+      addPageNumbers(pdf);
+      pdf.save(`${filename}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Failed to export as PDF. Please try again.');
+    }
+  };
+
+  const exportAsPdfText = () => {
     try {
       const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
       const contentLines = document.content.split('\n');
@@ -110,7 +224,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
 
       const addWrappedText = (text: string, fontSize: number, style: string, extraSpacing = 0) => {
         pdf.setFontSize(fontSize);
-        pdf.setFont(document.language === 'mr' ? 'helvetica' : 'times', style);
+        pdf.setFont('times', style);
         const wrapped = pdf.splitTextToSize(text, maxWidth);
         wrapped.forEach((wrappedLine: string) => {
           if (yPosition > pageHeight - bottomMargin) {
@@ -141,10 +255,19 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
         }
       });
 
+      addPageNumbers(pdf);
       pdf.save(`${filename}.pdf`);
     } catch (error) {
       console.error('Error exporting PDF:', error);
       alert('Failed to export as PDF. Please try again.');
+    }
+  };
+
+  const exportAsPdf = async () => {
+    if (isNonLatinDocument) {
+      await exportAsPdfCanvas();
+    } else {
+      exportAsPdfText();
     }
   };
 
@@ -160,7 +283,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
           await exportAsDocx();
           break;
         case 'pdf':
-          exportAsPdf();
+          await exportAsPdf();
           break;
       }
       onClose();
