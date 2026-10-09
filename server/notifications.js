@@ -4,11 +4,11 @@ const prisma = require('../db');
 let ioInstance = null;
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.FROM_EMAIL || 'notifications@lawwriter.app';
+const fromEmail = process.env.FROM_EMAIL || 'noreply@consultwithlawyer.in';
 
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@lawwriter.app';
+const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@consultwithlawyer.in';
 
 if (vapidPublicKey && vapidPrivateKey) {
   webPush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);

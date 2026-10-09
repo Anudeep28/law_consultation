@@ -84,7 +84,7 @@ We may update these Terms from time to time. Material changes will be notified v
 
 14. CONTACT
 
-For questions about these Terms, contact us at support@lawwriter.app.`,
+For questions about these Terms, contact us at support@consultwithlawyer.in.`,
 
   privacy: `PRIVACY POLICY
 
@@ -95,7 +95,7 @@ This Privacy Policy explains how Eneru Technologies ("Company", "we", "us") coll
 1. DATA FIDUCIARY
 
 The Company acts as a Data Fiduciary under the DPDP Act. Our contact details:
-Email: privacy@lawwriter.app
+Email: privacy@consultwithlawyer.in
 Address: [Company registered address]
 
 2. PERSONAL DATA WE COLLECT
@@ -126,7 +126,7 @@ We process your personal data for the following purposes under the DPDP Act:
 4. CONSENT
 
 4.1. By creating an account, you provide consent for the processing described in this policy.
-4.2. You may withdraw consent at any time by contacting us at privacy@lawwriter.app. Withdrawal does not affect the lawfulness of processing done before withdrawal.
+4.2. You may withdraw consent at any time by contacting us at privacy@consultwithlawyer.in. Withdrawal does not affect the lawfulness of processing done before withdrawal.
 4.3. Certain processing is necessary for performing the contract (providing the service) and cannot be opted out of while using the Platform.
 
 5. DATA SHARING
@@ -162,7 +162,7 @@ As a Data Principal, you have the right to:
 - Nominate another individual to exercise your rights in case of death or incapacity
 - Grievance redressal (see Section 11 below)
 
-To exercise these rights, email privacy@lawwriter.app with your registered email address.
+To exercise these rights, email privacy@consultwithlawyer.in with your registered email address.
 
 9. CHILDREN'S DATA
 
@@ -176,7 +176,7 @@ Your data may be processed by AI service providers (DeepSeek, ElevenLabs) whose 
 
 In accordance with the IT Rules, 2011, and the DPDP Act, 2023, our Grievance Officer is:
 Name: [Grievance Officer Name]
-Email: privacy@lawwriter.app
+Email: privacy@consultwithlawyer.in
 Response time: We will acknowledge your grievance within 48 hours and resolve it within 30 days.
 
 12. CHANGES TO THIS POLICY
@@ -185,7 +185,7 @@ We may update this Privacy Policy to reflect changes in law or our practices. Ma
 
 13. CONTACT
 
-For privacy-related queries: privacy@lawwriter.app`,
+For privacy-related queries: privacy@consultwithlawyer.in`,
 
   refunds: `REFUND & CANCELLATION POLICY
 
@@ -198,17 +198,17 @@ This Refund and Cancellation Policy applies to all paid services on the Law Writ
 1.1. Client-initiated cancellation: You may cancel a booked consultation at any time before the scheduled start time through the "Cancel" button on your bookings page.
 1.2. Cancellation before the session: If you cancel before the consultation start time, a full refund will be processed to your original payment method.
 1.3. No-show: If you do not join the consultation within the scheduled time window, no refund will be issued. The Lawyer's fee is considered earned.
-1.4. Lawyer no-show: If the Lawyer fails to join the consultation, you will receive a full refund. Please contact support@lawwriter.app if this occurs.
+1.4. Lawyer no-show: If the Lawyer fails to join the consultation, you will receive a full refund. Please contact support@consultwithlawyer.in if this occurs.
 
 2. CONSULTATION REFUNDS
 
-2.1. If a consultation is materially disrupted due to a Platform technical failure (not your internet connection), contact support@lawwriter.app within 24 hours for a review. We will issue a refund or credit at our discretion.
+2.1. If a consultation is materially disrupted due to a Platform technical failure (not your internet connection), contact support@consultwithlawyer.in within 24 hours for a review. We will issue a refund or credit at our discretion.
 2.2. We do not issue refunds for dissatisfaction with the legal advice received. Disputes regarding the quality of legal services are between you and the Lawyer.
 
 3. DOCUMENT SUBSCRIPTION REFUNDS
 
 3.1. Single document credit (₹10): Non-refundable once the credit has been consumed (a document has been created).
-3.2. Unused document credits: Refundable within 7 days of purchase if no credit has been consumed. Contact support@lawwriter.app.
+3.2. Unused document credits: Refundable within 7 days of purchase if no credit has been consumed. Contact support@consultwithlawyer.in.
 3.3. Monthly subscription (₹499): Non-refundable once activated. You will retain access until the end of your billing period.
 3.4. Free trial: No payment is involved; no refund applies.
 
@@ -220,14 +220,14 @@ This Refund and Cancellation Policy applies to all paid services on the Law Writ
 
 5. DISPUTE RESOLUTION
 
-5.1. For any payment dispute, first contact us at support@lawwriter.app with your payment reference and a description of the issue.
+5.1. For any payment dispute, first contact us at support@consultwithlawyer.in with your payment reference and a description of the issue.
 5.2. We aim to resolve disputes within 7 business days.
 5.3. If we are unable to resolve your concern, you may approach the appropriate Consumer Disputes Redressal Commission under the Consumer Protection Act, 2019.
 5.4. For chargebacks initiated through your bank, we reserve the right to provide transaction records to Razorpay for dispute resolution.
 
 6. CONTACT
 
-Email: support@lawwriter.app
+Email: support@consultwithlawyer.in
 Response time: We aim to respond within 2 business days.`,
 
   disclaimer: `DISCLAIMER
@@ -282,7 +282,7 @@ This Disclaimer is governed by the laws of India. Any disputes arising from this
 
 10. CONTACT
 
-For questions about this Disclaimer: support@lawwriter.app`,
+For questions about this Disclaimer: support@consultwithlawyer.in`,
 };
 
 export const policyTitles: Record<string, string> = {
