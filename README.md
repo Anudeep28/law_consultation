@@ -1,3 +1,38 @@
+# Payment E2E tests
+
+The Chromium-only Playwright suite uses real API/database writes and a local Razorpay
+order stub; checkout is faked in the browser. No real payment credentials are needed.
+
+```sh
+source ~/.nvm/nvm.sh
+npm ci
+npx playwright install chromium
+# Create a separate database in the existing local test container, once:
+docker exec law-polish-test-db psql -U postgres -c 'CREATE DATABASE law_writer_e2e'
+export DATABASE_URL='postgresql://postgres:<local-password>@localhost:5432/law_writer_e2e'
+npm run test:e2e
+```
+
+`DATABASE_URL` is required and must name a local database ending in `_e2e`; never
+use a shared/deployed database. Global setup deploys Prisma migrations and seeds
+unique email-verified users, hashed passwords, and an approved lawyer with daily
+UTC availability. Fixture credentials are written to ignored `e2e/.auth/fixtures.json`.
+Fixtures are retained for debugging; unique emails/IDs make repeat runs safe. Drop
+and recreate only the dedicated E2E database when cleanup is wanted.
+
+Stop any unrelated backend on **3002** before running. Playwright starts an isolated
+`node server.js` child with fixed test keys and `RAZORPAY_API_URL` pointing to the
+HTTP order stub on **3901**, plus CRA on **3000** (`BROWSER=none`). Its readiness URL
+belongs to the stub/backend pair and is database-specific: an existing ordinary
+backend is never silently reused (port conflicts fail startup). Outside CI an
+already-running matching E2E stack and CRA server can be reused. Tests run serially,
+select slots more than an hour ahead, and retain screenshots/traces on failure in
+ignored `test-results/`. CRA Jest/TypeScript only include `src/`; server Jest only
+includes `server/`, so neither collects the Playwright suite.
+
+For application deployments, `RAZORPAY_API_URL` is optional and defaults to
+`https://api.razorpay.com`; HTTP is supported for the isolated local stub.
+
 # Law Writer - Professional Legal Document Writing Application
 
 A subscription-based web application for Indian lawyers to create legal documents using AI-powered speech-to-text transcription. Built with React, TypeScript, and ElevenLabs API.

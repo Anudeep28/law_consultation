@@ -47,6 +47,7 @@
     "build": "craco build",
     "test": "craco test",
     "test:server": "jest --config jest.server.config.js --runInBand",
+    "test:e2e": "playwright test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -70,6 +71,7 @@
   "proxy": "http://localhost:3002",
   "devDependencies": {
     "@craco/craco": "^7.1.0",
+    "@playwright/test": "1.65.1",
     "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.5.2",
     "dotenv": "^16.0.0",
