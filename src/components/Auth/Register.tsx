@@ -39,20 +39,20 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#fffaf0] py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-cream py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-[#32151b]">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-ink">
             Create a {role} account
           </h2>
-          <p className="mt-2 text-center text-sm text-[#6f5a49]">
+          <p className="mt-2 text-center text-sm text-ink-muted">
             {role === 'lawyer' ? 'Your credentials will be reviewed before clients can book you' : 'Find and consult verified legal professionals'}
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 rounded-lg border border-[#e6d8c2] bg-white p-1">
+          <div className="grid grid-cols-2 rounded-lg border border-line-soft bg-white p-1">
             {(['client', 'lawyer'] as UserRole[]).map((accountRole) => (
-              <button key={accountRole} type="button" onClick={() => setRole(accountRole)} className={`rounded-md px-3 py-2 text-sm font-semibold ${role === accountRole ? 'bg-[#701f2f] text-white' : 'text-[#6f5a49]'}`}>
+              <button key={accountRole} type="button" onClick={() => setRole(accountRole)} className={`rounded-md px-3 py-2 text-sm font-semibold ${role === accountRole ? 'bg-brand text-white' : 'text-ink-muted'}`}>
                 {accountRole === 'client' ? 'Public / Client' : 'Lawyer'}
               </button>
             ))}
@@ -64,7 +64,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
           )}
           <div className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-[#6f5a49]">
+              <label htmlFor="name" className="block text-sm font-medium text-ink-muted">
                 Full Name
               </label>
               <input
@@ -72,14 +72,14 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
                 name="name"
                 type="text"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-[#e6d8c2] placeholder-[#a89580] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 sm:text-sm"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-line-soft placeholder-ink-weakest text-ink bg-cream-raised rounded-md focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 sm:text-sm"
                 placeholder="Enter your full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#6f5a49]">
+              <label htmlFor="email" className="block text-sm font-medium text-ink-muted">
                 Email address
               </label>
               <input
@@ -88,29 +88,29 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
                 type="email"
                 autoComplete="email"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-[#e6d8c2] placeholder-[#a89580] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 sm:text-sm"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-line-soft placeholder-ink-weakest text-ink bg-cream-raised rounded-md focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 sm:text-sm"
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-[#6f5a49]">Mobile number</label>
-              <input id="phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel" required className="mt-1 block w-full rounded-md border border-[#e6d8c2] bg-[#fffcf6] px-3 py-2 text-[#32151b] focus:border-[#b8862d] focus:outline-none" placeholder="10-digit Indian mobile number" value={phone} onChange={(event) => setPhone(event.target.value)} />
-              <p className="mt-1 text-xs text-[#8c6b54]">We will verify this number with an OTP after registration.</p>
+              <label htmlFor="phone" className="block text-sm font-medium text-ink-muted">Mobile number</label>
+              <input id="phone" name="phone" type="tel" inputMode="numeric" autoComplete="tel" required className="mt-1 block w-full rounded-md border border-line-soft bg-cream-raised px-3 py-2 text-ink focus:border-accent-dark focus:outline-none" placeholder="10-digit Indian mobile number" value={phone} onChange={(event) => setPhone(event.target.value)} />
+              <p className="mt-1 text-xs text-ink-faint">We will verify this number with an OTP after registration.</p>
             </div>
             {role === 'lawyer' && <>
               <div>
-                <label htmlFor="barCouncil" className="block text-sm font-medium text-[#6f5a49]">Bar Council</label>
-                <input id="barCouncil" required value={barCouncil} onChange={(event) => setBarCouncil(event.target.value)} className="mt-1 block w-full px-3 py-2 border border-[#e6d8c2] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d]" placeholder="e.g. Bar Council of Delhi" />
+                <label htmlFor="barCouncil" className="block text-sm font-medium text-ink-muted">Bar Council</label>
+                <input id="barCouncil" required value={barCouncil} onChange={(event) => setBarCouncil(event.target.value)} className="mt-1 block w-full px-3 py-2 border border-line-soft text-ink bg-cream-raised rounded-md focus:outline-none focus:border-accent-dark" placeholder="e.g. Bar Council of Delhi" />
               </div>
               <div>
-                <label htmlFor="enrollmentNumber" className="block text-sm font-medium text-[#6f5a49]">Enrollment Number</label>
-                <input id="enrollmentNumber" required value={enrollmentNumber} onChange={(event) => setEnrollmentNumber(event.target.value)} className="mt-1 block w-full px-3 py-2 border border-[#e6d8c2] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d]" placeholder="Your bar enrollment number" />
+                <label htmlFor="enrollmentNumber" className="block text-sm font-medium text-ink-muted">Enrollment Number</label>
+                <input id="enrollmentNumber" required value={enrollmentNumber} onChange={(event) => setEnrollmentNumber(event.target.value)} className="mt-1 block w-full px-3 py-2 border border-line-soft text-ink bg-cream-raised rounded-md focus:outline-none focus:border-accent-dark" placeholder="Your bar enrollment number" />
               </div>
             </>}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#6f5a49]">
+              <label htmlFor="password" className="block text-sm font-medium text-ink-muted">
                 Password
               </label>
               <input
@@ -118,14 +118,14 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
                 name="password"
                 type="password"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-[#e6d8c2] placeholder-[#a89580] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 sm:text-sm"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-line-soft placeholder-ink-weakest text-ink bg-cream-raised rounded-md focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 sm:text-sm"
                 placeholder="Password (min 6 characters)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#6f5a49]">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-ink-muted">
                 Confirm Password
               </label>
               <input
@@ -133,7 +133,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
                 name="confirmPassword"
                 type="password"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-[#e6d8c2] placeholder-[#a89580] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 sm:text-sm"
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-line-soft placeholder-ink-weakest text-ink bg-cream-raised rounded-md focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 sm:text-sm"
                 placeholder="Confirm password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -145,7 +145,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#701f2f] hover:bg-[#541522] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f4c95d]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Creating account...' : 'Create account'}
             </button>
@@ -155,7 +155,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
             <button
               type="button"
               onClick={onToggleMode}
-              className="text-[#701f2f] hover:text-[#b8862d] text-sm"
+              className="text-brand hover:text-accent-dark text-sm"
             >
               Already have an account? Sign in
             </button>

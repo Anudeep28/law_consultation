@@ -85,10 +85,10 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
   });
 
   return (
-    <div className="mt-3 rounded-lg border border-[#eadbc1] bg-[#fffcf6] p-3">
+    <div className="mt-3 rounded-lg border border-line bg-cream-raised p-3">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="flex items-center gap-1.5 text-sm font-semibold text-[#32151b]">
-          <FileText className="h-4 w-4 text-[#8c6b54]" />
+        <h4 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <FileText className="h-4 w-4 text-ink-faint" />
           {role === 'lawyer' ? 'Documents for client' : 'Documents from your lawyer'}
         </h4>
         {role === 'lawyer' && (
@@ -96,7 +96,7 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
             type="button"
             onClick={createDraft}
             disabled={isDrafting}
-            className="flex items-center gap-1.5 rounded-lg bg-[#701f2f] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#541522] disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
           >
             <Sparkles className="h-3.5 w-3.5" />
             {isDrafting ? 'Drafting...' : 'Draft from consultation'}
@@ -109,10 +109,10 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
       {deliverables.length > 0 && (
         <ul className="mt-2 space-y-2">
           {deliverables.map((deliverable) => (
-            <li key={deliverable.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#f0e4d2] bg-white px-3 py-2">
+            <li key={deliverable.id} className="flex items-center justify-between gap-3 rounded-lg border border-cream-deep bg-white px-3 py-2">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-[#32151b]">{deliverable.title}</p>
-                <p className="text-xs capitalize text-[#8c6b54]">{deliverable.status === 'delivered' ? `Delivered ${deliverable.deliveredAt ? new Date(deliverable.deliveredAt).toLocaleDateString() : ''}` : 'Draft'}</p>
+                <p className="truncate text-sm font-medium text-ink">{deliverable.title}</p>
+                <p className="text-xs capitalize text-ink-faint">{deliverable.status === 'delivered' ? `Delivered ${deliverable.deliveredAt ? new Date(deliverable.deliveredAt).toLocaleDateString() : ''}` : 'Draft'}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {role === 'lawyer' && deliverable.document && (
@@ -122,7 +122,7 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
                       value={translationLanguages[deliverable.id] || 'en'}
                       onChange={(event) => setTranslationLanguages((current) => ({ ...current, [deliverable.id]: event.target.value }))}
                       disabled={translatingId === deliverable.id}
-                      className="rounded-lg border border-[#e6d8c2] bg-white px-2 py-1.5 text-xs text-[#32151b] disabled:opacity-50"
+                      className="rounded-lg border border-line-soft bg-white px-2 py-1.5 text-xs text-ink disabled:opacity-50"
                     >
                       {supportedLanguages.map((language) => <option key={language.code} value={language.code}>{language.nativeName}</option>)}
                     </select>
@@ -131,7 +131,7 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
                       aria-label={`Translate ${deliverable.title}`}
                       onClick={() => translate(deliverable)}
                       disabled={translatingId === deliverable.id}
-                      className="flex items-center gap-1 rounded-lg border border-[#b8862d] px-3 py-1.5 text-xs font-semibold text-[#765116] hover:bg-[#fff4d6] disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg border border-accent-dark px-3 py-1.5 text-xs font-semibold text-warning-ink hover:bg-warning-bg disabled:opacity-50"
                     >
                       <Languages className="h-3 w-3" />
                       {translatingId === deliverable.id ? 'Translating...' : 'Translate'}
@@ -139,18 +139,18 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
                   </>
                 )}
                 {role === 'lawyer' && deliverable.status === 'draft' && deliverable.document && onOpenDocument && (
-                  <button type="button" onClick={() => onOpenDocument(deliverable.document!)} className="rounded-lg border border-[#701f2f] px-3 py-1.5 text-xs font-semibold text-[#701f2f] hover:bg-[#fff1f3]">
+                  <button type="button" onClick={() => onOpenDocument(deliverable.document!)} className="rounded-lg border border-brand px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand-soft">
                     Edit draft
                   </button>
                 )}
                 {role === 'lawyer' && deliverable.status === 'draft' && (
-                  <button type="button" onClick={() => deliver(deliverable)} disabled={deliveringId === deliverable.id} className="flex items-center gap-1 rounded-lg bg-[#701f2f] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#541522] disabled:opacity-50">
+                  <button type="button" onClick={() => deliver(deliverable)} disabled={deliveringId === deliverable.id} className="flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
                     <Send className="h-3 w-3" />
                     {deliveringId === deliverable.id ? 'Delivering...' : 'Deliver'}
                   </button>
                 )}
                 {role === 'client' && (
-                  <button type="button" onClick={() => setExportTarget(deliverable)} className="flex items-center gap-1 rounded-lg bg-[#701f2f] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#541522]">
+                  <button type="button" onClick={() => setExportTarget(deliverable)} className="flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark">
                     <Download className="h-3 w-3" />
                     Export
                   </button>

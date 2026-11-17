@@ -301,49 +301,49 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
       <div className="p-6">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#6f5a49] mb-1">
+            <label className="block text-sm font-medium text-ink-muted mb-1">
               Filename
             </label>
             <input
               type="text"
               value={filename}
               onChange={(e) => setFilename(e.target.value)}
-              className="w-full px-3 py-2 border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30"
+              className="w-full px-3 py-2 border border-line-soft rounded-lg bg-cream-raised text-ink focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#6f5a49] mb-1">
+            <label className="block text-sm font-medium text-ink-muted mb-1">
               Export Format
             </label>
             <div className="space-y-2">
-              <label className="flex items-center text-[#6f5a49]">
+              <label className="flex items-center text-ink-muted">
                 <input
                   type="radio"
                   value="docx"
                   checked={format === 'docx'}
                   onChange={(e) => setFormat(e.target.value as 'docx')}
-                  className="mr-2 accent-[#701f2f]"
+                  className="mr-2 accent-brand"
                 />
                 <span>Microsoft Word (.docx)</span>
               </label>
-              <label className="flex items-center text-[#6f5a49]">
+              <label className="flex items-center text-ink-muted">
                 <input
                   type="radio"
                   value="pdf"
                   checked={format === 'pdf'}
                   onChange={(e) => setFormat(e.target.value as 'pdf')}
-                  className="mr-2 accent-[#701f2f]"
+                  className="mr-2 accent-brand"
                 />
                 <span>PDF (.pdf)</span>
               </label>
-              <label className="flex items-center text-[#6f5a49]">
+              <label className="flex items-center text-ink-muted">
                 <input
                   type="radio"
                   value="markdown"
                   checked={format === 'markdown'}
                   onChange={(e) => setFormat(e.target.value as 'markdown')}
-                  className="mr-2 accent-[#701f2f]"
+                  className="mr-2 accent-brand"
                 />
                 <span>Markdown (.md)</span>
               </label>
@@ -355,14 +355,14 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
           <button
             onClick={onClose}
             disabled={isExporting}
-            className="px-4 py-2 text-[#6f5a49] bg-[#f8f1e5] rounded-lg hover:bg-[#f2e4cc] disabled:opacity-50 transition"
+            className="px-4 py-2 text-ink-muted bg-cream-muted rounded-lg hover:bg-cream-hover disabled:opacity-50 transition"
           >
             Cancel
           </button>
           <button
             onClick={handleExport}
             disabled={isExporting}
-            className="px-4 py-2 bg-[#701f2f] text-white rounded-lg hover:bg-[#541522] disabled:opacity-50 transition"
+            className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark disabled:opacity-50 transition"
           >
             {isExporting ? 'Exporting...' : 'Export'}
           </button>

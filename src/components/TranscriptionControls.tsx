@@ -150,17 +150,17 @@ export const TranscriptionControls: React.FC = () => {
   const isPaused = transcriptionSession?.isPaused;
 
   return (
-    <div className="bg-white border-t border-[#eadbc1] px-4 pt-3 pb-4">
+    <div className="bg-white border-t border-line px-4 pt-3 pb-4">
       {/* Language selectors — always visible */}
       <div className="flex flex-wrap items-center gap-4 mb-3">
         <div className="flex min-w-0 items-center gap-2 flex-1">
-          <label className="text-xs font-medium text-[#8c6b54] whitespace-nowrap">🎙 Speak in</label>
+          <label className="text-xs font-medium text-ink-faint whitespace-nowrap">🎙 Speak in</label>
           <select
             aria-label="Spoken language"
             value={inputLanguage}
             onChange={(e) => setInputLanguage(e.target.value)}
             disabled={isConnected}
-            className="min-w-0 flex-1 px-2 py-1.5 text-sm border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 disabled:opacity-50"
+            className="min-w-0 flex-1 px-2 py-1.5 text-sm border border-line-soft rounded-lg bg-cream-raised text-ink focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
           >
             {supportedLanguages.map((lang) => (
               <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
@@ -168,13 +168,13 @@ export const TranscriptionControls: React.FC = () => {
           </select>
         </div>
         <div className="flex min-w-0 items-center gap-2 flex-1">
-          <label className="text-xs font-medium text-[#8c6b54] whitespace-nowrap">📄 Output in</label>
+          <label className="text-xs font-medium text-ink-faint whitespace-nowrap">📄 Output in</label>
           <select
             aria-label="Transcription output language"
             value={outputLanguage}
             onChange={(e) => setOutputLanguage(e.target.value)}
             disabled={isConnected}
-            className="min-w-0 flex-1 px-2 py-1.5 text-sm border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 disabled:opacity-50"
+            className="min-w-0 flex-1 px-2 py-1.5 text-sm border border-line-soft rounded-lg bg-cream-raised text-ink focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
           >
             {supportedLanguages.map((lang) => (
               <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
@@ -193,8 +193,8 @@ export const TranscriptionControls: React.FC = () => {
 
       {/* Live Transcription Buffer */}
       {transcriptBuffer && (
-        <div className="mb-3 p-2 bg-[#fff4d6] border border-[#f4c95d] rounded-lg">
-          <span className="text-sm text-[#765116] italic">{transcriptBuffer}</span>
+        <div className="mb-3 p-2 bg-warning-bg border border-accent rounded-lg">
+          <span className="text-sm text-warning-ink italic">{transcriptBuffer}</span>
         </div>
       )}
 
@@ -204,7 +204,7 @@ export const TranscriptionControls: React.FC = () => {
           {!isConnected ? (
             <button
               onClick={handleStart}
-              className="flex items-center space-x-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg hover:bg-[#541522] transition"
+              className="flex items-center space-x-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark transition"
             >
               <Mic className="w-5 h-5" />
               <span>Start Recording</span>
@@ -213,7 +213,7 @@ export const TranscriptionControls: React.FC = () => {
             <>
               <button
                 onClick={isPaused ? handleResume : handlePause}
-                className="flex items-center space-x-2 px-4 py-2 bg-[#b8862d] text-white rounded-lg hover:bg-[#9a7328] transition"
+                className="flex items-center space-x-2 px-4 py-2 bg-accent-dark text-white rounded-lg hover:bg-[#9a7328] transition"
               >
                 {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
                 <span>{isPaused ? 'Resume' : 'Pause'}</span>
@@ -221,14 +221,14 @@ export const TranscriptionControls: React.FC = () => {
               <button
                 onClick={handleStop}
                 disabled={isTranscribing}
-                className="flex items-center space-x-2 px-4 py-2 bg-[#3f1420] text-white rounded-lg hover:bg-[#2a0d16] disabled:opacity-50 transition"
+                className="flex items-center space-x-2 px-4 py-2 bg-brand-darker text-white rounded-lg hover:bg-[#2a0d16] disabled:opacity-50 transition"
               >
                 <Square className="w-5 h-5" />
                 <span>{isTranscribing ? 'Transcribing...' : 'Stop'}</span>
               </button>
               <button
                 onClick={handleUndo}
-                className="flex items-center space-x-2 px-4 py-2 bg-[#8c6b54] text-white rounded-lg hover:bg-[#6f5a49] transition"
+                className="flex items-center space-x-2 px-4 py-2 bg-ink-faint text-white rounded-lg hover:bg-ink-muted transition"
               >
                 <Undo2 className="w-5 h-5" />
                 <span>Undo</span>
@@ -237,7 +237,7 @@ export const TranscriptionControls: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center space-x-2 text-sm text-[#8c6b54]">
+        <div className="flex items-center space-x-2 text-sm text-ink-faint">
           {isRecording && (
             <span className="flex items-center text-red-600">
               <span className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
@@ -245,14 +245,14 @@ export const TranscriptionControls: React.FC = () => {
             </span>
           )}
           {isPaused && (
-            <span className="flex items-center text-[#b8862d]">
-              <span className="w-2 h-2 bg-[#b8862d] rounded-full mr-2"></span>
+            <span className="flex items-center text-accent-dark">
+              <span className="w-2 h-2 bg-accent-dark rounded-full mr-2"></span>
               Paused
             </span>
           )}
           {isTranscribing && (
-            <span className="flex items-center text-[#701f2f]">
-              <span className="w-2 h-2 bg-[#701f2f] rounded-full mr-2 animate-pulse"></span>
+            <span className="flex items-center text-brand">
+              <span className="w-2 h-2 bg-brand rounded-full mr-2 animate-pulse"></span>
               Transcribing...
             </span>
           )}

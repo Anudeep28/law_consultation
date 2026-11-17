@@ -59,8 +59,8 @@ export const AdminLawyerReviewView: React.FC = () => {
     <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-[#32151b]">Lawyer applications</h1>
-          <p className="text-sm text-[#6f5a49]">
+          <h1 className="text-2xl font-bold text-ink">Lawyer applications</h1>
+          <p className="text-sm text-ink-muted">
             Review professional details and credentials before making profiles public.
           </p>
         </div>
@@ -73,13 +73,13 @@ export const AdminLawyerReviewView: React.FC = () => {
           {lawyers.map((lawyer) => (
             <article
               key={lawyer.id}
-              className="rounded-2xl border border-[#eadbc1] bg-white p-4 shadow-sm sm:p-6"
+              className="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-6"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-[#32151b]">{lawyer.name}</h2>
-                    <span className="rounded-full bg-[#fff4d6] px-2 py-1 text-xs font-semibold uppercase text-[#765116]">
+                    <h2 className="text-lg font-bold text-ink">{lawyer.name}</h2>
+                    <span className="rounded-full bg-warning-bg px-2 py-1 text-xs font-semibold uppercase text-warning-ink">
                       {lawyer.approvalStatus}
                     </span>
                   </div>
@@ -109,7 +109,7 @@ export const AdminLawyerReviewView: React.FC = () => {
 
               {lawyer.avatarUrl && (
                 <a
-                  className="mt-3 inline-block text-sm text-[#701f2f] underline"
+                  className="mt-3 inline-block text-sm text-brand underline"
                   href={lawyer.avatarUrl}
                   target="_blank"
                   rel="noreferrer"
@@ -118,10 +118,10 @@ export const AdminLawyerReviewView: React.FC = () => {
                 </a>
               )}
 
-              <div className="mt-5 border-t border-[#f0e4d2] pt-4">
+              <div className="mt-5 border-t border-cream-deep pt-4">
                 {lawyer.approvalStatus === 'pending' ? (
                   <>
-                    <label className="mb-3 flex items-start gap-2 rounded-lg bg-[#fffaf0] p-3 text-sm text-[#5f4635]">
+                    <label className="mb-3 flex items-start gap-2 rounded-lg bg-cream p-3 text-sm text-[#5f4635]">
                       <input type="checkbox" className="mt-1" checked={credentialChecks[lawyer.id] || false} onChange={(event) => setCredentialChecks((current) => ({ ...current, [lawyer.id]: event.target.checked }))} />
                       <span>I checked the enrolment number and name against the relevant State Bar Council roll or official record. Format validation alone is not proof of enrolment.</span>
                     </label>
@@ -134,7 +134,7 @@ export const AdminLawyerReviewView: React.FC = () => {
                         }))
                       }
                       placeholder="Reason required when rejecting (at least 10 characters)"
-                      className="w-full rounded-lg border border-[#e6d8c2] px-3 py-2 text-sm"
+                      className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm"
                     />
                     <div className="mt-3 flex justify-end gap-2">
                       <button
@@ -149,7 +149,7 @@ export const AdminLawyerReviewView: React.FC = () => {
                         type="button"
                         onClick={() => review(lawyer, 'approved')}
                         disabled={!credentialChecks[lawyer.id]}
-                        className="flex items-center gap-2 rounded-lg bg-[#701f2f] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <BadgeCheck className="h-4 w-4" />
                         Approve

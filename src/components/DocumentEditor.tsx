@@ -212,20 +212,20 @@ export const DocumentEditor: React.FC = () => {
 
   if (!currentDocument) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#fffaf0]">
-        <div className="text-center bg-white rounded-2xl border border-[#eadbc1] p-8 shadow-sm">
-          <h2 className="text-2xl font-bold text-[#32151b] mb-4">No Document Open</h2>
-          <p className="text-[#6f5a49] mb-6">Create a new document or select a template to get started</p>
+      <div className="flex items-center justify-center h-full bg-cream">
+        <div className="text-center bg-white rounded-2xl border border-line p-8 shadow-sm">
+          <h2 className="text-2xl font-bold text-ink mb-4">No Document Open</h2>
+          <p className="text-ink-muted mb-6">Create a new document or select a template to get started</p>
           <div className="space-x-4">
             <button
               onClick={handleNewDocument}
-              className="rounded-xl bg-[#701f2f] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#541522]"
+              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark"
             >
               New Document
             </button>
             <button
               onClick={handleTemplateSelect}
-              className="rounded-xl border-2 border-[#701f2f] px-6 py-2.5 text-sm font-bold text-[#701f2f] transition hover:bg-[#fff1f3]"
+              className="rounded-xl border-2 border-brand px-6 py-2.5 text-sm font-bold text-brand transition hover:bg-brand-soft"
             >
               Use Template
             </button>
@@ -236,9 +236,9 @@ export const DocumentEditor: React.FC = () => {
   }
 
   return (
-    <div className="flex min-w-0 flex-col h-full bg-[#fffaf0]">
+    <div className="flex min-w-0 flex-col h-full bg-cream">
       {/* Document Title Bar */}
-      <div className="bg-white border-b border-[#eadbc1] px-4 py-2 flex flex-wrap items-center gap-3">
+      <div className="bg-white border-b border-line px-4 py-2 flex flex-wrap items-center gap-3">
         {isEditingTitle ? (
           <input
             ref={titleInputRef}
@@ -246,11 +246,11 @@ export const DocumentEditor: React.FC = () => {
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={commitRename}
             onKeyDown={handleTitleKeyDown}
-            className="flex-1 text-base font-semibold text-[#32151b] border border-[#b8862d] rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#f4c95d]/30"
+            className="flex-1 text-base font-semibold text-ink border border-accent-dark rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         ) : (
           <h2
-            className="flex-1 text-base font-semibold text-[#32151b] truncate cursor-pointer hover:text-[#701f2f]"
+            className="flex-1 text-base font-semibold text-ink truncate cursor-pointer hover:text-brand"
             onDoubleClick={handleTitleDoubleClick}
             title="Double-click to rename"
           >
@@ -258,21 +258,21 @@ export const DocumentEditor: React.FC = () => {
           </h2>
         )}
         {currentDocument.category && (
-          <span className="rounded-full bg-[#fff4d6] px-2.5 py-1 text-xs font-medium text-[#765116]">
+          <span className="rounded-full bg-warning-bg px-2.5 py-1 text-xs font-medium text-warning-ink">
             {currentDocument.category}
           </span>
         )}
         <select
           value={currentDocument.language || 'en'}
           onChange={(e) => updateDocumentLanguage(currentDocument.id, e.target.value)}
-          className="text-xs border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] px-2 py-1 focus:outline-none focus:border-[#b8862d]"
+          className="text-xs border border-line-soft rounded-lg bg-cream-raised text-ink px-2 py-1 focus:outline-none focus:border-accent-dark"
           aria-label="Document language"
         >
           {supportedLanguages.map((lang) => (
             <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
           ))}
         </select>
-        <span className="text-xs text-[#8c6b54] whitespace-nowrap">
+        <span className="text-xs text-ink-faint whitespace-nowrap">
           {wordCount} word{wordCount !== 1 ? 's' : ''}
         </span>
         {savedAt && (
@@ -283,55 +283,55 @@ export const DocumentEditor: React.FC = () => {
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white border-b border-[#eadbc1] px-4 py-2">
+      <div className="bg-white border-b border-line px-4 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleNewDocument}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               New
             </button>
             <button
               onClick={handleTemplateSelect}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               Template
             </button>
-            <div className="border-l border-[#eadbc1] h-6 mx-2"></div>
+            <div className="border-l border-line h-6 mx-2"></div>
             <button
               onClick={() => insertMarkdown('**Bold Text**')}
-              className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm font-bold rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               B
             </button>
             <button
               onClick={() => insertMarkdown('*Italic Text*')}
-              className="px-3 py-1.5 text-sm italic rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm italic rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               I
             </button>
             <button
               onClick={() => insertMarkdown('# Heading')}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               H1
             </button>
             <button
               onClick={() => insertMarkdown('## Heading')}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               H2
             </button>
             <button
               onClick={() => insertMarkdown('- List item')}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               • List
             </button>
             <button
               onClick={() => insertMarkdown('1. Numbered item')}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover transition"
             >
               1. List
             </button>
@@ -342,15 +342,15 @@ export const DocumentEditor: React.FC = () => {
               onClick={() => setIsPreviewMode(!isPreviewMode)}
               className={`px-3 py-1.5 text-sm rounded-lg transition ${
                 isPreviewMode 
-                  ? 'bg-[#701f2f] text-white' 
-                  : 'bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc]'
+                  ? 'bg-brand text-white'
+                  : 'bg-cream-muted text-brand-darker hover:bg-cream-hover'
               }`}
             >
               {isPreviewMode ? 'Edit' : 'Preview'}
             </button>
             <button
               onClick={handlePrint}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] flex items-center space-x-1 transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-cream-muted text-brand-darker hover:bg-cream-hover flex items-center space-x-1 transition"
               title="Print / Print to PDF"
             >
               <Printer className="w-4 h-4" />
@@ -358,7 +358,7 @@ export const DocumentEditor: React.FC = () => {
             </button>
             <button
               onClick={handleExport}
-              className="px-3 py-1.5 text-sm rounded-lg bg-[#701f2f] text-white hover:bg-[#541522] transition"
+              className="px-3 py-1.5 text-sm rounded-lg bg-brand text-white hover:bg-brand-dark transition"
             >
               Export
             </button>
@@ -369,7 +369,7 @@ export const DocumentEditor: React.FC = () => {
       {/* Document Content */}
       <div className="flex-1 flex overflow-hidden">
         {isPreviewMode ? (
-          <div className="flex-1 p-6 overflow-y-auto bg-[#fffcf6]">
+          <div className="flex-1 p-6 overflow-y-auto bg-cream-raised">
             <div
               className="max-w-4xl mx-auto prose prose-lg max-w-none legal-document"
               style={{ fontFamily: getDocumentFontFamily(currentDocument.language) }}
@@ -390,7 +390,7 @@ export const DocumentEditor: React.FC = () => {
             onClick={handleSelectionChange}
             onFocus={handleSelectionChange}
             placeholder="Start typing your legal document here, or use voice transcription..."
-            className="min-w-0 placeholder:text-ink-muted flex-1 p-6 border-0 resize-none focus:outline-none text-sm bg-[#fffcf6] h-full overflow-y-auto"
+            className="min-w-0 placeholder:text-ink-muted flex-1 p-6 border-0 resize-none focus:outline-none text-sm bg-cream-raised h-full overflow-y-auto"
             style={{ fontFamily: getDocumentFontFamily(currentDocument.language) }}
           />
         )}

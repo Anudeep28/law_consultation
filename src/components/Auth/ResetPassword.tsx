@@ -36,18 +36,18 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#fffaf0] py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-cream py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-[#32151b]">Choose a new password</h2>
-          <p className="mt-2 text-center text-sm text-[#6f5a49]">Enter and confirm your new password below.</p>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-ink">Choose a new password</h2>
+          <p className="mt-2 text-center text-sm text-ink-muted">Enter and confirm your new password below.</p>
         </div>
         {done ? (
           <div className="text-center space-y-4">
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
               Your password has been updated. You can sign in with it now.
             </div>
-            <button type="button" onClick={onDone} className="text-[#701f2f] hover:text-[#b8862d] text-sm">
+            <button type="button" onClick={onDone} className="text-brand hover:text-accent-dark text-sm">
               Back to sign in
             </button>
           </div>
@@ -67,7 +67,7 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
                   type="password"
                   autoComplete="new-password"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-[#e6d8c2] placeholder-[#a89580] text-[#32151b] bg-[#fffcf6] rounded-t-md focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 focus:z-10 sm:text-sm"
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-line-soft placeholder-ink-weakest text-ink bg-cream-raised rounded-t-md focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 focus:z-10 sm:text-sm"
                   placeholder="New password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -81,7 +81,7 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
                   type="password"
                   autoComplete="new-password"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-[#e6d8c2] placeholder-[#a89580] text-[#32151b] bg-[#fffcf6] rounded-b-md focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 focus:z-10 sm:text-sm"
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-line-soft placeholder-ink-weakest text-ink bg-cream-raised rounded-b-md focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 focus:z-10 sm:text-sm"
                   placeholder="Confirm password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
@@ -92,13 +92,13 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
               <button
                 type="submit"
                 disabled={submitting}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#701f2f] hover:bg-[#541522] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f4c95d]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent/30 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Updating...' : 'Update password'}
               </button>
             </div>
             <div className="text-center">
-              <button type="button" onClick={onDone} className="text-[#701f2f] hover:text-[#b8862d] text-sm">
+              <button type="button" onClick={onDone} className="text-brand hover:text-accent-dark text-sm">
                 Back to sign in
               </button>
             </div>
