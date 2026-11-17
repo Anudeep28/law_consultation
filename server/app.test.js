@@ -19,7 +19,7 @@ jest.mock('../db', () => ({
 
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
-const { app } = require('../app');
+const { app, ensureDeploymentAdmin } = require('../app');
 const prisma = require('../db');
 
 const activeUser = { id: 'user-1', accountStatus: 'ACTIVE', role: 'CLIENT', name: 'Test User', email: 'test@example.com' };
@@ -49,6 +49,26 @@ describe('billable endpoint protection', () => {
 });
 
 describe('auth endpoints', () => {
+  it.each(['deleted+victim@deleted.invalid', 'deleted+victim@DeLeTeD.InVaLiD'])('rejects registration using reserved email %s', async (email) => {
+    const res = await request(app).post('/api/auth/register').send({ name: 'Test', email, phone: '9999999999', password: 'secret123', role: 'client' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/domain is reserved/);
+  });
+  it('rejects reserved deployment administrator emails before querying the database', async () => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    const previousPassword = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_EMAIL = 'admin@DELETED.INVALID';
+    process.env.ADMIN_PASSWORD = 'long-test-password';
+    try {
+      await expect(ensureDeploymentAdmin()).rejects.toThrow('reserved deleted.invalid domain');
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL;
+      else process.env.ADMIN_EMAIL = previousEmail;
+      if (previousPassword === undefined) delete process.env.ADMIN_PASSWORD;
+      else process.env.ADMIN_PASSWORD = previousPassword;
+    }
+  });
   it('forgot-password returns 200 for unknown emails without leaking accounts', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     const res = await request(app).post('/api/auth/forgot-password').send({ email: 'nobody@example.com' });

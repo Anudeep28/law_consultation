@@ -57,6 +57,7 @@ const rateLimit = (keyFn, limit, windowMs) => (req, res, next) => {
   next();
 };
 const clientIp = (req) => req.ip || req.socket.remoteAddress || 'unknown';
+const isReservedEmail = (email) => /@deleted\.invalid$/i.test(email);
 
 // Razorpay webhook needs the raw body for signature verification, so it is
 // registered before express.json() parses bodies.
@@ -306,6 +307,7 @@ app.post('/api/auth/register', rateLimit((req) => `register:${clientIp(req)}`, 1
   const role = String(req.body.role || 'client').toUpperCase();
   const barCouncil = String(req.body.barCouncil || '').trim();
   const enrollmentNumber = String(req.body.enrollmentNumber || '').trim();
+  if (isReservedEmail(email)) return res.status(400).json({ error: 'This email domain is reserved. Please use a different email address.' });
   if (!name || !email || !phone || password.length < 6 || !['CLIENT', 'LAWYER'].includes(role)) {
     return res.status(400).json({ error: 'Name, email, valid Indian mobile number, account type, and a 6-character password are required' });
   }
@@ -1747,6 +1749,7 @@ const ensureDeploymentAdmin = async () => {
   const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
   const password = String(process.env.ADMIN_PASSWORD || '');
   if (!email && !password) return;
+  if (isReservedEmail(email)) throw new Error('ADMIN_EMAIL cannot use the reserved deleted.invalid domain');
   if (!email || password.length < 12) throw new Error('ADMIN_EMAIL and an ADMIN_PASSWORD of at least 12 characters are required together');
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing && existing.role !== 'ADMIN') throw new Error('ADMIN_EMAIL is already assigned to a non-admin account');
