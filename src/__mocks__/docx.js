@@ -15,7 +15,7 @@ class TextRun {
 }
 
 const Packer = {
-  toBuffer: jest.fn().mockResolvedValue(Buffer.from([])),
+  toBlob: jest.fn().mockResolvedValue(new Blob([], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })),
 };
 
 module.exports = {

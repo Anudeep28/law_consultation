@@ -89,8 +89,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
         ],
       });
 
-      const buffer = await Packer.toBuffer(doc);
-      const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const blob = await Packer.toBlob(doc);
       saveAs(blob, `${filename}.docx`);
     } catch (error) {
       console.error('Error exporting DOCX:', error);
