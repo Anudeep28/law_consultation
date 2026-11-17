@@ -1,3 +1,4 @@
+import { notify } from './ui/Toasts';
 import React, { useState } from 'react';
 import { useDocumentStore } from '../stores/documentStore';
 import { Document } from '../types';
@@ -46,7 +47,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
     if (copy) {
       onEditDocument(copy);
     } else {
-      window.alert('Your trial has ended. Buy a document credit or monthly subscription to continue.');
+      notify('Your trial has ended. Buy a document credit or monthly subscription to continue.');
     }
   };
 
@@ -150,21 +151,21 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
                         handleOpenDocument(document);
                       }}
                       className="p-1 text-[#8c6b54] hover:text-[#701f2f] transition"
-                      title="Open in editor"
+                      aria-label="Open in editor" title="Open in editor"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={(e) => handleDuplicateDocument(document.id, e)}
                       className="p-1 text-[#8c6b54] hover:text-[#b8862d] transition"
-                      title="Duplicate"
+                      aria-label="Duplicate" title="Duplicate"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setPendingDelete(document); }}
                       className="p-1 text-[#8c6b54] hover:text-red-700 transition"
-                      title="Delete"
+                      aria-label="Delete" title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

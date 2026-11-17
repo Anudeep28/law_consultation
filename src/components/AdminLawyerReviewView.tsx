@@ -66,7 +66,7 @@ export const AdminLawyerReviewView: React.FC = () => {
         </div>
 
         {error && (
-          <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>
+          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>
         )}
 
         <div className="space-y-4">

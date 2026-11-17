@@ -34,7 +34,7 @@ export const LawyerConsultationsView: React.FC<LawyerConsultationsViewProps> = (
         <h1 className="mt-2 text-2xl font-bold">Client consultations</h1>
         <p className="mt-1 text-sm text-rose-100">Review upcoming matters, join active sessions, and turn consultations into delivered documents.</p>
       </div>
-      {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      {error && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
       {!consultations.length && <div className="rounded-xl border border-[#eadbc1] bg-white p-10 text-center"><Calendar className="mx-auto mb-3 h-10 w-10 text-gray-300" /><h3 className="font-semibold">No consultations assigned</h3><p className="mt-1 text-sm text-gray-500">Bookings will appear after your profile is verified and clients schedule with you.</p></div>}
       <div className="space-y-4">
         {consultations.map((consultation) => {

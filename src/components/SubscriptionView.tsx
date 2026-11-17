@@ -41,7 +41,7 @@ export const SubscriptionView: React.FC = () => {
         </div>
 
         {message && (
-          <div className={`mb-5 rounded-lg border px-4 py-3 text-sm ${
+          <div role={message.type === 'error' ? 'alert' : 'status'} className={`mb-5 rounded-lg border px-4 py-3 text-sm ${
             message.type === 'success'
               ? 'border-green-200 bg-green-50 text-green-700'
               : 'border-red-200 bg-red-50 text-red-700'

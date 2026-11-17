@@ -52,9 +52,9 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
         </div>
 
         {/* Body: list + preview */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden">
           {/* Template list */}
-          <div className="w-80 flex-shrink-0 border-r border-[#eadbc1] overflow-y-auto bg-[#fffcf6]">
+          <div className="w-full md:w-80 flex-shrink-0 border-r border-[#eadbc1] overflow-y-auto bg-[#fffcf6]">
             {filteredTemplates.length === 0 ? (
               <div className="text-center py-12 px-4">
                 <p className="text-[#8c6b54]">No templates found matching your criteria.</p>
