@@ -250,6 +250,7 @@ export const Dashboard: React.FC = () => {
             
             {activeView === 'documents' && (
               <button
+                aria-label="New Document"
                 onClick={handleNewDocument}
                 className="flex items-center space-x-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg hover:bg-[#541522] transition"
               >
