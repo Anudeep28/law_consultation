@@ -207,7 +207,7 @@ app.get('/api/account/export', authenticate, rateLimit((req) => `account-export:
     const consultationInclude = { messages: true, deliverables: true, review: true, payment: true };
     const [documents, clientConsultations, lawyerConsultations, payments, reviews, userNotifications] = await Promise.all([
       prisma.document.findMany({ where: { userId: user.id } }),
-      prisma.consultation.findMany({ where: { userId: user.id }, include: consultationInclude }),
+      prisma.consultation.findMany({ where: { userId: user.id }, include: { ...consultationInclude, deliverables: { where: { status: 'DELIVERED' } } } }),
       user.lawyerProfile ? prisma.consultation.findMany({ where: { lawyerId: user.lawyerProfile.id }, include: consultationInclude }) : [],
       prisma.payment.findMany({ where: { userId: user.id } }),
       prisma.lawyerReview.findMany({ where: { userId: user.id } }),

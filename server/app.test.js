@@ -91,13 +91,13 @@ describe('account privacy', () => {
     expect(JSON.stringify(res.body)).not.toMatch(/passwordHash|passwordResetToken|emailVerificationToken|p256dh/);
     expect(res.body.profile).toMatchObject({ id: user.id, phone: user.phone });
     expect(res.body.documents).toEqual([]);
-    expect(prisma.consultation.findMany).toHaveBeenCalledWith(expect.objectContaining({ include: { messages: true, deliverables: true, review: true, payment: true } }));
+    expect(prisma.consultation.findMany).toHaveBeenCalledWith({ where: { userId: user.id }, include: { messages: true, deliverables: { where: { status: 'DELIVERED' } }, review: true, payment: true } });
   });
   it('exports lawyer consultations as well as client consultations', async () => {
     prisma.user.findUnique.mockResolvedValue({ ...user, lawyerProfile: { id: 'lawyer-1', approvalStatus: 'APPROVED' } });
     const res = await request(app).get('/api/account/export').set('Authorization', authHeader());
     expect(res.status).toBe(200);
-    expect(prisma.consultation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { lawyerId: 'lawyer-1' } }));
+    expect(prisma.consultation.findMany).toHaveBeenCalledWith({ where: { lawyerId: 'lawyer-1' }, include: { messages: true, deliverables: true, review: true, payment: true } });
   });
   it('requires exact confirmation', async () => {
     expect((await remove({ password: 'correct-password', confirmation: 'delete' })).status).toBe(400);
