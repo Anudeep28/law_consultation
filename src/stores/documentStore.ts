@@ -4,6 +4,7 @@ import { Document, TranscriptionSession, User } from '../types';
 import { useAuthStore } from './authStore';
 
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+let sessionVersion = 0;
 
 const normalizeDocument = (document: Document): Document => ({
   ...document,
@@ -48,20 +49,25 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       selectionEnd: 0,
 
       loadDocuments: async () => {
+        const version = sessionVersion;
         try {
           const result = await apiRequest<{ documents: Document[] }>('/api/documents');
+          if (version !== sessionVersion) return;
           set({ documents: result.documents.map(normalizeDocument) });
         } catch {
+          if (version !== sessionVersion) return;
           set({ documents: [], currentDocument: null });
         }
       },
 
       createDocument: async (title: string, templateId?: string, category?: string, language?: string) => {
+        const version = sessionVersion;
         try {
           const result = await apiRequest<{ document: Document; user: User }>('/api/documents', {
             method: 'POST',
             body: JSON.stringify({ title, templateId, category, language: language || 'en' }),
           });
+          if (version !== sessionVersion) return null;
           useAuthStore.getState().setUser(result.user);
           const document = normalizeDocument(result.document);
           set((state) => ({
@@ -107,10 +113,12 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       },
 
       duplicateDocument: async (id: string) => {
+        const version = sessionVersion;
         try {
           const result = await apiRequest<{ document: Document; user: User }>(`/api/documents/${id}/duplicate`, {
             method: 'POST',
           });
+          if (version !== sessionVersion) return null;
           useAuthStore.getState().setUser(result.user);
           const document = normalizeDocument(result.document);
           set((state) => ({
@@ -147,7 +155,9 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       },
 
       deleteDocument: async (id: string) => {
+        const version = sessionVersion;
         await apiRequest(`/api/documents/${id}`, { method: 'DELETE' });
+        if (version !== sessionVersion) return;
         set((state) => ({
           documents: state.documents.filter((doc) => doc.id !== id),
           currentDocument:
@@ -159,7 +169,12 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         set({ currentDocument: document });
       },
 
-      clearDocuments: () => set({ documents: [], currentDocument: null }),
+      clearDocuments: () => {
+        sessionVersion++;
+        saveTimers.forEach(clearTimeout);
+        saveTimers.clear();
+        set({ documents: [], currentDocument: null, transcriptionSession: null, selectionStart: 0, selectionEnd: 0 });
+      },
 
       setSelection: (start: number, end: number) => {
         set({ selectionStart: start, selectionEnd: end });
