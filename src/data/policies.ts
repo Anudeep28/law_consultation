@@ -69,7 +69,7 @@ You agree to indemnify the Company against claims, damages, and expenses arising
 
 11. TERMINATION
 
-11.1. You may delete your account at any time by contacting support.
+11.1. You may download a copy of your account data and delete your account through the Account & Privacy page. Upcoming consultations must first be cancelled or completed. On deletion, your profile is anonymized and personal account data is erased, subject to the retention of records required for legal compliance under our Privacy Policy.
 11.2. We may suspend or terminate accounts for violation of these Terms, with notice where practicable.
 11.3. Upon termination, your right to access the Platform ceases. Documents already exported remain with you.
 

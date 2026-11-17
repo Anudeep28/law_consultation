@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { apiRequest, ApiError, getAuthToken, setAuthToken } from '../services/api';
 import { User, UserRole } from '../types';
+import { useDocumentStore } from './documentStore';
+import { useToastStore } from '../components/ui/Toasts';
 
 interface AuthState {
   user: User | null;
@@ -55,7 +57,9 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         setAuthToken(null);
-        set({ user: null, isAuthenticated: false });
+        useDocumentStore.getState().clearDocuments();
+        useToastStore.setState({ toasts: [] });
+        set({ user: null, isAuthenticated: false, isLoading: false });
       },
 
       refreshUser: async () => {
