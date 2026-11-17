@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { X } from 'lucide-react';
 
@@ -43,9 +44,10 @@ const ToastMessage: React.FC<{ toast: Toast }> = ({ toast }) => {
 
 export const Toasts: React.FC = () => {
   const toasts = useToastStore((state) => state.toasts);
-  return (
+  return createPortal(
     <div aria-live="polite" aria-label="Notifications" className="pointer-events-none fixed inset-x-4 top-4 z-[100] ml-auto flex max-h-[90dvh] max-w-sm flex-col gap-3 overflow-y-auto">
       {toasts.map((toast) => <ToastMessage key={toast.id} toast={toast} />)}
-    </div>
+    </div>,
+    document.body
   );
 };

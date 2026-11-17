@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { notify, Toasts, useToastStore } from './Toasts';
+import { Modal } from './Modal';
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -51,4 +52,26 @@ test('cleans up timers when unmounted', () => {
   act(() => { notify('Saved'); });
   unmount();
   expect(jest.getTimerCount()).toBe(0);
+});
+
+test('toast pointer clicks keep the modal open while outside clicks and Escape close it', async () => {
+  jest.useRealTimers();
+  const onClose = jest.fn();
+  await act(async () => {
+    render(<><Modal open onClose={onClose} title="Export document"><p>Export settings</p></Modal><Toasts /></>);
+  });
+  act(() => { notify('Export failed', 'error'); });
+  const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
+  fireEvent.pointerDown(dismiss);
+  fireEvent.pointerUp(dismiss);
+  fireEvent.click(dismiss);
+  expect(screen.queryByText('Export failed')).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  const outside = screen.getByRole('dialog').querySelector(':scope > div') as HTMLElement;
+  fireEvent.pointerDown(outside);
+  fireEvent.pointerUp(outside);
+  expect(onClose).toHaveBeenCalledTimes(1);
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledTimes(2);
 });
