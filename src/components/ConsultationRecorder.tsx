@@ -59,13 +59,13 @@ export const ConsultationRecorder: React.FC<ConsultationRecorderProps> = ({ cons
   };
 
   return (
-    <div className="rounded-lg border border-[#eadbc1] bg-[#fffcf6] p-3">
+    <div className="rounded-lg border border-line bg-cream-raised p-3">
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={toggleRecording}
           disabled={isStopping}
-          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50 ${isRecording ? 'bg-[#3f1420]' : 'bg-[#701f2f] hover:bg-[#541522]'}`}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50 ${isRecording ? 'bg-brand-darker' : 'bg-brand hover:bg-brand-dark'}`}
         >
           {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           {isRecording ? (isStopping ? 'Stopping...' : 'Stop recording') : 'Record consultation'}
@@ -75,7 +75,7 @@ export const ConsultationRecorder: React.FC<ConsultationRecorderProps> = ({ cons
           value={language}
           onChange={(event) => setLanguage(event.target.value)}
           disabled={isRecording}
-          className="rounded-lg border border-[#e6d8c2] bg-white px-2 py-1.5 text-sm text-[#32151b] disabled:opacity-50"
+          className="rounded-lg border border-line-soft bg-white px-2 py-1.5 text-sm text-ink disabled:opacity-50"
         >
           {supportedLanguages.map((lang) => (
             <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
@@ -88,7 +88,7 @@ export const ConsultationRecorder: React.FC<ConsultationRecorderProps> = ({ cons
           </span>
         )}
       </div>
-      {buffer && <p className="mt-2 text-xs italic text-[#765116]">{buffer}</p>}
+      {buffer && <p className="mt-2 text-xs italic text-warning-ink">{buffer}</p>}
       {error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   );

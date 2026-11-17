@@ -78,25 +78,25 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-[#fffaf0]">
+    <div className="h-full overflow-y-auto bg-cream">
       <div className="max-w-6xl mx-auto px-6 py-7">
         {/* Search and Filter Bar */}
-        <div className="rounded-2xl border border-[#eadbc1] bg-white p-4 mb-6 shadow-sm">
+        <div className="rounded-2xl border border-line bg-white p-4 mb-6 shadow-sm">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-3.5 h-4 w-4 text-[#8c6b54]" />
+              <Search className="absolute left-4 top-3.5 h-4 w-4 text-ink-faint" />
               <input
                 type="text"
                 placeholder="Search documents..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-xl border border-[#e6d8c2] bg-[#fffcf6] py-3 pl-11 pr-4 text-sm outline-none transition focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30"
+                className="w-full rounded-xl border border-line-soft bg-cream-raised py-3 pl-11 pr-4 text-sm outline-none transition focus:border-accent-dark focus:ring-2 focus:ring-accent/30"
               />
             </div>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
-              className="px-4 py-2 rounded-xl border border-[#e6d8c2] bg-[#fffcf6] text-sm outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30"
+              className="px-4 py-2 rounded-xl border border-line-soft bg-cream-raised text-sm outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30"
             >
               <option value="date">Sort by Date</option>
               <option value="title">Sort by Title</option>
@@ -106,12 +106,12 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
 
         {/* Documents Grid */}
         {filteredDocuments.length === 0 ? (
-          <div className="rounded-2xl border border-[#eadbc1] bg-white p-12 text-center shadow-sm">
+          <div className="rounded-2xl border border-line bg-white p-12 text-center shadow-sm">
             <FileText className="w-16 h-16 text-[#d9c7a8] mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-[#32151b] mb-2">
+            <h3 className="text-lg font-semibold text-ink mb-2">
               {searchTerm ? 'No documents found' : 'No documents yet'}
             </h3>
-            <p className="text-[#6f5a49] mb-6">
+            <p className="text-ink-muted mb-6">
               {searchTerm 
                 ? 'Try adjusting your search terms' 
                 : 'Create your first legal document to get started'
@@ -120,7 +120,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
             {!searchTerm && (
               <button
                 onClick={onNewDocument}
-                className="rounded-xl bg-[#701f2f] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#541522]"
+                className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark"
               >
                 Create Document
               </button>
@@ -132,14 +132,14 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
               <div
                 key={document.id}
                 onClick={() => handleOpenDocument(document)}
-                className="group overflow-hidden rounded-2xl border border-[#eadbc1] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
+                className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-[#32151b] truncate">
+                    <h3 className="font-bold text-ink truncate">
                       {document.title}
                     </h3>
-                    <div className="flex items-center text-sm text-[#8c6b54] mt-1">
+                    <div className="flex items-center text-sm text-ink-faint mt-1">
                       <Calendar className="w-4 h-4 mr-1" />
                       {formatDate(document.updatedAt)}
                     </div>
@@ -150,21 +150,21 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
                         e.stopPropagation();
                         handleOpenDocument(document);
                       }}
-                      className="p-1 text-[#8c6b54] hover:text-[#701f2f] transition"
+                      className="p-1 text-ink-faint hover:text-brand transition"
                       aria-label="Open in editor" title="Open in editor"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={(e) => handleDuplicateDocument(document.id, e)}
-                      className="p-1 text-[#8c6b54] hover:text-[#b8862d] transition"
+                      className="p-1 text-ink-faint hover:text-accent-dark transition"
                       aria-label="Duplicate" title="Duplicate"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setPendingDelete(document); }}
-                      className="p-1 text-[#8c6b54] hover:text-red-700 transition"
+                      className="p-1 text-ink-faint hover:text-red-700 transition"
                       aria-label="Delete" title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -172,19 +172,19 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
                   </div>
                 </div>
                 
-                <div className="text-sm text-[#6f5a49] line-clamp-4">
+                <div className="text-sm text-ink-muted line-clamp-4">
                   {document.content ? (
                     getDocumentPreview(document.content)
                   ) : (
-                    <span className="italic text-[#a89580]">Empty document</span>
+                    <span className="italic text-ink-weakest">Empty document</span>
                   )}
                 </div>
                 
-                <div className="mt-3 pt-3 border-t border-[#f0e4d2]">
-                  <div className="flex items-center justify-between text-xs text-[#6f5a49]">
+                <div className="mt-3 pt-3 border-t border-cream-deep">
+                  <div className="flex items-center justify-between text-xs text-ink-muted">
                     <span>
                       {document.category && (
-                        <span className="inline-block rounded-full bg-[#fff4d6] px-2.5 py-1 text-xs font-medium text-[#765116] mr-2">
+                        <span className="inline-block rounded-full bg-warning-bg px-2.5 py-1 text-xs font-medium text-warning-ink mr-2">
                           {document.category}
                         </span>
                       )}
@@ -202,8 +202,8 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
 
         {/* Document Stats */}
         {documents.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-[#eadbc1] bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm text-[#6f5a49]">
+          <div className="mt-6 rounded-2xl border border-line bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between text-sm text-ink-muted">
               <span>
                 Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}
               </span>

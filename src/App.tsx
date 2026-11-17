@@ -52,13 +52,13 @@ function App() {
   }
 
   if (!authReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#fffaf0] text-[#8c6b54]">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-cream text-ink-faint">Loading...</div>;
   }
 
   return (
     <>
       {emailVerifyMessage && (
-        <div className="bg-[#fff4d6] px-4 py-2 text-center text-sm font-medium text-[#765116]">
+        <div className="bg-warning-bg px-4 py-2 text-center text-sm font-medium text-warning-ink">
           {emailVerifyMessage}
         </div>
       )}
