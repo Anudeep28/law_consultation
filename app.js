@@ -201,6 +201,74 @@ const requireRole = (role) => (req, res, next) => {
 
 const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+app.get('/api/account/export', authenticate, rateLimit((req) => `account-export:${req.user.id}`, 5, 60 * 60 * 1000), async (req, res) => {
+  try {
+    const user = await userWithPayments(req.user.id);
+    const consultationInclude = { messages: true, deliverables: true, review: true, payment: true };
+    const [documents, clientConsultations, lawyerConsultations, payments, reviews, userNotifications] = await Promise.all([
+      prisma.document.findMany({ where: { userId: user.id } }),
+      prisma.consultation.findMany({ where: { userId: user.id }, include: consultationInclude }),
+      user.lawyerProfile ? prisma.consultation.findMany({ where: { lawyerId: user.lawyerProfile.id }, include: consultationInclude }) : [],
+      prisma.payment.findMany({ where: { userId: user.id } }),
+      prisma.lawyerReview.findMany({ where: { userId: user.id } }),
+      prisma.notification.findMany({ where: { userId: user.id } }),
+    ]);
+    const exportedAt = new Date().toISOString();
+    res.set('Cache-Control', 'no-store');
+    res.attachment(`law-writer-data-${exportedAt.slice(0, 10)}.json`).json({
+      exportedAt,
+      profile: { ...serializeUser(user), phone: user.phone, createdAt: user.createdAt, updatedAt: user.updatedAt },
+      lawyerProfile: user.lawyerProfile || null,
+      documents, clientConsultations, lawyerConsultations, payments, reviews, notifications: userNotifications,
+    });
+  } catch (error) {
+    console.error('Account export failed:', error);
+    res.status(500).json({ error: 'Unable to export your account data. Please try again.' });
+  }
+});
+
+app.delete('/api/account', authenticate, rateLimit((req) => `account-delete:${req.user.id}`, 10, 60 * 60 * 1000), async (req, res) => {
+  try {
+    const { password, confirmation } = req.body || {};
+    if (confirmation !== 'DELETE') return res.status(400).json({ error: 'Type DELETE to confirm account deletion.' });
+    if (req.user.role === 'ADMIN') return res.status(403).json({ error: 'Administrator accounts cannot be deleted through self-service.' });
+    if (typeof password !== 'string' || !await bcrypt.compare(password, req.user.passwordHash)) return res.status(401).json({ error: 'Incorrect password.' });
+    const now = new Date();
+    const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString('hex'), 12);
+    const deleted = await prisma.$transaction(async (tx) => {
+      const lawyer = await tx.lawyer.findUnique({ where: { userId: req.user.id } });
+      const upcoming = await tx.consultation.findFirst({ where: {
+        OR: [{ userId: req.user.id }, ...(lawyer ? [{ lawyerId: lawyer.id }] : [])],
+        status: { in: ['BOOKED', 'PENDING_PAYMENT'] }, endsAt: { gt: now },
+      } });
+      if (upcoming) return false;
+      const where = { userId: req.user.id };
+      await tx.document.deleteMany({ where });
+      await tx.notification.deleteMany({ where });
+      await tx.pushSubscription.deleteMany({ where });
+      await tx.emailVerificationToken.deleteMany({ where });
+      await tx.passwordResetToken.deleteMany({ where });
+      await tx.lawyerReview.updateMany({ where, data: { comment: null } });
+      if (lawyer) await tx.lawyer.update({ where: { id: lawyer.id }, data: {
+        isVerified: false, approvalStatus: 'DRAFT', name: 'Deleted lawyer', bio: '', avatarUrl: null,
+        slug: `deleted-${lawyer.id}`, enrollmentNumber: `deleted-${lawyer.id}`, barCouncil: '', title: '',
+      } });
+      await tx.user.update({ where: { id: req.user.id }, data: {
+        email: `deleted+${req.user.id}@deleted.invalid`, name: 'Deleted user', phone: null,
+        phoneVerifiedAt: null, emailVerifiedAt: null, passwordHash, accountStatus: 'DEACTIVATED',
+        statusReason: 'Deleted by user', statusChangedAt: now, emailNotifications: false, pushNotifications: false,
+      } });
+      return true;
+    });
+    if (!deleted) return res.status(409).json({ error: 'Cancel or complete your upcoming consultations before deleting your account.' });
+    io.in(`user:${req.user.id}`).disconnectSockets(true);
+    res.status(204).end();
+  } catch (error) {
+    console.error('Account deletion failed:', error);
+    res.status(500).json({ error: 'Unable to delete your account. Please try again.' });
+  }
+});
+
 const { sendEmail } = require('./server/notifications');
 
 const appUrl = process.env.APP_URL || 'http://localhost:3000';
