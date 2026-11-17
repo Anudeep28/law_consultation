@@ -1,3 +1,4 @@
+import { notify } from './ui/Toasts';
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -159,7 +160,7 @@ export const DocumentEditor: React.FC = () => {
   const handleNewDocument = async () => {
     const document = await createDocument('Untitled Document');
     if (!document) {
-      window.alert('Your trial has ended. Buy a document credit or monthly subscription to continue.');
+      notify('Your trial has ended. Buy a document credit or monthly subscription to continue.');
     }
   };
 
@@ -178,7 +179,7 @@ export const DocumentEditor: React.FC = () => {
       updateDocument(doc.id, filledContent);
       setSelectedTemplate(null);
     } else {
-      window.alert('Your trial has ended. Buy a document credit or monthly subscription to continue.');
+      notify('Your trial has ended. Buy a document credit or monthly subscription to continue.');
     }
   };
 
@@ -235,9 +236,9 @@ export const DocumentEditor: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#fffaf0]">
+    <div className="flex min-w-0 flex-col h-full bg-[#fffaf0]">
       {/* Document Title Bar */}
-      <div className="bg-white border-b border-[#eadbc1] px-4 py-2 flex items-center space-x-3">
+      <div className="bg-white border-b border-[#eadbc1] px-4 py-2 flex flex-wrap items-center gap-3">
         {isEditingTitle ? (
           <input
             ref={titleInputRef}
@@ -283,8 +284,8 @@ export const DocumentEditor: React.FC = () => {
 
       {/* Toolbar */}
       <div className="bg-white border-b border-[#eadbc1] px-4 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleNewDocument}
               className="px-3 py-1.5 text-sm rounded-lg bg-[#f8f1e5] text-[#3f1420] hover:bg-[#f2e4cc] transition"
@@ -336,7 +337,7 @@ export const DocumentEditor: React.FC = () => {
             </button>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setIsPreviewMode(!isPreviewMode)}
               className={`px-3 py-1.5 text-sm rounded-lg transition ${
@@ -380,6 +381,7 @@ export const DocumentEditor: React.FC = () => {
           </div>
         ) : (
           <textarea
+            aria-label="Document content"
             ref={textareaRef}
             value={currentDocument.content}
             onChange={handleContentChange}
@@ -388,7 +390,7 @@ export const DocumentEditor: React.FC = () => {
             onClick={handleSelectionChange}
             onFocus={handleSelectionChange}
             placeholder="Start typing your legal document here, or use voice transcription..."
-            className="flex-1 p-6 border-0 resize-none focus:outline-none text-sm bg-[#fffcf6] h-full overflow-y-auto"
+            className="min-w-0 placeholder:text-ink-muted flex-1 p-6 border-0 resize-none focus:outline-none text-sm bg-[#fffcf6] h-full overflow-y-auto"
             style={{ fontFamily: getDocumentFontFamily(currentDocument.language) }}
           />
         )}

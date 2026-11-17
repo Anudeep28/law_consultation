@@ -68,12 +68,12 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
   };
 
   return (
-    <Modal open onClose={onClose} maxWidth="2xl" panelClassName="flex h-[75vh] flex-col">
+    <Modal open fullScreenOnMobile onClose={onClose} maxWidth="2xl" panelClassName="flex flex-col">
         <header className="p-4 border-b flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[#f4c95d] text-[#3f1420] flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
           <div className="flex-1"><div className="flex items-center gap-1.5"><h2 className="font-semibold text-gray-900">{consultation.lawyer.name}</h2><ShieldCheck className="w-4 h-4 text-blue-600" /></div><p className="text-xs text-gray-500">Private legal consultation</p></div>
           <div className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium ${secondsLeft ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}><Clock className="w-4 h-4" />{formatRemaining(secondsLeft)}</div>
-          <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
+          <button aria-label="Close consultation chat" onClick={onClose} className="p-1 text-gray-500 hover:text-gray-900"><X className="w-5 h-5" /></button>
         </header>
 
         <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-800">{isReadOnly ? 'Read-only conversation history' : 'Do not share passwords, OTPs, payment details, or unnecessary identity documents in chat.'}</div>
@@ -88,7 +88,7 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
           {!messages.length && <p className="text-center text-sm text-gray-400 pt-8">No messages yet. Send your first question when the lawyer joins.</p>}
         </main>
 
-        {error && <p className="px-4 py-2 text-sm text-red-600 border-t">{error}</p>}
+        {error && <p role="alert" className="px-4 py-2 text-sm text-red-600 border-t">{error}</p>}
         {secondsLeft > 0 && <div className="px-3 pt-3 border-t"><ConsultationRecorder consultationId={consultation.id} /></div>}
         {role === 'lawyer' && <div className="px-3 pt-3"><ConsultationDeliverables consultationId={consultation.id} role="lawyer" onOpenDocument={onOpenDocument} /></div>}
         {!isReadOnly && <form onSubmit={sendMessage} className="p-3 border-t flex gap-2">
