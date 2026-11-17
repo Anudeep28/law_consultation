@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
+import { requestPasswordReset } from '../../services/notificationService';
 import { UserRole } from '../../types';
 
 interface LoginProps {
@@ -11,7 +12,83 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
   const { login, isLoading } = useAuthStore();
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setForgotLoading(true);
+    try {
+      await requestPasswordReset(email);
+      setForgotSent(true);
+    } catch {
+      setError('Unable to send the reset email. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  if (forgotMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fffaf0] py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div>
+            <h2 className="mt-6 text-center text-3xl font-extrabold text-[#32151b]">Reset your password</h2>
+            <p className="mt-2 text-center text-sm text-[#6f5a49]">Enter your account email and we'll send you a reset link.</p>
+          </div>
+          {forgotSent ? (
+            <div className="text-center space-y-4">
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+                If an account exists for that email, a reset link is on its way.
+              </div>
+              <button type="button" onClick={() => { setForgotMode(false); setForgotSent(false); }} className="text-[#701f2f] hover:text-[#b8862d] text-sm">
+                Back to sign in
+              </button>
+            </div>
+          ) : (
+            <form className="mt-8 space-y-6" onSubmit={handleForgot}>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                  {error}
+                </div>
+              )}
+              <div>
+                <label htmlFor="forgot-email" className="sr-only">Email address</label>
+                <input
+                  id="forgot-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className="appearance-none relative block w-full px-3 py-2 border border-[#e6d8c2] placeholder-[#a89580] text-[#32151b] bg-[#fffcf6] rounded-md focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 sm:text-sm"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#701f2f] hover:bg-[#541522] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f4c95d]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {forgotLoading ? 'Sending...' : 'Send reset link'}
+                </button>
+              </div>
+              <div className="text-center">
+                <button type="button" onClick={() => setForgotMode(false)} className="text-[#701f2f] hover:text-[#b8862d] text-sm">
+                  Back to sign in
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,14 +169,25 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
             </button>
           </div>
 
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={onToggleMode}
-              className="text-[#701f2f] hover:text-[#b8862d] text-sm"
-            >
-              Don't have an account? Sign up
-            </button>
+          <div className="text-center space-y-2">
+            <div>
+              <button
+                type="button"
+                onClick={() => setForgotMode(true)}
+                className="text-[#6f5a49] hover:text-[#b8862d] text-sm"
+              >
+                Forgot your password?
+              </button>
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={onToggleMode}
+                className="text-[#701f2f] hover:text-[#b8862d] text-sm"
+              >
+                Don't have an account? Sign up
+              </button>
+            </div>
           </div>
         </form>
       </div>

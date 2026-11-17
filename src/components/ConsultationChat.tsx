@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Clock, Send, ShieldCheck, X } from 'lucide-react';
 import { Socket } from 'socket.io-client';
 import { apiRequest } from '../services/api';
-import { connectSocket } from '../services/socketService';
+import { getSocket } from '../services/socket';
 import { Consultation, ConsultationMessage, Document } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { ConsultationRecorder } from './ConsultationRecorder';
 import { ConsultationDeliverables } from './ConsultationDeliverables';
+import { Modal } from './ui/Modal';
 
 interface ConsultationChatProps {
   consultation: Consultation;
@@ -28,18 +29,19 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
   const isReadOnly = consultation.status === 'completed' || consultation.status === 'cancelled' || new Date(consultation.endsAt).getTime() <= Date.now();
 
   useEffect(() => {
-    const socket = isReadOnly ? null : connectSocket();
+    const socket = isReadOnly ? null : getSocket();
     socketRef.current = socket;
     const onMessage = (message: ConsultationMessage) => {
       setMessages((current) => current.some((existing) => existing.id === message.id) ? current : [...current, message]);
     };
-    socket?.on('chat:message', onMessage);
-    socket?.on('connect', () => {
-      socket.emit('chat:join', { consultationId: consultation.id }, (response: { ok?: boolean; error?: string }) => {
+    const join = () => {
+      socket?.emit('chat:join', { consultationId: consultation.id }, (response: { ok?: boolean; error?: string }) => {
         if (response?.error) setError(response.error);
       });
-    });
-    socket?.connect();
+    };
+    socket?.on('chat:message', onMessage);
+    if (socket?.connected) join();
+    else socket?.on('connect', join);
     apiRequest<{ messages: ConsultationMessage[] }>(`/api/consultations/${consultation.id}/messages`)
       .then((result) => setMessages(result.messages))
       .catch(() => setError('Unable to load chat messages.'));
@@ -47,7 +49,7 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
     return () => {
       window.clearInterval(countdownTimer);
       socket?.off('chat:message', onMessage);
-      socket?.disconnect();
+      socket?.off('connect', join);
       socketRef.current = null;
     };
   }, [consultation.id, consultation.endsAt, isReadOnly]);
@@ -66,8 +68,7 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="overflow-hidden rounded-2xl border border-[#eadbc1] bg-white shadow-2xl w-full max-w-2xl h-[75vh] flex flex-col overflow-hidden">
+    <Modal open onClose={onClose} maxWidth="2xl" panelClassName="flex h-[75vh] flex-col">
         <header className="p-4 border-b flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[#f4c95d] text-[#3f1420] flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
           <div className="flex-1"><div className="flex items-center gap-1.5"><h2 className="font-semibold text-gray-900">{consultation.lawyer.name}</h2><ShieldCheck className="w-4 h-4 text-blue-600" /></div><p className="text-xs text-gray-500">Private legal consultation</p></div>
@@ -94,7 +95,6 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
           <input value={content} onChange={(event) => setContent(event.target.value)} maxLength={2000} disabled={!secondsLeft} placeholder={secondsLeft ? 'Type your message...' : 'This consultation has ended'} className="flex-1 px-3 py-2 border rounded-lg disabled:bg-gray-100" />
           <button disabled={!content.trim() || !secondsLeft || isSending} className="flex items-center gap-2 px-4 py-2 bg-[#701f2f] text-white rounded-lg disabled:opacity-50"><Send className="w-4 h-4" />Send</button>
         </form>}
-      </div>
-    </div>
+    </Modal>
   );
 };

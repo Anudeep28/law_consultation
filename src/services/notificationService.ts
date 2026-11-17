@@ -41,6 +41,12 @@ export const sendVerificationEmail = () =>
 export const verifyEmailToken = (token: string) =>
   apiRequest<{ verified: true; email: string }>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'POST' });
 
+export const requestPasswordReset = (email: string) =>
+  apiRequest<{ ok: true }>('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+
+export const resetPassword = (token: string, password: string) =>
+  apiRequest<{ ok: true }>('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) });
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');

@@ -14,6 +14,7 @@ import { PhoneVerification } from './PhoneVerification';
 import { EmailVerificationBanner } from './EmailVerificationBanner';
 import { NotificationBell } from './NotificationBell';
 import { PolicyModal } from './PolicyModal';
+import { Modal } from './ui/Modal';
 import { policies, policyTitles } from '../data/policies';
 import { getSocket, disconnectSocket } from '../services/socket';
 import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessageSquareText, MessagesSquare, ShieldCheck, Users, X } from 'lucide-react';
@@ -318,10 +319,8 @@ export const Dashboard: React.FC = () => {
 
       {/* New Document Modal */}
       {showNewDocModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-[#eadbc1] bg-white p-5 shadow-2xl sm:p-6">
-            <h2 className="text-lg font-bold text-[#32151b] mb-1">Create New Document</h2>
-            <p className="text-sm text-[#8c6b54] mb-5">Start from scratch or pick a template</p>
+        <Modal open onClose={() => setShowNewDocModal(false)} title="Create New Document" subtitle="Start from scratch or pick a template" maxWidth="sm">
+          <div className="p-5 sm:p-6">
             <div className="space-y-3">
               <button
                 onClick={handleNewBlankDocument}
@@ -351,7 +350,7 @@ export const Dashboard: React.FC = () => {
               Cancel
             </button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

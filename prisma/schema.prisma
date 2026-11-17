@@ -18,6 +18,7 @@ enum PaymentStatus {
   CREATED
   PAID
   FAILED
+  REFUNDED
 }
 
 enum ConsultationStatus {
@@ -107,6 +108,7 @@ model User {
   notifications      Notification[]
   pushSubscriptions  PushSubscription[]
   emailVerificationToken EmailVerificationToken?
+  passwordResetToken     PasswordResetToken?
   adminActions       AdminAuditLog[]  @relation("AdminActor")
   accountAuditLogs   AdminAuditLog[]  @relation("AuditTarget")
 }
@@ -208,6 +210,19 @@ model PushSubscription {
 }
 
 model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String    @unique
   token     String    @unique

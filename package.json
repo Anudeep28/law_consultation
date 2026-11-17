@@ -46,6 +46,7 @@
     "db:studio": "prisma studio",
     "build": "craco build",
     "test": "craco test",
+    "test:server": "jest --config jest.server.config.js --runInBand",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -75,6 +76,7 @@
     "express": "^4.18.2",
     "postcss": "^8.5.16",
     "prisma": "^5.22.0",
+    "supertest": "^7.3.2",
     "tailwindcss": "^3.4.19"
   }
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { legalTemplates, templateCategories } from '../data/templates';
 import { LegalTemplate } from '../types';
 import { FileText } from 'lucide-react';
+import { Modal } from './ui/Modal';
 
 interface TemplateSelectorProps {
   onSelectTemplate: (template: LegalTemplate) => void;
@@ -24,18 +25,9 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl border border-[#eadbc1] w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="p-6 border-b border-[#eadbc1] flex-shrink-0 bg-[#fffaf0]">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-[#32151b]">Choose Legal Template</h2>
-            <button onClick={onClose} className="text-[#8c6b54] hover:text-[#6f5a49]">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+    <Modal open onClose={onClose} title="Choose Legal Template" maxWidth="6xl" panelClassName="flex flex-col">
+        {/* Search + filter row */}
+        <div className="px-6 pb-4 border-b border-[#eadbc1] flex-shrink-0 bg-[#fffaf0]">
           <div className="flex gap-4">
             <div className="flex-1">
               <input
@@ -133,7 +125,6 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

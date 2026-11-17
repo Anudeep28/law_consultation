@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
+import { ResetPassword } from './components/Auth/ResetPassword';
 import { Dashboard } from './components/Dashboard';
 import { verifyEmailToken } from './services/notificationService';
 
@@ -9,6 +10,11 @@ function App() {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [emailVerifyMessage, setEmailVerifyMessage] = useState('');
+  const [resetToken, setResetToken] = useState(() =>
+    window.location.pathname === '/reset-password'
+      ? new URLSearchParams(window.location.search).get('token') || ''
+      : ''
+  );
   const { isAuthenticated, refreshUser } = useAuthStore();
 
   useEffect(() => {
@@ -16,6 +22,7 @@ function App() {
   }, [refreshUser]);
 
   useEffect(() => {
+    if (window.location.pathname !== '/verify-email') return;
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) {
@@ -34,6 +41,15 @@ function App() {
   const toggleAuthMode = () => {
     setIsLoginMode(!isLoginMode);
   };
+
+  const clearResetToken = () => {
+    window.history.replaceState({}, '', '/');
+    setResetToken('');
+  };
+
+  if (resetToken) {
+    return <ResetPassword token={resetToken} onDone={clearResetToken} />;
+  }
 
   if (!authReady) {
     return <div className="min-h-screen flex items-center justify-center bg-[#fffaf0] text-[#8c6b54]">Loading...</div>;

@@ -67,9 +67,15 @@ export const useAuthStore = create<AuthState>()(
         try {
           const result = await apiRequest<{ user: User }>('/api/auth/me');
           set({ user: result.user, isAuthenticated: true, isLoading: false });
-        } catch {
-          setAuthToken(null);
-          set({ user: null, isAuthenticated: false, isLoading: false });
+        } catch (error) {
+          // Only clear the session on auth rejection — transient network
+          // failures shouldn't log the user out.
+          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+            setAuthToken(null);
+            set({ user: null, isAuthenticated: false, isLoading: false });
+          } else {
+            set({ isLoading: false });
+          }
         }
       },
 

@@ -1,3 +1,5 @@
+import { getAuthToken } from './api';
+
 export interface TranscriptionResult {
   text: string;
   is_final: boolean;
@@ -87,7 +89,9 @@ export class ElevenLabsService {
   }
 
   private async _openWebSocket(): Promise<void> {
-    const tokenRes = await fetch('/api/scribe-token');
+    const tokenRes = await fetch('/api/scribe-token', {
+      headers: { Authorization: `Bearer ${getAuthToken()}` },
+    });
     if (!tokenRes.ok) {
       throw new Error('Failed to get scribe token');
     }

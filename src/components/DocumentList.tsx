@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useDocumentStore } from '../stores/documentStore';
 import { Document } from '../types';
 import { FileText, Trash2, Edit, Calendar, Search, Copy } from 'lucide-react';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 interface DocumentListProps {
   onNewDocument: () => void;
@@ -11,6 +12,7 @@ interface DocumentListProps {
 export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEditDocument }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
   const { documents, setCurrentDocument, deleteDocument, duplicateDocument } = useDocumentStore();
 
   const filteredDocuments = documents
@@ -31,10 +33,10 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
     onEditDocument(document);
   };
 
-  const handleDeleteDocument = async (documentId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this document?')) {
-      await deleteDocument(documentId);
+  const handleDeleteDocument = async () => {
+    if (pendingDelete) {
+      await deleteDocument(pendingDelete.id);
+      setPendingDelete(null);
     }
   };
 
@@ -160,7 +162,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={(e) => handleDeleteDocument(document.id, e)}
+                      onClick={(e) => { e.stopPropagation(); setPendingDelete(document); }}
                       className="p-1 text-[#8c6b54] hover:text-red-700 transition"
                       title="Delete"
                     >
@@ -211,6 +213,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete document"
+        message={pendingDelete ? `Delete "${pendingDelete.title}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        onConfirm={() => void handleDeleteDocument()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 };

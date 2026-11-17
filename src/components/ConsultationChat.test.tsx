@@ -3,7 +3,7 @@ import { apiRequest } from '../services/api';
 import { ConsultationChat } from './ConsultationChat';
 
 jest.mock('../services/api', () => ({ apiRequest: jest.fn() }));
-jest.mock('../services/socketService', () => ({ connectSocket: () => ({ on: jest.fn(), off: jest.fn(), emit: jest.fn(), connect: jest.fn(), disconnect: jest.fn() }) }));
+jest.mock('../services/socket', () => ({ getSocket: () => ({ on: jest.fn(), off: jest.fn(), emit: jest.fn(), connected: false }) }));
 jest.mock('./ConsultationRecorder', () => ({ ConsultationRecorder: () => null }));
 jest.mock('./ConsultationDeliverables', () => ({ ConsultationDeliverables: () => null }));
 

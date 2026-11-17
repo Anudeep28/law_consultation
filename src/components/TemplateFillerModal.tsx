@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LegalTemplate, TemplateField } from '../types';
-import { Mic, MicOff, X, ChevronRight, ChevronLeft, CheckCircle } from 'lucide-react';
+import { Mic, MicOff, ChevronRight, ChevronLeft, CheckCircle } from 'lucide-react';
+import { Modal } from './ui/Modal';
 
 interface TemplateFillerModalProps {
   template: LegalTemplate;
@@ -147,19 +148,7 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl border border-[#eadbc1] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#eadbc1] bg-[#fffaf0]">
-          <div>
-            <h2 className="text-lg font-bold text-[#32151b]">{template.name}</h2>
-            <p className="text-xs text-[#8c6b54] mt-0.5">Fill in the required fields to generate your document</p>
-          </div>
-          <button onClick={onClose} className="text-[#8c6b54] hover:text-[#6f5a49]">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal open onClose={onClose} title={template.name} subtitle="Fill in the required fields to generate your document" maxWidth="2xl" panelClassName="flex flex-col">
         {/* Progress bar */}
         <div className="px-6 pt-4">
           <div className="flex items-center justify-between mb-1">
@@ -270,7 +259,6 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
             <span>Generate Document</span>
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
