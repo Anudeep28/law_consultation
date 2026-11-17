@@ -2,7 +2,7 @@ process.env.JWT_SECRET = 'test-secret';
 
 jest.mock('../db', () => ({
   user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-  consultation: { findFirst: jest.fn(), findMany: jest.fn() },
+  consultation: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
   consultationMessage: {},
   payment: { findMany: jest.fn() },
   document: { findMany: jest.fn(), deleteMany: jest.fn() },
@@ -97,6 +97,7 @@ describe('account privacy', () => {
     prisma.$transaction.mockImplementation((callback) => callback(prisma));
     prisma.lawyer.findUnique.mockResolvedValue(null);
     prisma.consultation.findFirst.mockResolvedValue(null);
+    prisma.consultation.updateMany.mockResolvedValue({ count: 0 });
     for (const model of ['document', 'consultation', 'payment', 'lawyerReview', 'notification']) prisma[model].findMany.mockResolvedValue([]);
   });
   const remove = (body) => request(app).delete('/api/account').set('Authorization', authHeader()).send(body);
@@ -177,6 +178,21 @@ describe('account privacy', () => {
     expect((await remove({ password: 'correct-password', confirmation: 'DELETE' })).status).toBe(204);
     expect(prisma.lawyer.update).not.toHaveBeenCalled();
     expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ accountStatus: 'DEACTIVATED' }) }));
+  });
+  it('expires stale unpaid reservations before checking lawyer deletion eligibility', async () => {
+    prisma.lawyer.findUnique.mockResolvedValue({ id: 'lawyer-1' });
+    const reservation = { status: 'PENDING_PAYMENT', createdAt: new Date(Date.now() - 16 * 60 * 1000), endsAt: new Date(Date.now() + 60 * 60 * 1000) };
+    prisma.consultation.updateMany.mockImplementationOnce(async ({ where, data }) => {
+      expect(where).toEqual({ status: 'PENDING_PAYMENT', createdAt: { lt: expect.any(Date) } });
+      expect(Math.abs(where.createdAt.lt.getTime() - (Date.now() - 15 * 60 * 1000))).toBeLessThan(1000);
+      if (reservation.createdAt < where.createdAt.lt) reservation.status = data.status;
+      return { count: 1 };
+    });
+    prisma.consultation.findFirst.mockImplementationOnce(async () => reservation.status === 'PENDING_PAYMENT' ? reservation : null);
+    expect((await remove({ password: 'correct-password', confirmation: 'DELETE' })).status).toBe(204);
+    expect(reservation.status).toBe('CANCELLED');
+    expect(prisma.consultation.updateMany.mock.invocationCallOrder[0]).toBeLessThan(prisma.consultation.findFirst.mock.invocationCallOrder[0]);
+    expect(prisma.user.update).toHaveBeenCalled();
   });
   it('rolls back on database errors', async () => {
     prisma.$transaction.mockRejectedValueOnce(new Error('Database unavailable'));

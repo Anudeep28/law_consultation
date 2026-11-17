@@ -234,6 +234,7 @@ app.delete('/api/account', authenticate, rateLimit((req) => `account-delete:${re
     if (confirmation !== 'DELETE') return res.status(400).json({ error: 'Type DELETE to confirm account deletion.' });
     if (req.user.role === 'ADMIN') return res.status(403).json({ error: 'Administrator accounts cannot be deleted through self-service.' });
     if (typeof password !== 'string' || !await bcrypt.compare(password, req.user.passwordHash)) return res.status(401).json({ error: 'Incorrect password.' });
+    await expireStalePendingConsultations();
     const now = new Date();
     const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString('hex'), 12);
     const deleted = await prisma.$transaction(async (tx) => {
