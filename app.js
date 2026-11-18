@@ -4,6 +4,7 @@ const http = require('http');
 const https = require('https');
 const path = require('path');
 const express = require('express');
+const helmet = require('helmet');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Server: SocketServer } = require('socket.io');
@@ -11,6 +12,35 @@ const prisma = require('./db');
 const notifications = require('./server/notifications');
 
 const app = express();
+app.disable('x-powered-by');
+app.use(helmet({
+  strictTransportSecurity: process.env.NODE_ENV === 'production',
+  contentSecurityPolicy: {
+    directives: {
+      scriptSrc: [
+        "'self'", 'https://checkout.razorpay.com', 'https://checkout-static.razorpay.com',
+        'https://checkout-static-next.razorpay.com', 'https://cdn.razorpay.com/static/cx/razorpay-risk-detection/',
+      ],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'"],
+      imgSrc: ["'self'", 'https:', 'data:', 'blob:'],
+      connectSrc: [
+        "'self'",
+        (req) => `ws://${req.get('host')}`,
+        (req) => `wss://${req.get('host')}`,
+        'wss://api.elevenlabs.io',
+        'https://api.razorpay.com',
+        'https://checkout.razorpay.com',
+        'https://checkout-static.razorpay.com',
+        'https://checkout-static-next.razorpay.com',
+        'https://lumberjack.razorpay.com',
+      ],
+      frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
+      workerSrc: ["'self'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+    },
+  },
+}));
 const PENDING_PAYMENT_TTL_MS = 15 * 60 * 1000;
 
 const razorpayCredentials = () => {
