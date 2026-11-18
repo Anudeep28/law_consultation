@@ -1,6 +1,7 @@
 const webPush = require('web-push');
 const prisma = require('../db');
 const { logger } = require('./logger');
+const { isJaasMeeting } = require('./meetings');
 
 let ioInstance = null;
 
@@ -164,7 +165,9 @@ function buildReminderBody(consultation, minutes) {
     timeStyle: 'short',
   });
   const mode = consultation.mode.toLowerCase();
-  const linkText = consultation.meetingUrl ? ` Join here: ${consultation.meetingUrl}` : '';
+  const linkText = consultation.mode === 'CALL' && isJaasMeeting(consultation)
+    ? ' Join your call from the app.'
+    : consultation.meetingUrl ? ` Join here: ${consultation.meetingUrl}` : '';
   return `Your ${mode} consultation "${consultation.topic}" starts ${minutes === 0 ? 'now' : `in ${minutes} minutes`} (${startTime}).${linkText}`;
 }
 
