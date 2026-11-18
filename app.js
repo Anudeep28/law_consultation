@@ -1376,9 +1376,9 @@ app.patch('/api/consultations/:id/cancel', authenticate, requireRole('CLIENT'), 
 const razorpayRequest = (method, path, body) => new Promise((resolve, reject) => {
   const { keyId, keySecret } = razorpayCredentials();
   const credentials = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-  const request = https.request({
-    hostname: 'api.razorpay.com',
-    path,
+  const url = new URL(path.replace(/^\//, ''), `${(process.env.RAZORPAY_API_URL || 'https://api.razorpay.com').replace(/\/$/, '')}/`);
+  const transport = url.protocol === 'http:' ? http : https;
+  const request = transport.request(url, {
     method,
     headers: {
       Authorization: `Basic ${credentials}`,

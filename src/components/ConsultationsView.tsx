@@ -87,7 +87,9 @@ export const ConsultationsView: React.FC = () => {
       setSelectedLawyer(null);
       setTab('bookings');
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : 'Unable to book consultation.');
+      setError(requestError instanceof Error && requestError.message === 'Payment was cancelled'
+        ? 'Payment was cancelled. Your booking was not confirmed.'
+        : requestError instanceof ApiError ? requestError.message : 'Unable to book consultation.');
     } finally {
       setIsSubmitting(false);
     }
