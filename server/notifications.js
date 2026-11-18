@@ -1,5 +1,6 @@
 const webPush = require('web-push');
 const prisma = require('../db');
+const { logger } = require('./logger');
 
 let ioInstance = null;
 
@@ -20,7 +21,7 @@ function setSocketIo(io) {
 
 async function sendEmail({ to, subject, html, text }) {
   if (!resendApiKey) {
-    console.warn('[notifications] RESEND_API_KEY not configured; email skipped');
+    logger.warn('[notifications] RESEND_API_KEY not configured; email skipped');
     return { ok: false, skipped: true };
   }
   try {
@@ -40,26 +41,26 @@ async function sendEmail({ to, subject, html, text }) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      console.error('[notifications] Resend error:', data);
+      logger.error({ err: new Error('Resend request failed'), providerError: data }, '[notifications] Resend error:');
       return { ok: false, error: data };
     }
     return { ok: true, id: data.id };
   } catch (error) {
-    console.error('[notifications] Email send failed:', error);
+    logger.error({ err: error }, '[notifications] Email send failed:');
     return { ok: false, error: error.message };
   }
 }
 
 async function sendPush(subscription, payload) {
   if (!vapidPublicKey || !vapidPrivateKey) {
-    console.warn('[notifications] VAPID keys not configured; push skipped');
+    logger.warn('[notifications] VAPID keys not configured; push skipped');
     return { ok: false, skipped: true };
   }
   try {
     await webPush.sendNotification(subscription, JSON.stringify(payload));
     return { ok: true };
   } catch (error) {
-    console.error('[notifications] Push send failed:', error);
+    logger.error({ err: error }, '[notifications] Push send failed:');
     // Remove expired subscriptions
     if (error.statusCode === 410 || error.statusCode === 404) {
       await prisma.pushSubscription.deleteMany({ where: { endpoint: subscription.endpoint } });
@@ -227,12 +228,12 @@ function startReminderScheduler() {
     try {
       await sendDueReminders();
     } catch (error) {
-      console.error('[notifications] Reminder scheduler error:', error);
+      logger.error({ err: error }, '[notifications] Reminder scheduler error:');
     }
   }, intervalMs);
 
   // Run once shortly after startup to catch any missed reminders
-  setTimeout(() => sendDueReminders().catch((error) => console.error('[notifications] Initial reminder error:', error)), 5000);
+  setTimeout(() => sendDueReminders().catch((error) => logger.error({ err: error }, '[notifications] Initial reminder error:')), 5000);
 
   return timer;
 }

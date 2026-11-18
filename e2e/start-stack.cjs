@@ -6,6 +6,17 @@ const { backendEnv, fingerprint } = require('./runtime.cjs');
 
 let backend;
 let ready = false;
+const checkReadiness = () => {
+  if (backend.exitCode !== null || backend.killed) return;
+  const retry = () => setTimeout(checkReadiness, 200).unref();
+  const probe = http.get('http://127.0.0.1:3002/api/health', (res) => {
+    res.resume();
+    if (res.statusCode === 200) ready = true;
+    else retry();
+  });
+  probe.setTimeout(1000, () => probe.destroy());
+  probe.on('error', retry);
+};
 const stub = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'GET' && req.url === `/ready/${fingerprint}`) {
@@ -36,7 +47,6 @@ stub.listen(3901, '127.0.0.1', () => {
   });
   backend.stdout.on('data', (chunk) => {
     process.stdout.write(chunk);
-    if (chunk.toString().includes('API + realtime server running')) ready = true;
   });
   backend.on('error', (error) => { console.error(error); stub.close(); process.exitCode = 1; });
   backend.on('exit', (code) => {
@@ -44,6 +54,7 @@ stub.listen(3901, '127.0.0.1', () => {
     stub.close();
     process.exitCode = code || 0;
   });
+  checkReadiness();
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

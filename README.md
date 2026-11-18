@@ -262,6 +262,22 @@ Jitsi meeting URLs and the Razorpay privacy policy are navigation links, not emb
 
 Helmet's other default headers are retained, including same-origin framing, COOP and CORP. COEP is not enabled by Helmet's defaults. Razorpay's [integration guide](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/integration-steps/) and [FAQ](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/troubleshooting-faqs/) do not provide a CSP-specific allowlist; the explicit checkout/CDN/API/telemetry origins above come from the hosted checkout loader and production browser checks. Recheck them against a production build whenever the provider changes its checkout integration.
 
+### Logging, Health and Optional Error Monitoring
+
+The backend writes structured JSON to stdout using pinned `pino@9.14.0` and `pino-http@10.5.0`. Optional Sentry SDKs are pinned to `10.55.0`; these release lines retain Node 18 compatibility. Set `LOG_LEVEL` to `trace`, `debug`, `info` (default), `warn`, `error`, `fatal`, or `silent`. Tests are silent unless a test explicitly creates a capture logger. Request logs include `requestId`; a caller's `x-request-id` is accepted only when it contains 1–128 ASCII letters, digits, `_`, `.`, `:`, or `-`. Otherwise a UUID is generated. Every Express response echoes `x-request-id`.
+
+Authorization/cookie headers and structured fields whose names contain password, token, signature, OTP or secret are recursively redacted, case-insensitively. Request bodies are not logged automatically; URL query strings are omitted. Body-parser error payloads are redacted. Avoid putting credentials or document content in free-text log messages. The final error handler logs the exception with its request ID and returns only `{ "error": "Internal server error", "requestId": "..." }`, never a stack trace. Unhandled rejections are fatal-logged; uncaught exceptions are fatal-logged and terminate with exit code 1 after an optional bounded Sentry flush. Run the backend under a process supervisor that restarts it after a crash.
+
+`GET /api/health` is public and not rate limited. It runs `SELECT 1` and returns HTTP 200 `{ "status": "ok" }` or HTTP 503 `{ "status": "unavailable" }`. No database details are returned. Use it as a database-readiness check.
+
+Sentry is opt-in:
+
+- `SENTRY_DSN`: enables backend error-handler and process-error reporting with `@sentry/node`. Empty/unset means no SDK initialization or reporting.
+- `REACT_APP_SENTRY_DSN`: public browser DSN for `@sentry/react`, embedded by CRA **at build time**. Empty/unset disables initialization and boundary-error reporting. Rebuild after changing it. The top-level accessible error fallback and reload button work without Sentry.
+- Provide the same `REACT_APP_SENTRY_DSN` to Express at runtime so the production CSP matches the browser build. `connect-src` adds only the HTTP(S) ingest origins parsed from configured DSNs, without their credentials or project paths; no monitoring origin is allowed when both variables are unset. Self-hosted Sentry DSNs are supported. No wildcard CSP allowance is added.
+
+Both SDKs use `sendDefaultPii: false`. Before sending, request bodies, headers, cookies, query strings, user context, and breadcrumbs are removed. Backend JSON-parser exception messages are also sanitized. Do not enable session replay or add sensitive document/user data to error messages or SDK contexts. No Sentry account or live event is required for local tests; SDK initialization, capture, scrubbing and conditional CSP allowances are covered with mocks.
+
 ## Contributing
 
 1. Fork the repository
