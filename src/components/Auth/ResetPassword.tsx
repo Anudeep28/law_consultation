@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { resetPassword } from '../../services/notificationService';
 import { PasswordRules } from './PasswordRules';
+import { useAuthStore } from '../../stores/authStore';
 
 interface ResetPasswordProps {
   token: string;
@@ -24,6 +25,7 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
     setSubmitting(true);
     try {
       await resetPassword(token, password);
+      await useAuthStore.getState().refreshUser();
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to reset password');

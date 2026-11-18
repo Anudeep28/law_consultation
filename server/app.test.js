@@ -1,7 +1,7 @@
 process.env.JWT_SECRET = 'test-secret';
 
 jest.mock('../db', () => ({
-  user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), create: jest.fn() },
+  user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), create: jest.fn(), upsert: jest.fn() },
   consultation: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
   consultationMessage: {},
   payment: { findMany: jest.fn() },
@@ -145,6 +145,45 @@ describe('password and session hardening', () => {
     expect((await me(old)).status).toBe(401);
     expect((await me(response.body.token)).status).toBe(200);
     expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  test('deployment admin must rotate using ADMIN_PASSWORD rather than change or reset endpoints', async () => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = ` ${user.email.toUpperCase()} `;
+    user.role = 'ADMIN';
+    try {
+      const changed = await change();
+      const reset = await request(app).post('/api/auth/reset-password').send({ token: 'reset', password: 'Fresh-river-copper!' });
+      for (const result of [changed, reset]) {
+        expect([400, 403]).toContain(result.status);
+        expect(result.body.error).toMatch(/rotate.*ADMIN_PASSWORD/i);
+      }
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.passwordResetToken.updateMany).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+    }
+  });
+
+  test.each([true, false])('deployment startup rotates credentials and revokes sessions only when password changes (%s)', async (changed) => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    const previousPassword = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_EMAIL = user.email;
+    process.env.ADMIN_PASSWORD = changed ? 'Deployment-rotated-secret' : 'short-existing-secret';
+    user.role = 'ADMIN';
+    user.passwordHash = await bcrypt.hash('short-existing-secret', 4);
+    prisma.user.upsert.mockImplementation(async ({ update }) => prisma.user.update({ where: { id: user.id }, data: update }));
+    try {
+      const old = token();
+      await ensureDeploymentAdmin();
+      expect(await bcrypt.compare(process.env.ADMIN_PASSWORD, user.passwordHash)).toBe(true);
+      expect(user.tokenVersion).toBe(changed ? 1 : 0);
+      expect((await me(old)).status).toBe(changed ? 401 : 200);
+      expect(disconnectSockets).toHaveBeenCalledTimes(changed ? 1 : 0);
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+      if (previousPassword === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previousPassword;
+    }
   });
 
   test('requires auth/current password, rate limits changes per user, and does not mutate on failure', async () => {

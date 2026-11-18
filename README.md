@@ -302,6 +302,8 @@ JWT expiry is **7 days** (unchanged). User records have a `tokenVersion`, includ
 
 Authenticated users, including admins, can change their own password with `POST /api/account/password` (`currentPassword`, `newPassword`), limited to 5 attempts per user per 15 minutes. `POST /api/account/logout-all` revokes every session and returns 204. Password reset links retain their existing one-hour lifetime and are consumed atomically, once.
 
+Exception: the account matching server-only `ADMIN_EMAIL` is deployment-managed. Both password-change and reset endpoints reject changes with instructions to rotate `ADMIN_PASSWORD` instead. Startup continues to enforce that configured password; changing it revokes the admin's existing sessions and sockets, while restarting with the same password preserves them. Other admins can still change/reset their own passwords. After any successful reset, the browser revalidates its current session: a revoked session is cleared, but a valid session for another account is retained.
+
 Login retains its 10-attempts-per-IP per 15-minute limit and adds a normalized-email limit: after five failed attempts in 15 minutes, further attempts return generic HTTP 429 until the failures age out. Unknown accounts and wrong account types use bcrypt comparison as well; a successful login clears that email's failure counter. Both limiters are in-memory and reset on server restart; use a shared store if deploying multiple backend processes.
 
 Apply migrations and regenerate Prisma before deploying this release: `npm run db:deploy` and `npm run db:generate`.

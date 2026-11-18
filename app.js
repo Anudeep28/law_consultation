@@ -104,6 +104,8 @@ const rateLimit = (keyFn, limit, windowMs) => (req, res, next) => {
 };
 const clientIp = (req) => req.ip || req.socket.remoteAddress || 'unknown';
 const isReservedEmail = (email) => /@deleted\.invalid$/i.test(email);
+const isDeploymentAdminEmail = (email) => email.toLowerCase() === String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const deploymentPasswordError = 'Rotate this deployment administrator password via ADMIN_PASSWORD.';
 const passwordError = (password, email) => {
   if (typeof password !== 'string' || Array.from(password).length < 10 || Array.from(password).length > 128) return 'Password must contain 10–128 characters.';
   if (Buffer.byteLength(password, 'utf8') > 72) return 'Password must be at most 72 bytes in UTF-8 (some characters use more than one byte).';
@@ -267,6 +269,7 @@ app.post('/api/account/password', authenticate, rateLimit((req) => `password:${r
   try {
     const { currentPassword, newPassword } = req.body || {};
     if (typeof currentPassword !== 'string' || !await bcrypt.compare(currentPassword, req.user.passwordHash)) return res.status(401).json({ error: 'Current password is incorrect.' });
+    if (isDeploymentAdminEmail(req.user.email)) return res.status(403).json({ error: deploymentPasswordError });
     const error = passwordError(newPassword, req.user.email);
     if (error) return res.status(400).json({ error });
     const passwordHash = await bcrypt.hash(newPassword, 12);
@@ -572,6 +575,7 @@ app.post('/api/auth/reset-password', rateLimit((req) => `reset:${clientIp(req)}`
     if (!record || record.usedAt || record.expiresAt < new Date()) {
       return res.status(400).json({ error: 'This reset link is invalid or has expired' });
     }
+    if (isDeploymentAdminEmail(record.user.email)) return res.status(403).json({ error: deploymentPasswordError });
     const error = passwordError(password, record.user.email);
     if (error) return res.status(400).json({ error });
     const passwordHash = await bcrypt.hash(password, 12);
@@ -1901,12 +1905,14 @@ const ensureDeploymentAdmin = async () => {
   if (!email || password.length < 12) throw new Error('ADMIN_EMAIL and an ADMIN_PASSWORD of at least 12 characters are required together');
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing && existing.role !== 'ADMIN') throw new Error('ADMIN_EMAIL is already assigned to a non-admin account');
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordChanged = existing && !await bcrypt.compare(password, existing.passwordHash);
+  const passwordHash = existing && !passwordChanged ? existing.passwordHash : await bcrypt.hash(password, 12);
   await prisma.user.upsert({
     where: { email },
-    update: { name: process.env.ADMIN_NAME || 'Administrator', passwordHash, role: 'ADMIN' },
+    update: { name: process.env.ADMIN_NAME || 'Administrator', passwordHash, role: 'ADMIN', tokenVersion: passwordChanged ? { increment: 1 } : undefined },
     create: { email, name: process.env.ADMIN_NAME || 'Administrator', passwordHash, role: 'ADMIN' },
   });
+  if (passwordChanged) io.in(`user:${existing.id}`).disconnectSockets(true);
 };
 
 module.exports = { app, server, io, ensureDeploymentAdmin };
