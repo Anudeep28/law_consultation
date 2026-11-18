@@ -1903,6 +1903,7 @@ const ensureDeploymentAdmin = async () => {
   if (!email && !password) return;
   if (isReservedEmail(email)) throw new Error('ADMIN_EMAIL cannot use the reserved deleted.invalid domain');
   if (!email || password.length < 12) throw new Error('ADMIN_EMAIL and an ADMIN_PASSWORD of at least 12 characters are required together');
+  if (Buffer.byteLength(password, 'utf8') > 72) throw new Error('ADMIN_PASSWORD must be at most 72 UTF-8 bytes');
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing && existing.role !== 'ADMIN') throw new Error('ADMIN_EMAIL is already assigned to a non-admin account');
   const passwordChanged = existing && !await bcrypt.compare(password, existing.passwordHash);

@@ -76,6 +76,21 @@ describe('auth endpoints', () => {
     expect(res.body.ok).toBe(true);
   });
 
+  it.each(['x'.repeat(73), 'é'.repeat(37)])('rejects deployment administrator passwords exceeding 72 UTF-8 bytes before looking up the account', async (password) => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    const previousPassword = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_EMAIL = 'admin@example.test';
+    process.env.ADMIN_PASSWORD = password;
+    try {
+      await expect(ensureDeploymentAdmin()).rejects.toThrow(/ADMIN_PASSWORD.*72.*byte/);
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.upsert).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+      if (previousPassword === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previousPassword;
+    }
+  });
+
   it('rate limits repeated login attempts', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     let last;
