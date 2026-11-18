@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { apiRequest, getAuthToken } from './api';
 import { Notification } from '../types';
 
 export interface NotificationsResponse {
@@ -23,10 +23,11 @@ export const savePushSubscription = (subscription: PushSubscriptionJSON) =>
     body: JSON.stringify(subscription),
   });
 
-export const removePushSubscription = (endpoint: string) =>
+export const removePushSubscription = (endpoint: string, token?: string | null) =>
   apiRequest<undefined>('/api/notifications/subscribe', {
     method: 'DELETE',
     body: JSON.stringify({ endpoint }),
+    headers: token === undefined ? undefined : { Authorization: token ? `Bearer ${token}` : '' },
   });
 
 export const updateNotificationPreferences = (preferences: { emailNotifications?: boolean; pushNotifications?: boolean }) =>
@@ -80,7 +81,7 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
   }
 }
 
-export async function unsubscribeFromPushNotifications(): Promise<boolean> {
+export async function unsubscribeFromPushNotifications(token = getAuthToken()): Promise<boolean> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     return false;
   }
@@ -88,8 +89,11 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
-      await subscription.unsubscribe();
-      await removePushSubscription(subscription.endpoint);
+      const results = await Promise.allSettled([
+        Promise.resolve().then(() => subscription.unsubscribe()),
+        removePushSubscription(subscription.endpoint, token),
+      ]);
+      return results.every((result) => result.status === 'fulfilled' && result.value !== false);
     }
     return true;
   } catch (error) {

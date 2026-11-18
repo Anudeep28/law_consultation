@@ -29,9 +29,12 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
   const isReadOnly = consultation.status === 'completed' || consultation.status === 'cancelled' || new Date(consultation.endsAt).getTime() <= Date.now();
 
   useEffect(() => {
+    let active = true;
+    setMessages([]);
     const socket = isReadOnly ? null : getSocket();
     socketRef.current = socket;
     const onMessage = (message: ConsultationMessage) => {
+      if (message.consultationId !== consultation.id) return;
       setMessages((current) => current.some((existing) => existing.id === message.id) ? current : [...current, message]);
     };
     const join = () => {
@@ -43,11 +46,13 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
     if (socket?.connected) join();
     else socket?.on('connect', join);
     apiRequest<{ messages: ConsultationMessage[] }>(`/api/consultations/${consultation.id}/messages`)
-      .then((result) => setMessages(result.messages))
-      .catch(() => setError('Unable to load chat messages.'));
+      .then((result) => { if (active) setMessages(result.messages); })
+      .catch(() => { if (active) setError('Unable to load chat messages.'); });
     const countdownTimer = window.setInterval(() => setSecondsLeft(remainingTime(consultation.endsAt)), 1000);
     return () => {
+      active = false;
       window.clearInterval(countdownTimer);
+      socket?.emit('chat:leave', { consultationId: consultation.id });
       socket?.off('chat:message', onMessage);
       socket?.off('connect', join);
       socketRef.current = null;

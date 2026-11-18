@@ -760,6 +760,7 @@ app.patch('/api/admin/users/:id/status', authenticate, requireRole('ADMIN'), asy
       await tx.adminAuditLog.create({ data: { adminId: req.user.id, targetUserId: target.id, action: `ACCOUNT_${status}`, reason: reason || 'Account reactivated by administrator' } });
       return updated;
     });
+    if (status !== 'ACTIVE') io.in(`user:${target.id}`).disconnectSockets(true);
     res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role.toLowerCase(), accountStatus: user.accountStatus.toLowerCase(), statusReason: user.statusReason || '', createdAt: user.createdAt } });
   } catch {
     res.status(500).json({ error: 'Unable to update account status' });
@@ -899,27 +900,15 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
     if (!schedule.days.includes(startsAt.getUTCDay()) || minuteOfDay < startHour * 60 + startMinute || minuteOfDay + 10 > endHour * 60 + endMinute || startsAt.getUTCMinutes() % 10 !== 0) {
       return res.status(400).json({ error: 'Invalid consultation slot' });
     }
+    await expireStalePendingConsultations();
     const overlapping = await prisma.consultation.findFirst({
       where: { userId: req.user.id, status: { in: ['BOOKED', 'PENDING_PAYMENT'] }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
     });
     if (overlapping) return res.status(409).json({ error: 'You already have a consultation at this time' });
-    await expireStalePendingConsultations();
-    const existing = await prisma.consultation.findUnique({ where: { lawyerId_startsAt: { lawyerId, startsAt } } });
-    let consultation;
-    if (existing?.status === 'CANCELLED') {
-      consultation = await prisma.consultation.update({
-        where: { id: existing.id },
-        data: { userId: req.user.id, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT', meetingUrl: null, messages: { deleteMany: {} } },
-        include: { lawyer: true },
-      });
-    } else if (existing) {
-      return res.status(409).json({ error: 'This slot was just booked. Please choose another.' });
-    } else {
-      consultation = await prisma.consultation.create({
-        data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT' },
-        include: { lawyer: true },
-      });
-    }
+    const consultation = await prisma.consultation.create({
+      data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT' },
+      include: { lawyer: true },
+    });
 
     const { keyId, keySecret } = razorpayCredentials();
     if (!keyId || !keySecret) return res.status(500).json({ error: 'Razorpay is not configured' });
@@ -1706,13 +1695,23 @@ const server = http.createServer(app);
 const io = new SocketServer(server, { cors: { origin: true, credentials: true } });
 notifications.setSocketIo(io);
 
-io.use(async (socket, next) => {
+const authenticateSocket = async (socket) => {
   const token = socket.handshake.auth?.token;
-  if (!token || !process.env.JWT_SECRET) return next(new Error('Authentication required'));
+  if (!token || !process.env.JWT_SECRET) return null;
+  let payload;
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-    if (!user || user.accountStatus !== 'ACTIVE') return next(new Error('Invalid authentication token'));
+    payload = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return null;
+  }
+  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+  return user?.accountStatus === 'ACTIVE' ? user : null;
+};
+
+io.use(async (socket, next) => {
+  try {
+    const user = await authenticateSocket(socket);
+    if (!user) return next(new Error('Invalid or expired authentication token'));
     socket.user = user;
     next();
   } catch {
@@ -1723,8 +1722,18 @@ io.use(async (socket, next) => {
 io.on('connection', (socket) => {
   socket.join(`user:${socket.user.id}`);
 
+  socket.on('chat:leave', async (payload, callback) => {
+    const consultationId = payload?.consultationId;
+    if (typeof consultationId !== 'string' || !consultationId.trim()) return callback?.({ error: 'Consultation ID is required' });
+    await socket.leave(`consultation:${consultationId}`);
+    callback?.({ ok: true });
+  });
+
   socket.on('chat:join', async (payload, callback) => {
     try {
+      const user = await authenticateSocket(socket);
+      if (!user) return callback?.({ error: 'Invalid or expired authentication token' });
+      socket.user = user;
       const consultationId = String(payload?.consultationId || '');
       const consultation = await findChatConsultation(consultationId, socket.user);
       if (!consultation) return callback?.({ error: 'Chat consultation not found' });
@@ -1738,6 +1747,9 @@ io.on('connection', (socket) => {
 
   socket.on('chat:message', async (payload, callback) => {
     try {
+      const user = await authenticateSocket(socket);
+      if (!user) return callback?.({ error: 'Invalid or expired authentication token' });
+      socket.user = user;
       const consultationId = String(payload?.consultationId || '');
       const content = String(payload?.content || '').trim();
       if (!content || content.length > 2000) return callback?.({ error: 'Message must be between 1 and 2000 characters' });
