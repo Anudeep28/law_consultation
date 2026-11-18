@@ -1,14 +1,14 @@
 process.env.JWT_SECRET = 'test-secret';
 
 jest.mock('../db', () => ({
-  user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+  user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), create: jest.fn() },
   consultation: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
   consultationMessage: {},
   payment: { findMany: jest.fn() },
   document: { findMany: jest.fn(), deleteMany: jest.fn() },
   deliverable: {},
   emailVerificationToken: { deleteMany: jest.fn() },
-  passwordResetToken: { deleteMany: jest.fn() },
+  passwordResetToken: { deleteMany: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
   notification: { findMany: jest.fn(), deleteMany: jest.fn() },
   pushSubscription: { deleteMany: jest.fn() },
   lawyerReview: { findMany: jest.fn(), updateMany: jest.fn() },
@@ -19,7 +19,7 @@ jest.mock('../db', () => ({
 
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
-const { app, ensureDeploymentAdmin } = require('../app');
+const { app, ensureDeploymentAdmin, io } = require('../app');
 const prisma = require('../db');
 
 const activeUser = { id: 'user-1', accountStatus: 'ACTIVE', role: 'CLIENT', name: 'Test User', email: 'test@example.com' };
@@ -85,6 +85,122 @@ describe('auth endpoints', () => {
         .send({ email: 'a@b.com', password: 'secret1', role: 'client' });
     }
     expect(last.status).toBe(429);
+  });
+});
+
+describe('password and session hardening', () => {
+  const bcrypt = require('bcrypt');
+  let user;
+  let clock = Date.now() + 3600000;
+  let disconnectSockets;
+  const token = (version = user.tokenVersion) => jwt.sign({ userId: activeUser.id, tokenVersion: version }, process.env.JWT_SECRET);
+  const me = (value) => request(app).get('/api/auth/me').set('Authorization', `Bearer ${value}`);
+  const change = (newPassword = 'Fresh-river-copper!', currentPassword = 'short') => request(app).post('/api/account/password').set('Authorization', `Bearer ${token()}`).send({ currentPassword, newPassword });
+  const login = (email = user.email, password = 'wrong') => request(app).post('/api/auth/login').send({ email, password });
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    clock += 20 * 60000;
+    jest.spyOn(Date, 'now').mockImplementation(() => clock);
+    disconnectSockets = jest.fn();
+    jest.spyOn(io, 'in').mockReturnValue({ disconnectSockets });
+    user = { ...activeUser, tokenVersion: 0, subscriptionPlan: 'TRIAL', documentCredits: 0, passwordHash: await bcrypt.hash('short', 4) };
+    prisma.user.findUnique.mockImplementation(async ({ where }) => where.email && where.email.toLowerCase() !== user.email ? null : { ...user });
+    prisma.user.update.mockImplementation(async ({ where, data }) => {
+      if (where.tokenVersion !== undefined && where.tokenVersion !== user.tokenVersion) throw Object.assign(new Error('Race'), { code: 'P2025' });
+      if (data.passwordHash) user.passwordHash = data.passwordHash;
+      if (data.tokenVersion?.increment) user.tokenVersion += data.tokenVersion.increment;
+      return { ...user };
+    });
+    prisma.$transaction.mockImplementation((callback) => callback(prisma));
+    prisma.passwordResetToken.findUnique.mockImplementation(async () => ({ id: 'reset', userId: user.id, user: { ...user }, expiresAt: new Date(clock + 3600000) }));
+    prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 1 });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  test.each([
+    ['', /10.*128/], [undefined, /10.*128/], [null, /10.*128/], [{ value: 'password123' }, /10.*128/],
+    ['short', /10.*128/], ['x'.repeat(129), /10.*128/], ['x'.repeat(73), /72.*byte/], ['é'.repeat(37), /72.*byte/],
+    ['password123', /common/i], ['TEST-copper-river', /email/i],
+  ])('register, reset and change share policy rejection for %s', async (password, message) => {
+    const registered = await request(app).post('/api/auth/register').send({ name: 'Test', email: user.email, phone: '9999999999', password });
+    const reset = await request(app).post('/api/auth/reset-password').send({ token: 'reset', password });
+    const changed = await request(app).post('/api/account/password').set('Authorization', `Bearer ${token()}`).send({ currentPassword: 'short', newPassword: password });
+    for (const result of [registered, reset, changed]) {
+      expect(result.status).toBe(400);
+      expect(result.body.error).toMatch(message);
+    }
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  test.each(['CLIENT', 'ADMIN'])('%s changes own password and keeps only the fresh session', async (role) => {
+    user.role = role;
+    const old = token();
+    const response = await change('R'.repeat(72));
+    expect(response.status).toBe(200);
+    const payload = jwt.verify(response.body.token, process.env.JWT_SECRET);
+    expect(payload.tokenVersion).toBe(1);
+    expect(payload.exp - payload.iat).toBe(7 * 86400);
+    expect(await bcrypt.compare('R'.repeat(72), user.passwordHash)).toBe(true);
+    expect((await me(old)).status).toBe(401);
+    expect((await me(response.body.token)).status).toBe(200);
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  test('requires auth/current password, rate limits changes per user, and does not mutate on failure', async () => {
+    expect((await request(app).post('/api/account/password').send({})).status).toBe(401);
+    expect((await change(undefined, 'wrong')).status).toBe(401);
+    for (let i = 0; i < 5; i++) await change(undefined, 'wrong');
+    expect((await change()).status).toBe(429);
+    expect(user.tokenVersion).toBe(0);
+  });
+
+  test('reset consumes the token once and revokes prior sessions', async () => {
+    const old = token();
+    const reset = () => request(app).post('/api/auth/reset-password').send({ token: 'reset', password: 'Fresh-river-copper!' });
+    expect((await reset()).status).toBe(200);
+    expect(prisma.passwordResetToken.updateMany).toHaveBeenCalledWith({ where: { id: 'reset', token: 'reset', usedAt: null, expiresAt: { gt: expect.any(Date) } }, data: { usedAt: expect.any(Date) } });
+    expect((await me(old)).status).toBe(401);
+    prisma.passwordResetToken.updateMany.mockResolvedValueOnce({ count: 0 });
+    expect((await reset()).status).toBe(400);
+    expect(user.tokenVersion).toBe(1);
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  test.each([null, { usedAt: new Date(), expiresAt: new Date(Date.now() + 3600000) }, { expiresAt: new Date(0) }])('rejects missing, used or expired reset records', async (record) => {
+    prisma.passwordResetToken.findUnique.mockResolvedValueOnce(record);
+    const result = await request(app).post('/api/auth/reset-password').send({ token: 'reset', password: 'Fresh-river-copper!' });
+    expect(result.status).toBe(400);
+    expect(user.tokenVersion).toBe(0);
+  });
+
+  test('logout-all revokes the current token and removes push subscriptions', async () => {
+    const old = token();
+    const result = await request(app).post('/api/account/logout-all').set('Authorization', `Bearer ${old}`);
+    expect(result.status).toBe(204);
+    expect((await me(old)).status).toBe(401);
+    expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({ where: { userId: user.id } });
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  test('short existing passwords can log in; success resets failed attempts', async () => {
+    for (let i = 0; i < 4; i++) expect((await login()).status).toBe(401);
+    const result = await login(user.email, 'short');
+    expect(result.status).toBe(200);
+    expect(jwt.verify(result.body.token, process.env.JWT_SECRET).tokenVersion).toBe(0);
+    for (let i = 0; i < 4; i++) expect((await login()).status).toBe(401);
+  });
+
+  test.each(['test@example.com', 'unknown@example.com'])('locks %s generically after five failures, including normalized email and role changes', async (email) => {
+    const compare = jest.spyOn(bcrypt, 'compare');
+    for (let i = 0; i < 5; i++) expect((await login(email)).status).toBe(401);
+    expect(compare).toHaveBeenCalledTimes(5);
+    expect(typeof compare.mock.calls[0][1]).toBe('string');
+    const result = await request(app).post('/api/auth/login').send({ email: ` ${email.toUpperCase()} `, password: 'short', role: 'admin' });
+    expect(result.status).toBe(429);
+    expect(result.body).toEqual({ error: 'Too many attempts. Please try again later.' });
+    clock += 15 * 60000;
+    expect((await login(email)).status).toBe(401);
   });
 });
 

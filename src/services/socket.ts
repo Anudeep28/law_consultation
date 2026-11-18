@@ -20,3 +20,11 @@ export function disconnectSocket(): void {
     socket = null;
   }
 }
+
+export function refreshSocketAuthentication(): void {
+  if (socket) {
+    socket.disconnect();
+    socket.auth = { token: getAuthToken() };
+    socket.connect();
+  }
+}

@@ -13,6 +13,7 @@ const notifications = require('./server/notifications');
 const { logger, createRequestLogging, errorHandler } = require('./server/logger');
 const { sentryIngestOrigins } = require('./server/monitoring');
 const meetings = require('./server/meetings');
+const commonPasswords = new Set(require('./src/data/commonPasswords.json'));
 
 const app = express();
 app.disable('x-powered-by');
@@ -103,6 +104,19 @@ const rateLimit = (keyFn, limit, windowMs) => (req, res, next) => {
 };
 const clientIp = (req) => req.ip || req.socket.remoteAddress || 'unknown';
 const isReservedEmail = (email) => /@deleted\.invalid$/i.test(email);
+const passwordError = (password, email) => {
+  if (typeof password !== 'string' || Array.from(password).length < 10 || Array.from(password).length > 128) return 'Password must contain 10–128 characters.';
+  if (Buffer.byteLength(password, 'utf8') > 72) return 'Password must be at most 72 bytes in UTF-8 (some characters use more than one byte).';
+  const normalized = password.toLowerCase();
+  if (commonPasswords.has(normalized)) return 'This password is too common. Choose a less predictable password.';
+  const localPart = email.split('@')[0].toLowerCase();
+  if (localPart && normalized.includes(localPart)) return 'Password must not contain the part of your email before @.';
+  return null;
+};
+const failedLogins = new Map();
+const loginWindowMs = 15 * 60 * 1000;
+const recentLoginFailures = (email) => (failedLogins.get(email) || []).filter((time) => Date.now() - time < loginWindowMs);
+const dummyPasswordHash = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12);
 
 // Razorpay webhook needs the raw body for signature verification, so it is
 // registered before express.json() parses bodies.
@@ -232,6 +246,7 @@ const authenticate = async (req, res, next) => {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user) return res.status(401).json({ error: 'Invalid authentication token' });
+    if ((payload.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) return res.status(401).json({ error: 'Session expired. Please sign in again.' });
     if (user.accountStatus !== 'ACTIVE') return res.status(403).json({ error: 'This account is not active' });
     req.user = user;
     next();
@@ -245,7 +260,39 @@ const requireRole = (role) => (req, res, next) => {
   next();
 };
 
-const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+const signToken = (user) => jwt.sign({ userId: user.id, tokenVersion: user.tokenVersion ?? 0 }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+app.post('/api/account/password', authenticate, rateLimit((req) => `password:${req.user.id}`, 5, 15 * 60 * 1000), async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || !await bcrypt.compare(currentPassword, req.user.passwordHash)) return res.status(401).json({ error: 'Current password is incorrect.' });
+    const error = passwordError(newPassword, req.user.email);
+    if (error) return res.status(400).json({ error });
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const user = await prisma.user.update({ where: { id: req.user.id, tokenVersion: req.user.tokenVersion ?? 0 }, data: { passwordHash, tokenVersion: { increment: 1 } } });
+    io.in(`user:${user.id}`).disconnectSockets(true);
+    res.json({ token: signToken(user) });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    req.log.error({ err }, 'Unable to change password');
+    res.status(500).json({ error: 'Unable to change password. Please try again.' });
+  }
+});
+
+app.post('/api/account/logout-all', authenticate, rateLimit((req) => `logout-all:${req.user.id}`, 5, 15 * 60 * 1000), async (req, res) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: req.user.id }, data: { tokenVersion: { increment: 1 } } });
+      await tx.pushSubscription.deleteMany({ where: { userId: req.user.id } });
+    });
+    io.in(`user:${req.user.id}`).disconnectSockets(true);
+    res.status(204).end();
+  } catch (err) {
+    req.log.error({ err }, 'Unable to log out all devices');
+    res.status(500).json({ error: 'Unable to log out all devices. Please try again.' });
+  }
+});
 
 app.get('/api/account/export', authenticate, rateLimit((req) => `account-export:${req.user.id}`, 5, 60 * 60 * 1000), async (req, res) => {
   try {
@@ -351,15 +398,17 @@ const sendVerificationEmail = async (user) => {
 app.post('/api/auth/register', rateLimit((req) => `register:${clientIp(req)}`, 10, 60 * 60 * 1000), async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
-  const password = String(req.body.password || '');
+  const password = req.body.password;
   const phone = normalizeIndianPhone(req.body.phone);
   const role = String(req.body.role || 'client').toUpperCase();
   const barCouncil = String(req.body.barCouncil || '').trim();
   const enrollmentNumber = String(req.body.enrollmentNumber || '').trim();
   if (isReservedEmail(email)) return res.status(400).json({ error: 'This email domain is reserved. Please use a different email address.' });
-  if (!name || !email || !phone || password.length < 6 || !['CLIENT', 'LAWYER'].includes(role)) {
-    return res.status(400).json({ error: 'Name, email, valid Indian mobile number, account type, and a 6-character password are required' });
+  if (!name || !email || !phone || !['CLIENT', 'LAWYER'].includes(role)) {
+    return res.status(400).json({ error: 'Name, email, valid Indian mobile number, and account type are required' });
   }
+  const error = passwordError(password, email);
+  if (error) return res.status(400).json({ error });
   if (role === 'LAWYER' && (!barCouncil || !isPlausibleEnrollmentNumber(enrollmentNumber))) {
     return res.status(400).json({ error: 'Bar Council and an enrollment number in the council format (for example D/1234/2018) are required for lawyers' });
   }
@@ -396,7 +445,7 @@ app.post('/api/auth/register', rateLimit((req) => `register:${clientIp(req)}`, 1
     });
     // Send verification email asynchronously; don't block registration if it fails
     sendVerificationEmail(user).catch((err) => req.log.error({ err }, '[email-verify] Failed to send verification email:'));
-    res.status(201).json({ token: signToken(user.id), user: serializeUser(user) });
+    res.status(201).json({ token: signToken(user), user: serializeUser(user) });
   } catch (error) {
     if (error.code === 'P2002') return res.status(409).json({ error: 'An account with this email or enrollment number already exists' });
     res.status(500).json({ error: 'Unable to create account' });
@@ -409,6 +458,7 @@ app.post('/api/auth/login', rateLimit((req) => `login:${clientIp(req)}`, 10, 15 
   const role = String(req.body.role || 'client').toUpperCase();
   if (!['CLIENT', 'LAWYER', 'ADMIN'].includes(role)) return res.status(400).json({ error: 'Invalid account type' });
   if (!process.env.JWT_SECRET) return res.status(500).json({ error: 'JWT is not configured' });
+  if (recentLoginFailures(email).length >= 5) return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
   try {
     const user = await prisma.user.findUnique({
       where: { email },
@@ -417,11 +467,14 @@ app.post('/api/auth/login', rateLimit((req) => `login:${clientIp(req)}`, 10, 15 
         lawyerProfile: true,
       },
     });
-    if (!user || user.role !== role || !await bcrypt.compare(password, user.passwordHash)) {
+    const passwordMatches = await bcrypt.compare(password, user?.passwordHash || dummyPasswordHash);
+    if (!user || user.role !== role || !passwordMatches) {
+      failedLogins.set(email, [...recentLoginFailures(email), Date.now()]);
       return res.status(401).json({ error: 'Invalid email, password, or account type' });
     }
     if (user.accountStatus !== 'ACTIVE') return res.status(403).json({ error: 'This account is suspended or deactivated' });
-    res.json({ token: signToken(user.id), user: serializeUser(user) });
+    failedLogins.delete(email);
+    res.json({ token: signToken(user), user: serializeUser(user) });
   } catch {
     res.status(500).json({ error: 'Unable to sign in' });
   }
@@ -510,20 +563,25 @@ app.post('/api/auth/forgot-password', rateLimit((req) => `forgot:${clientIp(req)
 
 app.post('/api/auth/reset-password', rateLimit((req) => `reset:${clientIp(req)}`, 10, 15 * 60 * 1000), async (req, res) => {
   const token = String(req.body.token || '');
-  const password = String(req.body.password || '');
-  if (!token || password.length < 6) {
-    return res.status(400).json({ error: 'A valid reset link and a 6+ character password are required' });
+  const password = req.body.password;
+  if (!token) {
+    return res.status(400).json({ error: 'A valid reset link is required' });
   }
   try {
-    const record = await prisma.passwordResetToken.findUnique({ where: { token } });
+    const record = await prisma.passwordResetToken.findUnique({ where: { token }, include: { user: true } });
     if (!record || record.usedAt || record.expiresAt < new Date()) {
       return res.status(400).json({ error: 'This reset link is invalid or has expired' });
     }
+    const error = passwordError(password, record.user.email);
+    if (error) return res.status(400).json({ error });
     const passwordHash = await bcrypt.hash(password, 12);
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
-      prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
-    ]);
+    const updated = await prisma.$transaction(async (tx) => {
+      const consumed = await tx.passwordResetToken.updateMany({ where: { id: record.id, token, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+      if (consumed.count !== 1) return null;
+      return tx.user.update({ where: { id: record.userId }, data: { passwordHash, tokenVersion: { increment: 1 } } });
+    });
+    if (!updated) return res.status(400).json({ error: 'This reset link is invalid or has expired' });
+    io.in(`user:${record.userId}`).disconnectSockets(true);
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: 'Unable to reset password' });
@@ -1752,7 +1810,7 @@ const authenticateSocket = async (socket) => {
     return null;
   }
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  return user?.accountStatus === 'ACTIVE' ? user : null;
+  return user?.accountStatus === 'ACTIVE' && (payload.tokenVersion ?? 0) === (user.tokenVersion ?? 0) ? user : null;
 };
 
 io.use(async (socket, next) => {

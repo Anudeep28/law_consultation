@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { resetPassword } from '../../services/notificationService';
+import { PasswordRules } from './PasswordRules';
 
 interface ResetPasswordProps {
   token: string;
@@ -16,10 +17,6 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
     if (password !== confirm) {
       setError('Passwords do not match');
       return;
@@ -88,6 +85,7 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
                 />
               </div>
             </div>
+            <PasswordRules />
             <div>
               <button
                 type="submit"

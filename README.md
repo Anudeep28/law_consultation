@@ -294,6 +294,18 @@ New JaaS bookings store only `jaas:<random-room>` in the existing `meetingUrl` c
 
 JaaS JWTs identify a participant but are still bearer credentials: do not forward a signed URL. Expiry limits admission with the token; it does not guarantee disconnection of an already-admitted participant. No JaaS iframe, script, or browser API connection is used—only top-level navigation—so **no CSP changes are required**. JWT claims, signatures, authorization/window checks, privacy of list/export/reminder payloads, and frontend joining are tested without contacting 8x8; verify live admission with your configured JaaS tenant before rollout.
 
+### Passwords and Sessions
+
+New passwords at registration, reset and Account & Privacy → Change password must have 10–128 Unicode characters, fit within bcrypt's **72 UTF-8 bytes**, not match the bundled common-password list (case-insensitive), and not contain the email local-part (case-insensitive). The byte limit means the effective ASCII maximum is 72; Unicode characters may use multiple bytes. Existing shorter passwords still work for login.
+
+JWT expiry is **7 days** (unchanged). User records have a `tokenVersion`, included in newly issued JWTs and checked on every authenticated REST request, Socket.IO handshake, and chat join/send. Password reset, password change and **Log out of all devices** increment the version and disconnect all user sockets. A successful password change replaces the current browser's token and reconnects its socket, keeping that browser signed in. Reset requires signing in again. Logout-all also logs out the current browser and deletes server-side push subscriptions on every device. Other browsers may display cached UI until their next authenticated request, but cannot use revoked tokens. Pre-migration JWTs without a version are treated as version 0 and are revoked by the first version bump.
+
+Authenticated users, including admins, can change their own password with `POST /api/account/password` (`currentPassword`, `newPassword`), limited to 5 attempts per user per 15 minutes. `POST /api/account/logout-all` revokes every session and returns 204. Password reset links retain their existing one-hour lifetime and are consumed atomically, once.
+
+Login retains its 10-attempts-per-IP per 15-minute limit and adds a normalized-email limit: after five failed attempts in 15 minutes, further attempts return generic HTTP 429 until the failures age out. Unknown accounts and wrong account types use bcrypt comparison as well; a successful login clears that email's failure counter. Both limiters are in-memory and reset on server restart; use a shared store if deploying multiple backend processes.
+
+Apply migrations and regenerate Prisma before deploying this release: `npm run db:deploy` and `npm run db:generate`.
+
 ## Contributing
 
 1. Fork the repository
