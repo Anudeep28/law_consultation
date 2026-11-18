@@ -246,14 +246,16 @@ const authenticate = async (req, res, next) => {
   if (!token || !process.env.JWT_SECRET) return res.status(401).json({ error: 'Authentication required' });
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (!payload || typeof payload !== 'object' || typeof payload.userId !== 'string' || !payload.userId) return res.status(401).json({ error: 'Invalid authentication token' });
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user) return res.status(401).json({ error: 'Invalid authentication token' });
     if ((payload.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) return res.status(401).json({ error: 'Session expired. Please sign in again.' });
     if (user.accountStatus !== 'ACTIVE') return res.status(403).json({ error: 'This account is not active' });
     req.user = user;
     next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired authentication token' });
+  } catch (err) {
+    if (err instanceof jwt.JsonWebTokenError) return res.status(401).json({ error: 'Invalid or expired authentication token' });
+    next(err);
   }
 };
 

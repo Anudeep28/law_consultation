@@ -51,6 +51,20 @@ describe('billable endpoint protection', () => {
 });
 
 describe('auth endpoints', () => {
+  it('returns a safe 500 rather than revoking a valid session when the authentication lookup fails', async () => {
+    prisma.user.findUnique.mockRejectedValueOnce(new Error('Private database connection details'));
+    const result = await request(app).get('/api/auth/me').set('Authorization', authHeader()).set('x-request-id', 'auth-lookup-failure');
+    expect(result.status).toBe(500);
+    expect(result.body).toEqual({ error: 'Internal server error', requestId: 'auth-lookup-failure' });
+  });
+
+  it.each(['malformed', 'expired', 'future', 'missing-user'])('still returns 401 for %s JWTs without a database lookup', async (kind) => {
+    const token = kind === 'malformed' ? 'not-a-jwt' : kind === 'missing-user' ? jwt.sign({}, process.env.JWT_SECRET) : jwt.sign({ userId: activeUser.id }, process.env.JWT_SECRET, kind === 'expired' ? { expiresIn: -1 } : { notBefore: '1h' });
+    const result = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+    expect(result.status).toBe(401);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
   it.each(['deleted+victim@deleted.invalid', 'deleted+victim@DeLeTeD.InVaLiD'])('rejects registration using reserved email %s', async (email) => {
     const res = await request(app).post('/api/auth/register').send({ name: 'Test', email, phone: '9999999999', password: 'secret123', role: 'client' });
     expect(res.status).toBe(400);
