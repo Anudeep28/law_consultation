@@ -130,7 +130,7 @@ test('client pays and sees a booked consultation', async ({ page }) => {
 });
 
 for (const [scenario, accountKey, offset, message] of [
-  ['dismiss', 'dismissClient', 1, 'Unable to book consultation.'],
+  ['dismiss', 'dismissClient', 1, 'Payment was cancelled. Your booking was not confirmed.'],
   ['tamper', 'tamperClient', 2, 'Invalid payment signature'],
 ] as const) {
   test(`client ${scenario === 'dismiss' ? 'dismisses checkout' : 'sends a tampered signature'}`, async ({ page }) => {
