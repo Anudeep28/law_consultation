@@ -1,13 +1,34 @@
 import { useAuthStore } from './authStore';
 import { useDocumentStore } from './documentStore';
 import { notify, useToastStore } from '../components/ui/Toasts';
-import { apiRequest, getAuthToken, setAuthToken } from '../services/api';
-import { Document } from '../types';
+import { apiRequest, ApiError, getAuthToken, setAuthToken } from '../services/api';
+import { Document, User } from '../types';
 import { waitFor } from '@testing-library/react';
 
 jest.mock('../services/api', () => ({
+  ...jest.requireActual('../services/api'),
   apiRequest: jest.fn(), getAuthToken: jest.fn(), setAuthToken: jest.fn(),
 }));
+
+const signedInUser: User = { id: 'other-account', name: 'Other Account', email: 'other@example.test', role: 'client', accountStatus: 'active', subscriptionStatus: 'trial', subscriptionPlan: 'trial', documentCredits: 0, appliedPaymentIds: [], isEmailVerified: true, isPhoneVerified: true };
+
+test.each([new ApiError('Temporary database failure', 500), new Error('Network offline')])('session refresh preserves another account on transient failure: %s', async (error) => {
+  (getAuthToken as jest.Mock).mockReturnValue('other-account-token');
+  (apiRequest as jest.Mock).mockRejectedValueOnce(error);
+  useAuthStore.setState({ user: signedInUser, isAuthenticated: true });
+  await useAuthStore.getState().refreshUser();
+  expect(useAuthStore.getState()).toMatchObject({ user: signedInUser, isAuthenticated: true, isLoading: false });
+  expect(setAuthToken).not.toHaveBeenCalled();
+});
+
+test.each([401, 403])('session refresh still clears authentication after genuine rejection: %s', async (status) => {
+  (getAuthToken as jest.Mock).mockReturnValue('revoked-token');
+  (apiRequest as jest.Mock).mockRejectedValueOnce(new ApiError('Session rejected', status));
+  useAuthStore.setState({ user: signedInUser, isAuthenticated: true });
+  await useAuthStore.getState().refreshUser();
+  expect(useAuthStore.getState()).toMatchObject({ user: null, isAuthenticated: false, isLoading: false });
+  expect(setAuthToken).toHaveBeenCalledWith(null);
+});
 
 const document: Document = { id: 'private', userId: 'previous-user', title: 'Private document', content: 'Confidential', createdAt: new Date(), updatedAt: new Date() };
 
