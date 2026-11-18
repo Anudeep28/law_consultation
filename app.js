@@ -899,27 +899,15 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
     if (!schedule.days.includes(startsAt.getUTCDay()) || minuteOfDay < startHour * 60 + startMinute || minuteOfDay + 10 > endHour * 60 + endMinute || startsAt.getUTCMinutes() % 10 !== 0) {
       return res.status(400).json({ error: 'Invalid consultation slot' });
     }
+    await expireStalePendingConsultations();
     const overlapping = await prisma.consultation.findFirst({
       where: { userId: req.user.id, status: { in: ['BOOKED', 'PENDING_PAYMENT'] }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
     });
     if (overlapping) return res.status(409).json({ error: 'You already have a consultation at this time' });
-    await expireStalePendingConsultations();
-    const existing = await prisma.consultation.findUnique({ where: { lawyerId_startsAt: { lawyerId, startsAt } } });
-    let consultation;
-    if (existing?.status === 'CANCELLED') {
-      consultation = await prisma.consultation.update({
-        where: { id: existing.id },
-        data: { userId: req.user.id, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT', meetingUrl: null, messages: { deleteMany: {} } },
-        include: { lawyer: true },
-      });
-    } else if (existing) {
-      return res.status(409).json({ error: 'This slot was just booked. Please choose another.' });
-    } else {
-      consultation = await prisma.consultation.create({
-        data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT' },
-        include: { lawyer: true },
-      });
-    }
+    const consultation = await prisma.consultation.create({
+      data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT' },
+      include: { lawyer: true },
+    });
 
     const { keyId, keySecret } = razorpayCredentials();
     if (!keyId || !keySecret) return res.status(500).json({ error: 'Razorpay is not configured' });
