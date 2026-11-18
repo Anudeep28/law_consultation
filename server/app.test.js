@@ -58,6 +58,15 @@ describe('auth endpoints', () => {
     expect(result.body).toEqual({ error: 'Internal server error', requestId: 'auth-lookup-failure' });
   });
 
+  it('returns 401 for a signed JWT whose payload is not valid JSON', async () => {
+    const crypto = require('crypto');
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const body = Buffer.from('{bad').toString('base64url');
+    const signature = crypto.createHmac('sha256', process.env.JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+    const result = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${header}.${body}.${signature}`);
+    expect(result.status).toBe(401);
+  });
+
   it.each(['malformed', 'expired', 'future', 'missing-user'])('still returns 401 for %s JWTs without a database lookup', async (kind) => {
     const token = kind === 'malformed' ? 'not-a-jwt' : kind === 'missing-user' ? jwt.sign({}, process.env.JWT_SECRET) : jwt.sign({ userId: activeUser.id }, process.env.JWT_SECRET, kind === 'expired' ? { expiresIn: -1 } : { notBefore: '1h' });
     const result = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
