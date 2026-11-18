@@ -93,3 +93,16 @@ test('a deleted user is rejected by events on an existing connection', async () 
   participant = null;
   expect((await emit(socket, 'chat:join', { consultationId: 'consultation' })).error).toBeTruthy();
 });
+
+test('chat:leave removes only the requested consultation room and validates empty IDs', async () => {
+  const socket = await openSocket();
+  await emit(socket, 'chat:join', { consultationId: 'consultation' });
+  const serverSocket = io.sockets.sockets.get(socket.id);
+  expect(serverSocket.rooms.has('consultation:consultation')).toBe(true);
+  expect((await emit(socket, 'chat:leave', {})).error).toBeTruthy();
+  expect(serverSocket.rooms.has('consultation:consultation')).toBe(true);
+  expect(await emit(socket, 'chat:leave', { consultationId: 'consultation' })).toEqual({ ok: true });
+  expect(serverSocket.rooms.has('consultation:consultation')).toBe(false);
+  expect(serverSocket.rooms.has('user:client')).toBe(true);
+  expect(await emit(socket, 'chat:leave', { consultationId: 'not-joined' })).toEqual({ ok: true });
+});

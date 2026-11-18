@@ -1722,6 +1722,13 @@ io.use(async (socket, next) => {
 io.on('connection', (socket) => {
   socket.join(`user:${socket.user.id}`);
 
+  socket.on('chat:leave', async (payload, callback) => {
+    const consultationId = payload?.consultationId;
+    if (typeof consultationId !== 'string' || !consultationId.trim()) return callback?.({ error: 'Consultation ID is required' });
+    await socket.leave(`consultation:${consultationId}`);
+    callback?.({ ok: true });
+  });
+
   socket.on('chat:join', async (payload, callback) => {
     try {
       const user = await authenticateSocket(socket);
