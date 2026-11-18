@@ -4,14 +4,20 @@ import './index.css';
 import App from './App';
 import { Toasts } from './components/ui/Toasts';
 import reportWebVitals from './reportWebVitals';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { initializeMonitoring } from './services/monitoring';
+
+initializeMonitoring();
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
 root.render(
   <React.StrictMode>
-    <App />
-    <Toasts />
+    <ErrorBoundary>
+      <App />
+      <Toasts />
+    </ErrorBoundary>
   </React.StrictMode>
 );
 
