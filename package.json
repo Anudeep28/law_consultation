@@ -19,6 +19,7 @@
     "bcrypt": "^5.1.1",
     "docx": "^9.7.1",
     "file-saver": "^2.0.5",
+    "helmet": "8.3.0",
     "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^4.2.1",
