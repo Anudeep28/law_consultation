@@ -534,7 +534,7 @@ app.post('/api/auth/forgot-password', rateLimit((req) => `forgot:${clientIp(req)
   const email = String(req.body.email || '').trim().toLowerCase();
   try {
     const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
-    if (user) {
+    if (user && !isDeploymentAdminEmail(user.email)) {
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
       await prisma.passwordResetToken.upsert({

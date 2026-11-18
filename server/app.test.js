@@ -8,7 +8,7 @@ jest.mock('../db', () => ({
   document: { findMany: jest.fn(), deleteMany: jest.fn() },
   deliverable: {},
   emailVerificationToken: { deleteMany: jest.fn() },
-  passwordResetToken: { deleteMany: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
+  passwordResetToken: { deleteMany: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), upsert: jest.fn() },
   notification: { findMany: jest.fn(), deleteMany: jest.fn() },
   pushSubscription: { deleteMany: jest.fn() },
   lawyerReview: { findMany: jest.fn(), updateMany: jest.fn() },
@@ -16,11 +16,13 @@ jest.mock('../db', () => ({
   lawyer: { findUnique: jest.fn(), update: jest.fn() },
   $transaction: jest.fn(),
 }));
+jest.mock('./notifications', () => ({ ...jest.requireActual('./notifications'), sendEmail: jest.fn().mockResolvedValue({ ok: true }) }));
 
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
 const { app, ensureDeploymentAdmin, io } = require('../app');
 const prisma = require('../db');
+const { sendEmail } = require('./notifications');
 
 const activeUser = { id: 'user-1', accountStatus: 'ACTIVE', role: 'CLIENT', name: 'Test User', email: 'test@example.com' };
 const authHeader = () => `Bearer ${jwt.sign({ userId: activeUser.id }, process.env.JWT_SECRET)}`;
@@ -175,6 +177,40 @@ describe('password and session hardening', () => {
       }
       expect(prisma.user.update).not.toHaveBeenCalled();
       expect(prisma.passwordResetToken.updateMany).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+    }
+  });
+
+  test('forgot-password does not create or email deployment-admin reset links and returns the generic response', async () => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = ` ${user.email.toUpperCase()} `;
+    user.role = 'ADMIN';
+    try {
+      const admin = await request(app).post('/api/auth/forgot-password').send({ email: ` ${user.email.toUpperCase()} ` });
+      prisma.user.findUnique.mockResolvedValueOnce(null);
+      const unknown = await request(app).post('/api/auth/forgot-password').send({ email: 'unknown@example.test' });
+      expect(admin.status).toBe(200);
+      expect(admin.body).toEqual({ ok: true });
+      expect(admin.status).toBe(unknown.status);
+      expect(admin.body).toEqual(unknown.body);
+      expect(prisma.passwordResetToken.upsert).not.toHaveBeenCalled();
+      expect(sendEmail).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+    }
+  });
+
+  test.each(['CLIENT', 'ADMIN'])('forgot-password still sends reset links to non-deployment %s accounts', async (role) => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = 'deployment@example.test';
+    user.role = role;
+    try {
+      const response = await request(app).post('/api/auth/forgot-password').send({ email: user.email });
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ ok: true });
+      expect(prisma.passwordResetToken.upsert).toHaveBeenCalledTimes(1);
+      expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: user.email }));
     } finally {
       if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
     }
