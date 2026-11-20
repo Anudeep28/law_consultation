@@ -745,6 +745,29 @@ app.put('/api/lawyer/profile', authenticate, requireRole('LAWYER'), async (req, 
   }
 });
 
+app.post('/api/admin/consultations/:id/refund', authenticate, requireRole('ADMIN'), rateLimit(req => `admin-refund:${req.user.id}`, 10, 15 * 60 * 1000), async (req, res) => {
+  const { reason, note } = req.body;
+  if (!['LAWYER_NO_SHOW', 'TECHNICAL_FAILURE', 'OTHER'].includes(reason) || typeof note !== 'string' || note.trim().length < 10 || note.trim().length > 500) return res.status(400).json({ error: 'Choose a refund reason and provide a note of 10–500 characters' });
+  try {
+    const payment = await payments.adminRefund(req.params.id, req.user.id, reason, note.trim());
+    res.json({ payment });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Unable to request refund' });
+  }
+});
+
+app.get('/api/admin/payments', authenticate, requireRole('ADMIN'), async (req, res) => {
+  const query = String(req.query.q || '').trim().slice(0, 200);
+  try {
+    const payments = await prisma.payment.findMany({
+      where: query ? { OR: [{ user: { email: { contains: query, mode: 'insensitive' } } }, { consultationId: { contains: query, mode: 'insensitive' } }, { consultation: { lawyer: { OR: [{ name: { contains: query, mode: 'insensitive' } }, { id: query }] } } }] } : {},
+      orderBy: { updatedAt: 'desc' }, take: 100,
+      select: { id: true, amount: true, currency: true, status: true, plan: true, refundStatus: true, refundError: true, refundId: true, updatedAt: true, user: { select: { email: true, name: true } }, consultation: { select: { id: true, status: true, startsAt: true, lawyer: { select: { name: true } } } } },
+    });
+    res.json({ payments });
+  } catch { res.status(500).json({ error: 'Unable to load payments' }); }
+});
+
 app.get('/api/admin/lawyers', authenticate, requireRole('ADMIN'), async (req, res) => {
   try {
     const lawyers = await prisma.lawyer.findMany({ orderBy: [{ approvalStatus: 'asc' }, { name: 'asc' }] });

@@ -208,9 +208,8 @@ This Refund and Cancellation Policy applies to all paid services on the Law Writ
 3. DOCUMENT SUBSCRIPTION REFUNDS
 
 3.1. Single document credit (₹10): Non-refundable once the credit has been consumed (a document has been created).
-3.2. Unused document credits: Refundable within 7 days of purchase if no credit has been consumed. Contact support@consultwithlawyer.in.
-3.3. Monthly subscription (₹499): Non-refundable once activated. You will retain access until the end of your billing period.
-3.4. Free trial: No payment is involved; no refund applies.
+3.2. Monthly subscription (₹499): Non-refundable once activated. You will retain access until the end of your billing period.
+3.3. Free trial: No payment is involved; no refund applies.
 
 4. HOW REFUNDS ARE PROCESSED
 
