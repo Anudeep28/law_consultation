@@ -13,6 +13,7 @@ jest.mock('../db', () => ({
 const { generateKeyPairSync, createHmac } = require('crypto');
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
+const http = require('http');
 const prisma = require('../db');
 const { app } = require('../app');
 const meetings = require('./meetings');
@@ -145,18 +146,29 @@ test.each(['verification', 'webhook'])('%s stores only a random JaaS room when b
   process.env.RAZORPAY_WEBHOOK_SECRET = 'meeting-webhook-test-secret';
   consultation.meetingUrl = null;
   consultation.status = 'PENDING_PAYMENT';
-  const payment = { id: 'payment', userId: user.id, consultationId: consultation.id, consultation, user, status: 'CREATED', plan: 'CONSULTATION' };
+  consultation.startsAt = new Date(Date.now() + 60000);
+  consultation.createdAt = new Date();
+  const payment = { id: 'payment', userId: user.id, consultationId: consultation.id, consultation, user, status: 'CREATED', plan: 'CONSULTATION', amount: 1000, currency: 'INR', razorpayOrderId: 'order' };
   prisma.payment.findFirst.mockResolvedValue(payment);
   prisma.payment.findUnique.mockResolvedValue(payment);
   prisma.payment.updateMany.mockResolvedValue({ count: 1 });
-  prisma.consultation.update.mockImplementation(async ({ data }) => { Object.assign(consultation, data); return consultation; });
+  prisma.consultation.updateMany.mockImplementation(async ({ data }) => { Object.assign(consultation, data); return { count: 1 }; });
+  const entity = { order_id: 'order', id: 'paid', amount: 1000, currency: 'INR', status: 'captured' };
   let response;
   if (flow === 'verification') {
-    response = await request(app).post('/api/consultations/consultation/verify-payment')
-      .set('Authorization', `Bearer ${jwt.sign({ userId: user.id }, process.env.JWT_SECRET)}`)
-      .send({ razorpay_order_id: 'order', razorpay_payment_id: 'paid', razorpay_signature: createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update('order|paid').digest('hex') });
+    const stub = http.createServer((req, res) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(entity)); });
+    await new Promise(resolve => stub.listen(0, '127.0.0.1', resolve));
+    process.env.RAZORPAY_API_URL = `http://127.0.0.1:${stub.address().port}`;
+    try {
+      response = await request(app).post('/api/consultations/consultation/verify-payment')
+        .set('Authorization', `Bearer ${jwt.sign({ userId: user.id }, process.env.JWT_SECRET)}`)
+        .send({ razorpay_order_id: 'order', razorpay_payment_id: 'paid', razorpay_signature: createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update('order|paid').digest('hex') });
+    } finally {
+      delete process.env.RAZORPAY_API_URL;
+      await new Promise(resolve => stub.close(resolve));
+    }
   } else {
-    const body = JSON.stringify({ event: 'payment.captured', payload: { payment: { entity: { order_id: 'order', id: 'paid' } } } });
+    const body = JSON.stringify({ event: 'payment.captured', payload: { payment: { entity } } });
     response = await request(app).post('/api/payments/webhook').set('Content-Type', 'application/json')
       .set('x-razorpay-signature', createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET).update(body).digest('hex')).send(body);
   }

@@ -67,6 +67,7 @@ it('keeps the default HTTPS Razorpay destination when the override is unset', as
   const outgoing = new EventEmitter();
   outgoing.write = jest.fn();
   outgoing.end = jest.fn();
+  outgoing.setTimeout = jest.fn();
   const transport = jest.spyOn(https, 'request').mockImplementation((url, options, callback) => {
     process.nextTick(() => {
       const response = new EventEmitter();
@@ -82,4 +83,44 @@ it('keeps the default HTTPS Razorpay destination when the override is unset', as
   expect(response.status).toBe(200);
   expect(transport.mock.calls[0][0].href).toBe('https://api.razorpay.com/v1/orders');
   expect(JSON.parse(outgoing.write.mock.calls[0][0])).toMatchObject({ amount: 1000, currency: 'INR' });
+});
+
+it.each([{ amount: 1 }, { currency: 'USD' }, { id: null }])('rejects an inconsistent provider order %j', async change => {
+  prisma.payment.create.mockClear();
+  const stub = http.createServer((req, res) => {
+    req.resume();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ id: 'order_bad', amount: 1000, currency: 'INR', ...change }));
+  });
+  await new Promise(resolve => stub.listen(0, '127.0.0.1', resolve));
+  process.env.RAZORPAY_API_URL = `http://127.0.0.1:${stub.address().port}`;
+  try {
+    const response = await request(app).post('/api/payments/order').set('Authorization', `Bearer ${token}`).send({ plan: 'single' });
+    expect(response.status).toBe(502);
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  } finally {
+    await new Promise(resolve => stub.close(resolve));
+  }
+});
+
+it('uses different receipts for simultaneous purchase orders', async () => {
+  const receipts = [];
+  const stub = http.createServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    const order = JSON.parse(body);
+    receipts.push(order.receipt);
+    res.end(JSON.stringify({ id: `order_${receipts.length}`, amount: order.amount, currency: order.currency }));
+  });
+  await new Promise(resolve => stub.listen(0, '127.0.0.1', resolve));
+  process.env.RAZORPAY_API_URL = `http://127.0.0.1:${stub.address().port}`;
+  jest.spyOn(Date, 'now').mockReturnValue(1795160297000);
+  try {
+    const responses = await Promise.all([0, 1].map(() => request(app).post('/api/payments/order').set('Authorization', `Bearer ${token}`).send({ plan: 'single' })));
+    expect(responses.map(r => r.status)).toEqual([200, 200]);
+    expect(new Set(receipts).size).toBe(2);
+    expect(receipts.every(value => value.length <= 40)).toBe(true);
+  } finally {
+    await new Promise(resolve => stub.close(resolve));
+  }
 });

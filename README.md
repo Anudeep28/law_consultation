@@ -227,6 +227,13 @@ await elevenLabsService.startRecording();
 - Keep `RAZORPAY_KEY_SECRET` server-side and never expose it through a `REACT_APP_` variable
 - Use Razorpay test keys until the payment flow has been verified
 
+Subscribe `/api/payments/webhook` to `payment.captured`, `order.paid`,
+`refund.processed` and `refund.failed`, and set `RAZORPAY_WEBHOOK_SECRET`.
+Both checkout verification and webhooks validate the stored amount, currency and
+order; verification fetches the captured payment server-side. Webhooks can finish
+checkout without an open browser tab. See [payment edge audit](PAYMENT_EDGE_AUDIT.md)
+for refund states, reconciliation/retry instructions and support-only policy cases.
+
 ## Development
 
 ### Available Scripts

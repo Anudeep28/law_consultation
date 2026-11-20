@@ -48,6 +48,7 @@ app.use(helmet({
   },
 }));
 const PENDING_PAYMENT_TTL_MS = 15 * 60 * 1000;
+const payments = require('./server/paymentService')({ prisma, request: (...args) => razorpayRequest(...args), meetings, notifications, logger, pendingTtl: PENDING_PAYMENT_TTL_MS });
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -137,72 +138,36 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
   } catch {
     return res.status(400).json({ error: 'Invalid webhook payload' });
   }
-  if (event.event !== 'payment.captured') return res.json({ received: true });
+  if (!event || typeof event !== 'object') return res.status(400).json({ error: 'Invalid webhook payload' });
+  if (!['payment.captured', 'order.paid', 'refund.processed', 'refund.failed'].includes(event.event)) return res.json({ received: true });
   try {
+    if (event.event.startsWith('refund.')) {
+      const refund = event.payload?.refund?.entity;
+      if (!refund || refund.status !== event.event.slice(7)) return res.status(400).json({ error: 'Malformed refund payload' });
+      await payments.refundEvent(refund, event.payload?.payment?.entity?.order_id);
+      return res.json({ received: true });
+    }
     const entity = event.payload?.payment?.entity || {};
     const orderId = entity.order_id;
     const paymentId = entity.id;
-    if (!orderId || !paymentId) return res.status(400).json({ error: 'Malformed payment payload' });
+    if (typeof orderId !== 'string' || !orderId || typeof paymentId !== 'string' || !paymentId) return res.status(400).json({ error: 'Malformed payment payload' });
     const payment = await prisma.payment.findUnique({
       where: { razorpayOrderId: orderId },
       include: { user: true, consultation: { include: { lawyer: true } } },
     });
-    if (!payment || payment.status !== 'CREATED') return res.json({ received: true });
-
-    const meetingUrl = payment.consultation?.mode === 'CALL'
-      ? meetings.createMeetingLocation()
-      : null;
-    const consultation = await prisma.$transaction(async (tx) => {
-      const claimed = await tx.payment.updateMany({
-        where: { id: payment.id, status: 'CREATED' },
-        data: { status: 'PAID', razorpayPaymentId: paymentId },
-      });
-      if (claimed.count !== 1) return null;
-      if (payment.consultation) {
-        return tx.consultation.update({
-          where: { id: payment.consultation.id, status: 'PENDING_PAYMENT' },
-          data: { status: 'BOOKED', meetingUrl },
-          include: { lawyer: { include: { user: true } }, user: true },
-        });
-      }
-      if (payment.plan === 'MONTHLY') {
-        const currentExpiry = payment.user.subscriptionExpiry?.getTime() || 0;
-        await tx.user.update({
-          where: { id: payment.userId },
-          data: {
-            subscriptionPlan: 'MONTHLY',
-            subscriptionExpiry: new Date(Math.max(Date.now(), currentExpiry) + 30 * 24 * 60 * 60 * 1000),
-          },
-        });
-      } else {
-        const timedAccess = hasTimedAccess(payment.user);
-        await tx.user.update({
-          where: { id: payment.userId },
-          data: {
-            subscriptionPlan: timedAccess ? payment.user.subscriptionPlan : 'SINGLE',
-            documentCredits: { increment: 1 },
-          },
-        });
-      }
-      return null;
-    });
-
-    if (consultation?.lawyer?.userId) {
-      const startTime = new Date(consultation.startsAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-      await notifications.createNotification({
-        userId: consultation.lawyer.userId,
-        consultationId: consultation.id,
-        type: 'CONSULTATION_BOOKED',
-        title: 'New consultation booked',
-        body: `A ${consultation.mode.toLowerCase()} consultation "${consultation.topic}" was booked for ${startTime}.`,
-        channels: ['IN_APP', 'EMAIL'],
-      });
+    if (!payment) {
+      req.log.error({ orderId, paymentId }, 'Captured payment has no local order; reconciliation required');
+      return res.status(503).json({ error: 'Payment order requires reconciliation' });
     }
+    if (event.event === 'order.paid') {
+      const order = event.payload?.order?.entity;
+      if (!order || order.id !== orderId || order.amount !== payment.amount || order.amount_paid !== payment.amount || order.currency !== payment.currency || order.status !== 'paid') return res.status(400).json({ error: 'Order amount, currency or status mismatch' });
+    }
+    await payments.settle(payment, entity);
     res.json({ received: true });
   } catch (error) {
-    if (error.code === 'P2002' || error.code === 'P2025') return res.json({ received: true });
     req.log.error({ err: error }, 'Payment webhook error:');
-    res.status(500).json({ error: 'Webhook processing failed' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Webhook processing failed' });
   }
 });
 
@@ -962,6 +927,8 @@ app.get('/api/consultations', authenticate, requireRole('CLIENT'), async (req, r
 });
 
 app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, res) => {
+  const { keyId, keySecret } = razorpayCredentials();
+  if (!keyId || !keySecret) return res.status(500).json({ error: 'Razorpay is not configured' });
   const lawyerId = String(req.body.lawyerId || '');
   const topic = String(req.body.topic || '').trim();
   const notes = String(req.body.notes || '').trim();
@@ -975,6 +942,7 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
   if (startsAt.getTime() < Date.now() + 5 * 60 * 1000) return res.status(400).json({ error: 'This slot is no longer available' });
   if (!req.user.emailVerifiedAt) return res.status(403).json({ error: 'Please verify your email address before booking a consultation' });
   const endsAt = new Date(startsAt.getTime() + 10 * 60 * 1000);
+  let reservationId;
   try {
     const lawyer = await prisma.lawyer.findUnique({ where: { id: lawyerId } });
     if (!lawyer || !lawyer.isVerified) return res.status(404).json({ error: 'Lawyer not found' });
@@ -996,15 +964,14 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
       data: { userId: req.user.id, lawyerId, startsAt, endsAt, topic, notes, mode, package: consultationPackage, status: 'PENDING_PAYMENT' },
       include: { lawyer: true },
     });
-
-    const { keyId, keySecret } = razorpayCredentials();
-    if (!keyId || !keySecret) return res.status(500).json({ error: 'Razorpay is not configured' });
+    reservationId = consultation.id;
     const order = await razorpayRequest('POST', '/v1/orders', {
       amount: totalFee,
       currency: 'INR',
       receipt: `consultation_${consultation.id}`,
       notes: { consultationId: consultation.id, userId: req.user.id },
     });
+    if (!order.id || order.amount !== totalFee || order.currency !== 'INR') throw new Error('Invalid Razorpay order');
     await prisma.payment.create({
       data: {
         userId: req.user.id,
@@ -1019,6 +986,13 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
       order: { orderId: order.id, amount: order.amount, currency: order.currency, keyId },
     });
   } catch (error) {
+    if (reservationId) {
+      try {
+        await prisma.consultation.updateMany({ where: { id: reservationId, status: 'PENDING_PAYMENT', payment: { is: null } }, data: { status: 'CANCELLED' } });
+      } catch (err) {
+        req.log.error({ err, consultationId: reservationId }, 'Unable to release failed payment reservation');
+      }
+    }
     if (error.code === 'P2002') return res.status(409).json({ error: 'This slot was just booked. Please choose another.' });
     res.status(500).json({ error: 'Unable to book consultation' });
   }
@@ -1026,62 +1000,28 @@ app.post('/api/consultations', authenticate, requireRole('CLIENT'), async (req, 
 
 app.post('/api/consultations/:id/verify-payment', authenticate, requireRole('CLIENT'), async (req, res) => {
   const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = req.body;
+  if (!payments.verifySignature(orderId, paymentId, signature, razorpayCredentials().keySecret)) return res.status(400).json({ error: 'Invalid payment signature' });
   try {
     const payment = await prisma.payment.findFirst({
       where: { razorpayOrderId: orderId, userId: req.user.id, consultationId: req.params.id },
       include: { consultation: { include: { lawyer: true } } },
     });
     if (!payment || !payment.consultation) return res.status(400).json({ error: 'Unknown payment order' });
-    if (payment.consultation.status === 'BOOKED') {
+    if (payment.status === 'PAID' && payment.razorpayPaymentId === paymentId && payment.consultation.status === 'BOOKED') {
       return res.json({ verified: true, consultation: serializeConsultation(payment.consultation) });
     }
 
-    const { keySecret } = razorpayCredentials();
-    const expectedSignature = crypto
-      .createHmac('sha256', keySecret)
-      .update(`${orderId}|${paymentId}`)
-      .digest('hex');
-    const expectedBuffer = Buffer.from(expectedSignature);
-    const signatureBuffer = Buffer.from(String(signature || ''));
-    if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
-      return res.status(400).json({ error: 'Invalid payment signature' });
-    }
-
-    const meetingUrl = payment.consultation.mode === 'CALL'
-      ? meetings.createMeetingLocation()
-      : null;
-    const consultation = await prisma.$transaction(async (tx) => {
-      const claimed = await tx.payment.updateMany({
-        where: { id: payment.id, status: 'CREATED' },
-        data: { status: 'PAID', razorpayPaymentId: paymentId },
-      });
-      if (claimed.count !== 1) throw new Error('Payment has already been applied');
-      return tx.consultation.update({
-        where: { id: payment.consultation.id, status: 'PENDING_PAYMENT' },
-        data: { status: 'BOOKED', meetingUrl },
-        include: { lawyer: { include: { user: true } }, user: true },
-      });
-    });
-
-    // Notify the lawyer about the new booking
-    if (consultation.lawyer?.userId) {
-      const startTime = new Date(consultation.startsAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-      await notifications.createNotification({
-        userId: consultation.lawyer.userId,
-        consultationId: consultation.id,
-        type: 'CONSULTATION_BOOKED',
-        title: 'New consultation booked',
-        body: `A ${consultation.mode.toLowerCase()} consultation "${consultation.topic}" was booked for ${startTime}.`,
-        channels: ['IN_APP', 'EMAIL'],
-      });
-    }
-
+    const entity = await razorpayRequest('GET', `/v1/payments/${encodeURIComponent(paymentId)}`);
+    if (entity.id !== paymentId) return res.status(400).json({ error: 'Payment ID mismatch' });
+    await payments.settle(payment, entity);
+    const consultation = await prisma.consultation.findUnique({ where: { id: req.params.id }, include: { lawyer: true } });
+    if (consultation.status !== 'BOOKED') return res.status(409).json({ error: 'The reservation is unavailable. The payment refund has been requested or flagged for support.' });
     res.json({ verified: true, consultation: serializeConsultation(consultation) });
   } catch (error) {
     if (error.code === 'P2002' || error.code === 'P2025' || error.message === 'Payment has already been applied') {
       return res.status(409).json({ error: 'Payment has already been applied' });
     }
-    res.status(500).json({ error: 'Unable to verify payment' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Unable to verify payment' });
   }
 });
 
@@ -1488,32 +1428,14 @@ app.post('/api/consultations/:id/deliverables/:deliverableId/deliver', authentic
 
 app.patch('/api/consultations/:id/cancel', authenticate, requireRole('CLIENT'), async (req, res) => {
   try {
-    const consultation = await prisma.consultation.findFirst({
-      where: { id: req.params.id, userId: req.user.id, status: { in: ['BOOKED', 'PENDING_PAYMENT'] }, startsAt: { gt: new Date() } },
-      include: { payment: true },
-    });
-    if (!consultation) return res.status(400).json({ error: 'Only upcoming booked consultations can be cancelled' });
-
-    if (consultation.payment?.status === 'PAID' && consultation.payment.razorpayPaymentId) {
-      try {
-        await razorpayRequest('POST', `/v1/payments/${consultation.payment.razorpayPaymentId}/refunds`, {
-          amount: consultation.payment.amount,
-        });
-        await prisma.payment.update({ where: { id: consultation.payment.id }, data: { status: 'REFUNDED' } });
-      } catch (err) {
-        req.log.error({ err }, 'Consultation refund failed:');
-        return res.status(502).json({ error: 'Unable to refund the payment. Please try again or contact support.' });
-      }
-    }
-
-    await prisma.consultation.update({ where: { id: consultation.id }, data: { status: 'CANCELLED' } });
+    await payments.cancel(req.params.id, req.user.id);
     res.status(204).end();
-  } catch {
-    res.status(500).json({ error: 'Unable to cancel consultation' });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Unable to cancel consultation' });
   }
 });
 
-const razorpayRequest = (method, path, body) => new Promise((resolve, reject) => {
+const razorpayRequest = (method, path, body, headers = {}) => new Promise((resolve, reject) => {
   const { keyId, keySecret } = razorpayCredentials();
   const credentials = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
   const url = new URL(path.replace(/^\//, ''), `${(process.env.RAZORPAY_API_URL || 'https://api.razorpay.com').replace(/\/$/, '')}/`);
@@ -1523,6 +1445,7 @@ const razorpayRequest = (method, path, body) => new Promise((resolve, reject) =>
     headers: {
       Authorization: `Basic ${credentials}`,
       'Content-Type': 'application/json',
+      ...headers,
     },
   }, (response) => {
     let data = '';
@@ -1535,12 +1458,13 @@ const razorpayRequest = (method, path, body) => new Promise((resolve, reject) =>
         return reject(new Error('Invalid response from Razorpay'));
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        return reject(new Error(parsed.error?.description || 'Razorpay request failed'));
+        return reject(Object.assign(new Error(parsed.error?.description || 'Razorpay request failed'), { providerStatus: response.statusCode }));
       }
       resolve(parsed);
     });
   });
   request.on('error', reject);
+  request.setTimeout(10000, () => request.destroy(new Error('Razorpay request timed out')));
   if (body) request.write(JSON.stringify(body));
   request.end();
 });
@@ -1558,9 +1482,10 @@ app.post('/api/payments/order', authenticate, requireRole('LAWYER'), async (req,
     const order = await razorpayRequest('POST', '/v1/orders', {
       amount: plan.amount,
       currency: 'INR',
-      receipt: `law_writer_${Date.now()}`,
+      receipt: `law_writer_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
       notes: { plan: planKey, userId: req.user.id },
     });
+    if (!order.id || order.amount !== plan.amount || order.currency !== 'INR') throw new Error('Invalid Razorpay order');
     await prisma.payment.create({
       data: {
         userId: req.user.id,
@@ -1577,51 +1502,19 @@ app.post('/api/payments/order', authenticate, requireRole('LAWYER'), async (req,
 
 app.post('/api/payments/verify', authenticate, requireRole('LAWYER'), async (req, res) => {
   const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = req.body;
+  if (!payments.verifySignature(orderId, paymentId, signature, razorpayCredentials().keySecret)) return res.status(400).json({ error: 'Invalid payment signature' });
   try {
     const payment = await prisma.payment.findFirst({
-      where: { razorpayOrderId: orderId, userId: req.user.id },
+      where: { razorpayOrderId: orderId, userId: req.user.id, consultationId: null },
       include: { user: true },
     });
     if (!payment) return res.status(400).json({ error: 'Unknown payment order' });
     if (payment.status === 'PAID') return res.status(409).json({ error: 'Payment has already been applied' });
 
-    const { keySecret } = razorpayCredentials();
-    const expectedSignature = crypto
-      .createHmac('sha256', keySecret)
-      .update(`${orderId}|${paymentId}`)
-      .digest('hex');
-    const expectedBuffer = Buffer.from(expectedSignature);
-    const signatureBuffer = Buffer.from(String(signature || ''));
-    if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
-      return res.status(400).json({ error: 'Invalid payment signature' });
-    }
-
-    await prisma.$transaction(async (tx) => {
-      const claimed = await tx.payment.updateMany({
-        where: { id: payment.id, status: 'CREATED' },
-        data: { status: 'PAID', razorpayPaymentId: paymentId },
-      });
-      if (claimed.count !== 1) throw new Error('Payment has already been applied');
-      if (payment.plan === 'MONTHLY') {
-        const currentExpiry = payment.user.subscriptionExpiry?.getTime() || 0;
-        await tx.user.update({
-          where: { id: req.user.id },
-          data: {
-            subscriptionPlan: 'MONTHLY',
-            subscriptionExpiry: new Date(Math.max(Date.now(), currentExpiry) + 30 * 24 * 60 * 60 * 1000),
-          },
-        });
-      } else {
-        const timedAccess = hasTimedAccess(payment.user);
-        await tx.user.update({
-          where: { id: req.user.id },
-          data: {
-            subscriptionPlan: timedAccess ? payment.user.subscriptionPlan : 'SINGLE',
-            documentCredits: { increment: 1 },
-          },
-        });
-      }
-    });
+    const entity = await razorpayRequest('GET', `/v1/payments/${encodeURIComponent(paymentId)}`);
+    if (entity.id !== paymentId) return res.status(400).json({ error: 'Payment ID mismatch' });
+    const result = await payments.settle(payment, entity);
+    if (!result.applied) return res.status(409).json({ error: 'Payment has already been applied' });
 
     const user = await userWithPayments(req.user.id);
     res.json({ verified: true, plan: payment.plan.toLowerCase(), paymentId, user: serializeUser(user) });
@@ -1629,7 +1522,7 @@ app.post('/api/payments/verify', authenticate, requireRole('LAWYER'), async (req
     if (error.code === 'P2002' || error.message === 'Payment has already been applied') {
       return res.status(409).json({ error: 'Payment has already been applied' });
     }
-    res.status(500).json({ error: 'Unable to verify payment' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Unable to verify payment' });
   }
 });
 
