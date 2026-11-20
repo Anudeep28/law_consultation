@@ -107,7 +107,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
         {/* Documents Grid */}
         {filteredDocuments.length === 0 ? (
           <div className="rounded-2xl border border-line bg-white p-12 text-center shadow-sm">
-            <FileText className="w-16 h-16 text-[#d9c7a8] mx-auto mb-4" />
+            <FileText aria-hidden="true" className="w-16 h-16 text-brand mx-auto mb-4 rounded-2xl bg-brand-soft p-4" />
             <h3 className="text-lg font-semibold text-ink mb-2">
               {searchTerm ? 'No documents found' : 'No documents yet'}
             </h3>

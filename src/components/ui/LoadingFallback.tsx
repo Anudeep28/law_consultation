@@ -1,5 +1,8 @@
 export const LoadingFallback = () => (
-  <div role="status" aria-live="polite" className="p-6 text-center text-ink-muted">
-    Loading…
+  <div role="status" aria-live="polite" className="mx-auto max-w-lg p-8 text-center text-ink-muted">
+    <span>Loading…</span>
+    <div aria-hidden="true" className="mt-5 space-y-3">
+      <div className="skeleton-bar w-full" /><div className="skeleton-bar w-4/5" /><div className="skeleton-bar w-3/5" />
+    </div>
   </div>
 );

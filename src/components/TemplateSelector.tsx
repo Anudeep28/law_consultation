@@ -118,7 +118,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
             ) : (
               <div className="flex items-center justify-center h-full text-ink-weakest">
                 <div className="text-center">
-                  <FileText className="w-12 h-12 mx-auto mb-3 text-[#d9c7a8]" />
+                  <FileText aria-hidden="true" className="w-12 h-12 mx-auto mb-3 text-brand" />
                   <p className="text-sm">Click a template to preview</p>
                 </div>
               </div>

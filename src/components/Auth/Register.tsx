@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AuthLayout } from '../ui/AuthLayout';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { PasswordRules } from './PasswordRules';
@@ -35,7 +36,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cream py-12 px-4 sm:px-6 lg:px-8">
+    <AuthLayout>
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-ink">
@@ -160,6 +161,6 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
           </div>
         </form>
       </div>
-    </div>
+    </AuthLayout>
   );
 };

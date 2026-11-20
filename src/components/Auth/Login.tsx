@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { requestPasswordReset } from '../../services/notificationService';
 import { UserRole } from '../../types';
+import { AuthLayout } from '../ui/AuthLayout';
 
 interface LoginProps {
   onToggleMode: () => void;
@@ -33,7 +34,7 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
 
   if (forgotMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cream py-12 px-4 sm:px-6 lg:px-8">
+      <AuthLayout>
         <div className="max-w-md w-full space-y-8">
           <div>
             <h2 className="mt-6 text-center text-3xl font-extrabold text-ink">Reset your password</h2>
@@ -86,7 +87,7 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
             </form>
           )}
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
@@ -101,7 +102,7 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cream py-12 px-4 sm:px-6 lg:px-8">
+    <AuthLayout>
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-ink">
@@ -191,6 +192,6 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
           </div>
         </form>
       </div>
-    </div>
+    </AuthLayout>
   );
 };

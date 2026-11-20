@@ -112,23 +112,21 @@ export const ConsultationsView: React.FC = () => {
 
   return (
     <div className="h-full overflow-y-auto bg-cream">
-      <section className="relative overflow-hidden bg-gradient-to-br from-brand-darker via-brand to-[#9b2c37] px-6 py-10 text-white">
+      <section className="directory-hero relative overflow-hidden px-6 py-10 text-white">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent opacity-20" />
         <div className="absolute -bottom-24 left-1/3 h-48 w-48 rounded-full border-[30px] border-white opacity-5" />
         <div className="relative mx-auto max-w-6xl">
           <span className="inline-flex items-center rounded-full border border-accent/50 bg-white/10 px-3 py-1 text-xs font-semibold text-[#ffe7a3]">VERIFIED LEGAL PROFESSIONALS</span>
           <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-tight md:text-4xl">Clear legal guidance, when you need it</h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-rose-100 md:text-base">Choose a lawyer by expertise and language, then book a private 10-minute chat or call.</p>
-          <div className="mt-6 flex flex-wrap gap-5 text-xs text-rose-100"><span><strong className="block text-lg text-white">{lawyers.length}</strong>Verified lawyers</span><span><strong className="block text-lg text-white">10 min</strong>Focused sessions</span><span><strong className="block text-lg text-white">Private</strong>Confidential intake</span></div>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-indigo-100 md:text-base">Choose a lawyer by expertise and language, then book a private 10-minute chat or call.</p>
+          <div className="mt-6 flex flex-wrap gap-5 text-xs text-indigo-100"><span><strong className="block text-lg text-white">{lawyers.length}</strong>Verified lawyers</span><span><strong className="block text-lg text-white">10 min</strong>Focused sessions</span><span><strong className="block text-lg text-white">Private</strong>Confidential intake</span></div>
         </div>
       </section>
 
       <div className="mx-auto max-w-6xl px-6 py-7 space-y-6">
-        <TrustSection />
-
         <div className="mb-6 flex w-fit gap-1 rounded-full border border-line bg-white p-1 shadow-sm">
-          <button onClick={() => setTab('lawyers')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'lawyers' ? 'bg-brand text-white shadow' : 'text-gray-600 hover:bg-[#fff6e3]'}`}>Consult lawyers</button>
-          <button onClick={() => setTab('bookings')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'bookings' ? 'bg-brand text-white shadow' : 'text-gray-600 hover:bg-[#fff6e3]'}`}>My consultations ({consultations.length})</button>
+          <button onClick={() => setTab('lawyers')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'lawyers' ? 'bg-brand text-white shadow' : 'text-gray-600 hover:bg-brand-soft'}`}>Consult lawyers</button>
+          <button onClick={() => setTab('bookings')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'bookings' ? 'bg-brand text-white shadow' : 'text-gray-600 hover:bg-brand-soft'}`}>My consultations ({consultations.length})</button>
         </div>
 
         {error && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">{error}</div>}
@@ -148,10 +146,10 @@ export const ConsultationsView: React.FC = () => {
               {filteredLawyers.map((lawyer) => (
                 <article key={lawyer.id} className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
                   <div className="flex gap-4">
-                    {lawyer.avatarUrl ? <img src={lawyer.avatarUrl} alt={`${lawyer.name} profile`} className="h-16 w-16 shrink-0 rounded-full border-4 border-[#fff1c7] object-cover shadow-sm" /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-[#fff1c7] bg-gradient-to-br from-accent to-[#d69f37] text-lg font-bold text-brand-darker shadow-sm">{lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>}
+                    {lawyer.avatarUrl ? <img src={lawyer.avatarUrl} alt={`${lawyer.name} profile`} className="h-16 w-16 shrink-0 rounded-2xl border-4 border-brand-soft object-cover shadow-sm" /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-brand-soft bg-brand-soft text-lg font-bold text-brand shadow-sm">{lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5"><h3 className="font-bold text-ink">{lawyer.name}</h3>{lawyer.isVerified && <BadgeCheck className="h-4 w-4 text-accent-dark" />}</div>
-                      <p className="text-sm font-semibold text-[#8a2637]">{lawyer.title}</p>
+                      <p className="text-sm font-semibold text-brand">{lawyer.title}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-600"><span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />{lawyer.rating} ({lawyer.reviewCount})</span><span>{lawyer.experienceYears} years experience</span><span>Bar Council: {lawyer.barCouncil}</span></div>
                     </div>
                   </div>
@@ -194,8 +192,8 @@ export const ConsultationsView: React.FC = () => {
               const upcoming = consultation.status === 'booked' && new Date(consultation.startsAt).getTime() > now;
               const canOpenChat = consultation.mode === 'chat' && consultation.status === 'booked' && new Date(consultation.startsAt).getTime() - 10 * 60 * 1000 <= now && new Date(consultation.endsAt).getTime() > now;
               const canViewHistory = consultation.mode === 'chat' && new Date(consultation.endsAt).getTime() <= now && consultation.status !== 'cancelled';
-              return <article key={consultation.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-accent text-brand-darker flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
+              return <article key={consultation.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:flex-wrap md:items-center gap-4">
+                <div className="w-12 h-12 shrink-0 rounded-full bg-accent text-brand-darker flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
                 <div className="flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold text-gray-900">{consultation.lawyer.name}</h3><span className={`text-xs px-2 py-0.5 rounded-full ${consultation.status === 'booked' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{consultation.status === 'pending_payment' ? 'awaiting payment' : consultation.status}</span><span className="text-xs capitalize text-gray-500 flex items-center gap-1">{consultation.mode === 'chat' ? <MessageCircle className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}{consultation.mode}</span>{consultation.mode === 'call' && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{consultation.package === 'call_with_document' ? 'Call + legal document' : 'Call only'}</span>}</div><p className="text-sm text-gray-700 mt-1">{consultation.topic}</p><p className="flex items-center gap-1 text-sm text-gray-500 mt-2"><Clock className="w-4 h-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
                 <div className="flex gap-2">{canOpenChat && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white text-sm rounded-lg"><MessageCircle className="w-4 h-4" />Open chat</button>}{canViewHistory && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 rounded-lg border border-brand px-3 py-2 text-sm text-brand"><MessageCircle className="h-4 w-4" />View conversation</button>}{consultation.status === 'booked' && consultation.mode === 'call' && (consultation.meetingUrl || consultation.meetingProvider === 'jaas') && new Date(consultation.endsAt).getTime() > now && <JoinCallButton consultation={consultation} onError={setError} className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white text-sm rounded-lg" />}{(upcoming || consultation.status === 'pending_payment') && <button onClick={() => setPendingCancelId(consultation.id)} className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">Cancel</button>}</div>
                 <div className="w-full md:basis-full"><ConsultationDeliverables consultationId={consultation.id} role="client" />{consultation.review && <div className="mt-3 rounded-lg bg-cream p-3 text-sm"><span className="font-semibold">Your rating: {consultation.review.rating}/5</span>{consultation.review.comment && <p className="mt-1 text-gray-600">{consultation.review.comment}</p>}</div>}{consultation.canReview && <LawyerReviewForm consultationId={consultation.id} onSaved={(review) => setConsultations((current) => current.map((item) => item.id === consultation.id ? { ...item, review, canReview: false } : item))} />}</div>
@@ -203,6 +201,7 @@ export const ConsultationsView: React.FC = () => {
             })}
           </div>
         )}
+        <TrustSection />
       </div>
 
       {selectedLawyer && (
