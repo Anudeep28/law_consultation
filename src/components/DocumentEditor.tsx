@@ -280,11 +280,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={commitRename}
             onKeyDown={handleTitleKeyDown}
-            className="flex-1 text-base font-semibold text-ink border border-accent-dark rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
+            className="min-w-0 basis-full sm:basis-auto flex-1 text-base font-semibold text-ink border border-accent-dark rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         ) : (
           <h2
-            className="flex-1 text-base font-semibold text-ink truncate cursor-pointer hover:text-brand"
+            className="min-w-0 basis-full sm:basis-auto flex-1 text-base font-semibold text-ink truncate cursor-pointer hover:text-brand"
             onDoubleClick={handleTitleDoubleClick}
             title="Double-click to rename"
           >
