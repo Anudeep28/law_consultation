@@ -1,16 +1,17 @@
+import { vi, type MockedFunction } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { DocumentEditor } from './DocumentEditor';
 import { useDocumentStore } from '../stores/documentStore';
 
-jest.mock('../stores/documentStore', () => ({
-  useDocumentStore: Object.assign(jest.fn(), { getState: jest.fn() }),
+vi.mock('../stores/documentStore', () => ({
+  useDocumentStore: Object.assign(vi.fn(), { getState: vi.fn() }),
 }));
 
-const mockedUseDocumentStore = useDocumentStore as unknown as jest.MockedFunction<typeof useDocumentStore>;
+const mockedUseDocumentStore = useDocumentStore as unknown as MockedFunction<typeof useDocumentStore>;
 
 describe('DocumentEditor language selector', () => {
   it('displays the document language and calls updateDocumentLanguage on change', () => {
-    const updateDocumentLanguage = jest.fn();
+    const updateDocumentLanguage = vi.fn();
     const state = {
       currentDocument: {
         id: 'doc-1',
@@ -21,17 +22,17 @@ describe('DocumentEditor language selector', () => {
         updatedAt: new Date(),
         userId: 'user-1',
       },
-      updateDocument: jest.fn(),
+      updateDocument: vi.fn(),
       updateDocumentLanguage,
-      renameDocument: jest.fn(),
-      createDocument: jest.fn(),
+      renameDocument: vi.fn(),
+      createDocument: vi.fn(),
       selectionStart: 0,
       selectionEnd: 0,
-      setSelection: jest.fn(),
+      setSelection: vi.fn(),
     } as any;
     state.getState = () => state;
     mockedUseDocumentStore.mockReturnValue(state);
-    (useDocumentStore as any).getState = jest.fn().mockReturnValue(state);
+    (useDocumentStore as any).getState = vi.fn().mockReturnValue(state);
 
     render(<DocumentEditor />);
 

@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AccountSettings } from './AccountSettings';
@@ -5,7 +6,7 @@ import { changePassword, logoutAllDevices, deleteAccount, exportAccountData } fr
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from './ui/Toasts';
 
-jest.mock('../services/accountService', () => ({ changePassword: jest.fn(), logoutAllDevices: jest.fn(), deleteAccount: jest.fn(), exportAccountData: jest.fn() }));
+vi.mock('../services/accountService', () => ({ changePassword: vi.fn(), logoutAllDevices: vi.fn(), deleteAccount: vi.fn(), exportAccountData: vi.fn() }));
 
 const openDeletion = async () => {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Delete account' })); });
@@ -18,9 +19,9 @@ beforeEach(() => {
 });
 
 test('requires exact DELETE confirmation and logs out after successful deletion', async () => {
-  const logout = jest.fn();
+  const logout = vi.fn();
   useAuthStore.setState({ logout });
-  (deleteAccount as jest.Mock).mockResolvedValue(undefined);
+  (deleteAccount as Mock).mockResolvedValue(undefined);
   render(<AccountSettings />);
   await openDeletion();
   const submit = screen.getByRole('button', { name: 'Permanently delete account' });
@@ -36,7 +37,7 @@ test('requires exact DELETE confirmation and logs out after successful deletion'
 });
 
 test('shows server deletion errors inline, including upcoming consultation conflicts', async () => {
-  (deleteAccount as jest.Mock).mockRejectedValue(new Error('Cancel or complete your upcoming consultations before deleting your account.'));
+  (deleteAccount as Mock).mockRejectedValue(new Error('Cancel or complete your upcoming consultations before deleting your account.'));
   render(<AccountSettings />);
   await openDeletion();
   confirm();
@@ -46,23 +47,23 @@ test('shows server deletion errors inline, including upcoming consultation confl
 });
 
 test('downloads account data', async () => {
-  (exportAccountData as jest.Mock).mockResolvedValue(undefined);
+  (exportAccountData as Mock).mockResolvedValue(undefined);
   render(<AccountSettings />);
   fireEvent.click(screen.getByRole('button', { name: 'Download my data' }));
   await waitFor(() => expect(exportAccountData).toHaveBeenCalledTimes(1));
 });
 
 test('shows download errors', async () => {
-  (exportAccountData as jest.Mock).mockRejectedValue(new Error('Too many attempts. Please try again later.'));
+  (exportAccountData as Mock).mockRejectedValue(new Error('Too many attempts. Please try again later.'));
   render(<AccountSettings />);
   fireEvent.click(screen.getByRole('button', { name: 'Download my data' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts');
 });
 
 test('changes password, clears credential inputs, and stays logged in', async () => {
-  const logout = jest.fn();
+  const logout = vi.fn();
   useAuthStore.setState({ logout });
-  (changePassword as jest.Mock).mockResolvedValue(undefined);
+  (changePassword as Mock).mockResolvedValue(undefined);
   render(<AccountSettings />);
   expect(screen.getByText(/10–128 characters/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old' } });
@@ -81,16 +82,16 @@ test('password mismatch and server policy errors appear inline', async () => {
   fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'different' } });
   fireEvent.click(screen.getByRole('button', { name: 'Change password' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Passwords do not match');
-  (changePassword as jest.Mock).mockRejectedValue(new Error('This password is too common.'));
+  (changePassword as Mock).mockRejectedValue(new Error('This password is too common.'));
   fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'password123' } });
   fireEvent.click(screen.getByRole('button', { name: 'Change password' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('too common');
 });
 
 test('logout-all logs out locally only after the server succeeds', async () => {
-  const logout = jest.fn();
+  const logout = vi.fn();
   useAuthStore.setState({ logout });
-  (logoutAllDevices as jest.Mock).mockRejectedValueOnce(new Error('Try again later')).mockResolvedValueOnce(undefined);
+  (logoutAllDevices as Mock).mockRejectedValueOnce(new Error('Try again later')).mockResolvedValueOnce(undefined);
   render(<AccountSettings />);
   fireEvent.click(screen.getByRole('button', { name: 'Log out of all devices' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Try again later');

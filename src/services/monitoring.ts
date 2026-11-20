@@ -2,9 +2,9 @@ import * as Sentry from '@sentry/react';
 import { ErrorInfo } from 'react';
 
 export const initializeMonitoring = () => {
-  if (!process.env.REACT_APP_SENTRY_DSN) return;
+  if (!import.meta.env.REACT_APP_SENTRY_DSN) return;
   Sentry.init({
-    dsn: process.env.REACT_APP_SENTRY_DSN,
+    dsn: import.meta.env.REACT_APP_SENTRY_DSN,
     sendDefaultPii: false,
     beforeSend(event) {
       delete event.user;
@@ -22,6 +22,6 @@ export const initializeMonitoring = () => {
 };
 
 export const reportBoundaryError = (error: Error, info: ErrorInfo) => {
-  if (!process.env.REACT_APP_SENTRY_DSN) return;
+  if (!import.meta.env.REACT_APP_SENTRY_DSN) return;
   Sentry.captureException(error, { contexts: { react: { componentStack: info.componentStack } } });
 };

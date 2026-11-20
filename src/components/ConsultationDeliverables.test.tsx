@@ -1,14 +1,15 @@
+import { vi, type MockedFunction } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ConsultationDeliverables } from './ConsultationDeliverables';
 import { apiRequest } from '../services/api';
 
-jest.mock('../services/api', () => ({
-  apiRequest: jest.fn(),
+vi.mock('../services/api', () => ({
+  apiRequest: vi.fn(),
   ApiError: class ApiError extends Error {},
 }));
-jest.mock('./ExportOptions', () => ({ ExportOptions: () => null }));
+vi.mock('./ExportOptions', () => ({ ExportOptions: () => null }));
 
-const mockedApiRequest = apiRequest as jest.MockedFunction<typeof apiRequest>;
+const mockedApiRequest = apiRequest as MockedFunction<typeof apiRequest>;
 
 const draft = {
   id: 'deliverable-1',

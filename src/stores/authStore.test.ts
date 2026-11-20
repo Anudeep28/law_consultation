@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import { useAuthStore } from './authStore';
 import { useDocumentStore } from './documentStore';
 import { notify, useToastStore } from '../components/ui/Toasts';
@@ -5,16 +6,16 @@ import { apiRequest, ApiError, getAuthToken, setAuthToken } from '../services/ap
 import { Document, User } from '../types';
 import { waitFor } from '@testing-library/react';
 
-jest.mock('../services/api', () => ({
-  ...jest.requireActual('../services/api'),
-  apiRequest: jest.fn(), getAuthToken: jest.fn(), setAuthToken: jest.fn(),
+vi.mock('../services/api', async () => ({
+  ...(await vi.importActual<typeof import('../services/api')>('../services/api')),
+  apiRequest: vi.fn(), getAuthToken: vi.fn(), setAuthToken: vi.fn(),
 }));
 
 const signedInUser: User = { id: 'other-account', name: 'Other Account', email: 'other@example.test', role: 'client', accountStatus: 'active', subscriptionStatus: 'trial', subscriptionPlan: 'trial', documentCredits: 0, appliedPaymentIds: [], isEmailVerified: true, isPhoneVerified: true };
 
 test.each([new ApiError('Temporary database failure', 500), new Error('Network offline')])('session refresh preserves another account on transient failure: %s', async (error) => {
-  (getAuthToken as jest.Mock).mockReturnValue('other-account-token');
-  (apiRequest as jest.Mock).mockRejectedValueOnce(error);
+  (getAuthToken as Mock).mockReturnValue('other-account-token');
+  (apiRequest as Mock).mockRejectedValueOnce(error);
   useAuthStore.setState({ user: signedInUser, isAuthenticated: true });
   await useAuthStore.getState().refreshUser();
   expect(useAuthStore.getState()).toMatchObject({ user: signedInUser, isAuthenticated: true, isLoading: false });
@@ -22,8 +23,8 @@ test.each([new ApiError('Temporary database failure', 500), new Error('Network o
 });
 
 test.each([401, 403])('session refresh still clears authentication after genuine rejection: %s', async (status) => {
-  (getAuthToken as jest.Mock).mockReturnValue('revoked-token');
-  (apiRequest as jest.Mock).mockRejectedValueOnce(new ApiError('Session rejected', status));
+  (getAuthToken as Mock).mockReturnValue('revoked-token');
+  (apiRequest as Mock).mockRejectedValueOnce(new ApiError('Session rejected', status));
   useAuthStore.setState({ user: signedInUser, isAuthenticated: true });
   await useAuthStore.getState().refreshUser();
   expect(useAuthStore.getState()).toMatchObject({ user: null, isAuthenticated: false, isLoading: false });
@@ -34,11 +35,11 @@ const document: Document = { id: 'private', userId: 'previous-user', title: 'Pri
 
 afterEach(() => {
   useDocumentStore.getState().clearDocuments();
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 test('logout clears documents, transcription, selections, notifications and pending saves', () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   useDocumentStore.setState({ documents: [document], currentDocument: document, selectionStart: 2, selectionEnd: 4 });
   useDocumentStore.getState().startTranscription(document.id, 'key', 'en', 'en');
   useDocumentStore.getState().updateDocument(document.id, 'Updated private content');
@@ -48,13 +49,13 @@ test('logout clears documents, transcription, selections, notifications and pend
   expect(useToastStore.getState().toasts).toEqual([]);
   expect(useAuthStore.getState()).toMatchObject({ user: null, isAuthenticated: false, isLoading: false });
   expect(setAuthToken).toHaveBeenCalledWith(null);
-  jest.runAllTimers();
+  vi.runAllTimers();
   expect(apiRequest).not.toHaveBeenCalled();
 });
 
 test('a document request completed after logout cannot repopulate private state', async () => {
   let resolve!: (value: { documents: Document[] }) => void;
-  (apiRequest as jest.Mock).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+  (apiRequest as Mock).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
   const loading = useDocumentStore.getState().loadDocuments();
   useAuthStore.getState().logout();
   resolve({ documents: [document] });
@@ -71,8 +72,8 @@ test('logging out with empty state is safe', () => {
 
 const serviceWorkerDescriptor = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
 const pushManagerDescriptor = Object.getOwnPropertyDescriptor(window, 'PushManager');
-const unsubscribe = jest.fn();
-const getSubscription = jest.fn();
+const unsubscribe = vi.fn();
+const getSubscription = vi.fn();
 const subscription = { endpoint: 'https://push.example.test/previous-user', unsubscribe };
 
 const enablePush = () => {
@@ -80,8 +81,8 @@ const enablePush = () => {
   getSubscription.mockResolvedValue(subscription);
   Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: Promise.resolve({ pushManager: { getSubscription } }) } });
   Object.defineProperty(window, 'PushManager', { configurable: true, value: function () {} });
-  (getAuthToken as jest.Mock).mockReturnValue('previous-user-token');
-  (apiRequest as jest.Mock).mockResolvedValue(undefined);
+  (getAuthToken as Mock).mockReturnValue('previous-user-token');
+  (apiRequest as Mock).mockResolvedValue(undefined);
   useAuthStore.setState({ isAuthenticated: true });
 };
 
@@ -90,8 +91,8 @@ afterEach(() => {
   else Reflect.deleteProperty(navigator, 'serviceWorker');
   if (pushManagerDescriptor) Object.defineProperty(window, 'PushManager', pushManagerDescriptor);
   else Reflect.deleteProperty(window, 'PushManager');
-  jest.clearAllMocks();
-  jest.restoreAllMocks();
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('logout immediately clears auth and removes push using the departing account token', async () => {
@@ -99,7 +100,7 @@ test('logout immediately clears auth and removes push using the departing accoun
   useAuthStore.getState().logout();
   expect(useAuthStore.getState().isAuthenticated).toBe(false);
   expect(setAuthToken).toHaveBeenCalledWith(null);
-  (getAuthToken as jest.Mock).mockReturnValue('next-user-token');
+  (getAuthToken as Mock).mockReturnValue('next-user-token');
   await waitFor(() => expect(unsubscribe).toHaveBeenCalledTimes(1));
   expect(apiRequest).toHaveBeenCalledWith('/api/notifications/subscribe', {
     method: 'DELETE', body: JSON.stringify({ endpoint: subscription.endpoint }), headers: { Authorization: 'Bearer previous-user-token' },
@@ -125,9 +126,9 @@ test('logout with no push subscription does not request deletion', async () => {
 
 test.each(['browser', 'server', 'lookup'])('logout still succeeds after a %s push failure', async (failure) => {
   enablePush();
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
   if (failure === 'browser') unsubscribe.mockRejectedValue(new Error('Browser unsubscribe failed'));
-  if (failure === 'server') (apiRequest as jest.Mock).mockRejectedValue(new Error('Offline'));
+  if (failure === 'server') (apiRequest as Mock).mockRejectedValue(new Error('Offline'));
   if (failure === 'lookup') getSubscription.mockRejectedValue(new Error('Unavailable'));
   useAuthStore.getState().logout();
   expect(useAuthStore.getState().isAuthenticated).toBe(false);
