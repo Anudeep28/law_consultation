@@ -111,13 +111,11 @@ Provider failure returns 502 without undoing the accepted status/audit decision.
 - Lawyer no-show (policy 1.4) and technical disruption (2.1) require human evidence
   review. The approved admin tool issues full cash refunds only; automatic
   attendance decisions and document-credit compensation are not implemented.
-- Unused document-credit refunds within seven days (3.2) remain support-only.
-  Aggregate `documentCredits` does not identify the purchase whose credit was
-  consumed. Before automating: is eligibility per purchase (requiring a credit
-  ledger and an allocation rule such as FIFO), or only if no purchased credit has
-  ever been consumed on the account? Provider-dashboard refunds are flagged for
-  entitlement reconciliation rather than guessing which credits/access to revoke.
-- Monthly subscriptions remain non-refundable after activation (3.3). No new
+- The 7-day unused document-credit refund was removed from the refund policy
+  (product decision); document credits are not refundable. Provider-dashboard
+  refunds are flagged for entitlement reconciliation rather than guessing which
+  credits/access to revoke.
+- Monthly subscriptions remain non-refundable after activation (3.2). No new
   percentages or cancellation windows have been invented.
 
 ## Provider references
