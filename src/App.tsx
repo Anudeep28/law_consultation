@@ -1,12 +1,12 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { Login } from './components/Auth/Login';
-import { Register } from './components/Auth/Register';
-import { ResetPassword } from './components/Auth/ResetPassword';
 import { LoadingFallback } from './components/ui/LoadingFallback';
 import { verifyEmailToken } from './services/notificationService';
 
 const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
+const Register = lazy(() => import('./components/Auth/Register').then(module => ({ default: module.Register })));
+const ResetPassword = lazy(() => import('./components/Auth/ResetPassword').then(module => ({ default: module.ResetPassword })));
 
 function App() {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -50,7 +50,7 @@ function App() {
   };
 
   if (resetToken) {
-    return <ResetPassword token={resetToken} onDone={clearResetToken} />;
+    return <Suspense fallback={<LoadingFallback />}><ResetPassword token={resetToken} onDone={clearResetToken} /></Suspense>;
   }
 
   if (!authReady) {
@@ -68,7 +68,7 @@ function App() {
         isLoginMode ? (
           <Login onToggleMode={toggleAuthMode} />
         ) : (
-          <Register onToggleMode={toggleAuthMode} />
+          <Suspense fallback={<LoadingFallback />}><Register onToggleMode={toggleAuthMode} /></Suspense>
         )
       ) : (
         <Suspense fallback={<LoadingFallback />}><Dashboard /></Suspense>

@@ -1,6 +1,9 @@
 import React from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import { X } from 'lucide-react';
+import * as m from 'motion/react-m';
+import { AnimatePresence, useReducedMotion } from 'motion/react';
+import { spring } from './MotionPrimitives';
 
 const MAX_WIDTHS = {
   sm: 'max-w-sm',
@@ -37,12 +40,17 @@ export const Modal: React.FC<ModalProps> = ({
   maxWidth = 'lg',
   panelClassName = '',
   children,
-}) => (
-  <Dialog open={open} onClose={onClose} className="relative z-[60]">
-    <DialogBackdrop transition className="dialog-backdrop fixed inset-0 bg-slate-950/45 backdrop-blur-sm" />
+}) => {
+  const reduced = useReducedMotion();
+  return <AnimatePresence propagate>
+  {open && <Dialog static open onClose={onClose} className="relative z-[60]">
+    <DialogBackdrop as={m.div} initial={{ opacity: reduced ? 1 : 0 }} animate={{ opacity: 1, transition: { duration: reduced ? 0 : 0.18 } }} exit={{ opacity: 0, transition: { duration: reduced ? 0 : 0.18 } }} className="dialog-backdrop fixed inset-0 bg-slate-950/45 backdrop-blur-sm" />
     <div className={`fixed inset-0 flex items-center justify-center ${fullScreenOnMobile ? 'p-0 sm:p-4' : 'p-4'}`}>
       <DialogPanel
-        transition
+        as={m.div}
+        initial={reduced ? false : { opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1, transition: reduced ? { duration: 0 } : spring }}
+        exit={{ opacity: 0, y: reduced ? 0 : 10, scale: reduced ? 1 : 0.98, transition: reduced ? { duration: 0 } : spring }}
         className={`dialog-panel w-full ${fullScreenOnMobile ? `max-w-none ${MOBILE_MAX_WIDTHS[maxWidth]} h-[100dvh] sm:h-[75vh] max-h-[100dvh] sm:max-h-[90vh] rounded-none sm:rounded-2xl` : `${MAX_WIDTHS[maxWidth]} max-h-[90vh] rounded-2xl`} overflow-hidden border border-line bg-white shadow-2xl ${panelClassName}`}
       >
         {title !== undefined && (
@@ -64,5 +72,6 @@ export const Modal: React.FC<ModalProps> = ({
         {children}
       </DialogPanel>
     </div>
-  </Dialog>
-);
+  </Dialog>}
+  </AnimatePresence>;
+};

@@ -58,7 +58,7 @@ body {
   .app-sidebar { @apply bg-white/90 shadow-none backdrop-blur-xl; }
   .app-sidebar nav { @apply overflow-y-auto; }
   .app-sidebar nav button { @apply min-h-11 rounded-xl; }
-  .app-sidebar nav button.bg-warning-bg { @apply bg-brand-soft text-brand ring-1 ring-brand/10; }
+  .app-sidebar nav button[aria-current='page'] { @apply bg-transparent text-brand; }
   .app-topbar { @apply relative z-20 bg-white/85 backdrop-blur-xl; }
   .app-topbar h2 { @apply font-semibold; }
   :where(#root, [role='dialog']) button.bg-brand { @apply min-h-11 rounded-xl font-semibold shadow-sm shadow-brand/20; }
@@ -66,13 +66,10 @@ body {
   .view-transition :is(article, section).border,
   .view-transition .bg-white.border,
   .view-transition .bg-white.border-line { border-radius: 1rem; box-shadow: 0 2px 4px #17203303, 0 8px 24px #17203305; }
-  .view-transition .grid > article:nth-child(2), .view-transition .grid > div:nth-child(2) { animation-delay: 35ms; }
-  .view-transition .grid > article:nth-child(3), .view-transition .grid > div:nth-child(3) { animation-delay: 70ms; }
   .directory-hero { background: radial-gradient(ellipse at 95% 0, #6366f180, transparent 60%), linear-gradient(120deg, #1e1b4b, #3730a3); }
   .directory-hero h1 { @apply font-display text-4xl font-normal tracking-tight sm:text-5xl; }
   .dialog-panel { box-shadow: 0 24px 80px #0f172a33, 0 4px 12px #0f172a0d; }
   .dialog-close { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl; }
-  .toast-stack { view-transition-name: toast-stack; }
   .toast-message { @apply rounded-2xl shadow-xl shadow-slate-950/10; }
   .skeleton-bar { @apply h-3 rounded-full bg-cream-deep; background-image: linear-gradient(90deg, transparent, #ffffffb3, transparent); background-size: 200% 100%; }
   .editor-empty { @apply mx-4 w-full max-w-lg; }
@@ -80,19 +77,10 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .view-transition, .auth-card { animation: reveal 220ms ease-out both; }
-  .view-transition .grid > :is(article, .group) { animation: reveal 220ms ease-out both; }
+  .auth-card { animation: reveal 220ms ease-out both; }
   .skeleton-bar { animation: shimmer 1.6s ease-in-out infinite; }
-  .dialog-panel, .toast-message { transition: opacity 180ms ease-out, transform 180ms ease-out; }
-  .dialog-panel[data-closed], .toast-message[data-closed] { opacity: 0; transform: translateY(10px) scale(0.98); }
-  .dialog-backdrop { transition: opacity 180ms ease-out; }
-  .dialog-backdrop[data-closed] { opacity: 0; }
-  ::view-transition-group(toast-stack) { animation-duration: 180ms; }
-  ::view-transition-old(toast-stack) { animation: toast-out 180ms ease-in both; }
-  ::view-transition-new(toast-stack) { animation: reveal 180ms ease-out both; }
 }
 :root { view-transition-name: none; }
-@keyframes toast-out { to { opacity: 0; transform: translateY(-8px); } }
 @keyframes reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) {

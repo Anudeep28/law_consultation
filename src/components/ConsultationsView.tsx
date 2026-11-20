@@ -1,3 +1,6 @@
+import { AnimatedArticle, PrimaryButton } from './ui/MotionPrimitives';
+import { DecorativeAnimation } from './ui/DecorativeAnimation';
+import { AnimatePresence } from 'motion/react';
 import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BadgeCheck, Calendar, Clock, CreditCard, Languages, Lock, MessageCircle, Phone, Search, ShieldCheck, Star } from 'lucide-react';
 import { apiRequest, ApiError } from '../services/api';
@@ -35,6 +38,7 @@ export const ConsultationsView: React.FC = () => {
   const [practiceArea, setPracticeArea] = useState('All practice areas');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const loadConsultations = async () => {
@@ -82,11 +86,12 @@ export const ConsultationsView: React.FC = () => {
     setIsSubmitting(true);
     setError('');
     try {
-      await consultationCheckout(
+      const confirmed = await consultationCheckout(
         { lawyer: selectedLawyer, startsAt: selectedSlot, topic, notes, mode, package: mode === 'call' ? packageSelection : 'call_only' },
         user,
       );
       await loadConsultations();
+      setConfirmedBookingId(confirmed.id);
       setSelectedLawyer(null);
       setTab('bookings');
     } catch (requestError) {
@@ -143,8 +148,8 @@ export const ConsultationsView: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {filteredLawyers.map((lawyer) => (
-                <article key={lawyer.id} className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
+              {filteredLawyers.map((lawyer, index) => (
+                <AnimatedArticle index={index} key={lawyer.id} className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm hover:shadow-xl">
                   <div className="flex gap-4">
                     {lawyer.avatarUrl ? <img src={lawyer.avatarUrl} alt={`${lawyer.name} profile`} className="h-16 w-16 shrink-0 rounded-2xl border-4 border-brand-soft object-cover shadow-sm" /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-brand-soft bg-brand-soft text-lg font-bold text-brand shadow-sm">{lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>}
                     <div className="min-w-0 flex-1">
@@ -175,36 +180,37 @@ export const ConsultationsView: React.FC = () => {
                       <p className="font-semibold text-gray-900">{formatFee(lawyer.fee / 10)}<span className="font-normal text-xs text-gray-500">/min</span></p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => openBooking(lawyer, 'chat')} className="flex items-center justify-center gap-2 rounded-xl border-2 border-brand px-3 py-2.5 text-sm font-bold text-brand transition hover:bg-brand-soft"><MessageCircle className="h-4 w-4" />Chat</button>
-                      <button onClick={() => openBooking(lawyer, 'call')} className="flex items-center justify-center gap-2 rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark"><Phone className="h-4 w-4" />Call</button>
+                      <PrimaryButton onClick={() => openBooking(lawyer, 'chat')} className="flex items-center justify-center gap-2 rounded-xl border-2 border-brand px-3 py-2.5 text-sm font-bold text-brand transition hover:bg-brand-soft"><MessageCircle className="h-4 w-4" />Chat</PrimaryButton>
+                      <PrimaryButton onClick={() => openBooking(lawyer, 'call')} className="flex items-center justify-center gap-2 rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark"><Phone className="h-4 w-4" />Call</PrimaryButton>
                     </div>
                   </div>
-                </article>
+                </AnimatedArticle>
               ))}
             </div>
             {!filteredLawyers.length && <div className="text-center py-16 text-gray-500">No lawyers match these filters.</div>}
           </>
         ) : (
           <div className="space-y-4">
-            {!consultations.length && <div className="bg-white border rounded-xl p-10 text-center"><Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" /><h3 className="font-semibold text-gray-900">No consultations yet</h3><p className="text-sm text-gray-500 mt-1">Book a 10-minute session with a verified lawyer.</p></div>}
-            {consultations.map((consultation) => {
+            {!consultations.length && <div className="bg-white border rounded-xl p-10 text-center"><DecorativeAnimation kind="empty" /><h3 className="font-semibold text-gray-900">No consultations yet</h3><p className="text-sm text-gray-500 mt-1">Book a 10-minute session with a verified lawyer.</p></div>}
+            {consultations.map((consultation, index) => {
               const now = Date.now();
               const upcoming = consultation.status === 'booked' && new Date(consultation.startsAt).getTime() > now;
               const canOpenChat = consultation.mode === 'chat' && consultation.status === 'booked' && new Date(consultation.startsAt).getTime() - 10 * 60 * 1000 <= now && new Date(consultation.endsAt).getTime() > now;
               const canViewHistory = consultation.mode === 'chat' && new Date(consultation.endsAt).getTime() <= now && consultation.status !== 'cancelled';
-              return <article key={consultation.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:flex-wrap md:items-center gap-4">
+              return <AnimatedArticle index={index} key={consultation.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:flex-wrap md:items-center gap-4">
+                {confirmedBookingId === consultation.id && <DecorativeAnimation kind="success" className="h-12 w-12" />}
                 <div className="w-12 h-12 shrink-0 rounded-full bg-accent text-brand-darker flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
                 <div className="flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold text-gray-900">{consultation.lawyer.name}</h3><span className={`text-xs px-2 py-0.5 rounded-full ${consultation.status === 'booked' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{consultation.status === 'pending_payment' ? 'awaiting payment' : consultation.status}</span><span className="text-xs capitalize text-gray-500 flex items-center gap-1">{consultation.mode === 'chat' ? <MessageCircle className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}{consultation.mode}</span>{consultation.mode === 'call' && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{consultation.package === 'call_with_document' ? 'Call + legal document' : 'Call only'}</span>}</div><p className="text-sm text-gray-700 mt-1">{consultation.topic}</p><p className="flex items-center gap-1 text-sm text-gray-500 mt-2"><Clock className="w-4 h-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
-                <div className="flex gap-2">{canOpenChat && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white text-sm rounded-lg"><MessageCircle className="w-4 h-4" />Open chat</button>}{canViewHistory && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 rounded-lg border border-brand px-3 py-2 text-sm text-brand"><MessageCircle className="h-4 w-4" />View conversation</button>}{consultation.status === 'booked' && consultation.mode === 'call' && (consultation.meetingUrl || consultation.meetingProvider === 'jaas') && new Date(consultation.endsAt).getTime() > now && <JoinCallButton consultation={consultation} onError={setError} className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white text-sm rounded-lg" />}{(upcoming || consultation.status === 'pending_payment') && <button onClick={() => setPendingCancelId(consultation.id)} className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">Cancel</button>}</div>
+                <div className="flex gap-2">{canOpenChat && <PrimaryButton onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white text-sm rounded-lg"><MessageCircle className="w-4 h-4" />Open chat</PrimaryButton>}{canViewHistory && <button onClick={() => setActiveChat(consultation)} className="flex items-center gap-1.5 rounded-lg border border-brand px-3 py-2 text-sm text-brand"><MessageCircle className="h-4 w-4" />View conversation</button>}{consultation.status === 'booked' && consultation.mode === 'call' && (consultation.meetingUrl || consultation.meetingProvider === 'jaas') && new Date(consultation.endsAt).getTime() > now && <JoinCallButton consultation={consultation} onError={setError} className="flex items-center gap-1.5 px-3 py-2 bg-brand text-white text-sm rounded-lg" />}{(upcoming || consultation.status === 'pending_payment') && <button onClick={() => setPendingCancelId(consultation.id)} className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">Cancel</button>}</div>
                 <div className="w-full md:basis-full"><ConsultationDeliverables consultationId={consultation.id} role="client" />{consultation.review && <div className="mt-3 rounded-lg bg-cream p-3 text-sm"><span className="font-semibold">Your rating: {consultation.review.rating}/5</span>{consultation.review.comment && <p className="mt-1 text-gray-600">{consultation.review.comment}</p>}</div>}{consultation.canReview && <LawyerReviewForm consultationId={consultation.id} onSaved={(review) => setConsultations((current) => current.map((item) => item.id === consultation.id ? { ...item, review, canReview: false } : item))} />}</div>
-              </article>;
+              </AnimatedArticle>;
             })}
           </div>
         )}
         <TrustSection />
       </div>
 
-      {selectedLawyer && (
+      <AnimatePresence>{selectedLawyer && (
         <Modal open onClose={() => setSelectedLawyer(null)} title={`Book a ${mode} with ${selectedLawyer.name}`} subtitle={`${formatFee(selectedLawyer.fee / 10)}/min · 10 minutes · ${formatFee(mode === 'call' && packageSelection === 'call_with_document' ? selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)) : selectedLawyer.fee)} total`} maxWidth="2xl" panelClassName="flex flex-col">
           <form onSubmit={bookConsultation} className="overflow-y-auto">
             <div className="p-5 space-y-5">
@@ -244,10 +250,10 @@ export const ConsultationsView: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><button disabled={!selectedSlot || notes.length < 10 || isSubmitting || !user?.isEmailVerified} className="px-4 py-2 bg-brand text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Processing...' : `Pay ${selectedLawyer ? formatFee(mode === 'call' && packageSelection === 'call_with_document' ? selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)) : selectedLawyer.fee) : ''} & book`}</button></div>
+            <div className="p-5 border-t flex justify-end gap-3"><button type="button" onClick={() => setSelectedLawyer(null)} className="px-4 py-2 border rounded-lg text-sm">Close</button><PrimaryButton disabled={!selectedSlot || notes.length < 10 || isSubmitting || !user?.isEmailVerified} className="px-4 py-2 bg-brand text-white rounded-lg text-sm disabled:opacity-50">{isSubmitting ? 'Processing...' : `Pay ${selectedLawyer ? formatFee(mode === 'call' && packageSelection === 'call_with_document' ? selectedLawyer.fee + Math.round(selectedLawyer.fee * (selectedLawyer.documentFeePercent / 100)) : selectedLawyer.fee) : ''} & book`}</PrimaryButton></div>
           </form>
         </Modal>
-      )}
+      )}</AnimatePresence>
 
       {activeChat && <Suspense fallback={<LoadingFallback />}><ConsultationChat consultation={activeChat} onClose={() => setActiveChat(null)} /></Suspense>}
 

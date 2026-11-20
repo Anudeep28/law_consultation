@@ -5,6 +5,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react()],
   envPrefix: 'REACT_APP_',
+  resolve: {
+    alias: [{
+      find: /^lottie-web(?:\/build\/player\/lottie_(?:svg|light)\.js)?$/,
+      replacement: fileURLToPath(new URL('./node_modules/lottie-web/build/player/lottie_light.js', import.meta.url)),
+    }],
+  },
   server: {
     port: Number(process.env.E2E_WEB_PORT || 3000),
     strictPort: true,

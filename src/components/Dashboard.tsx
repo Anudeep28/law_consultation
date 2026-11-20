@@ -1,4 +1,8 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import * as m from 'motion/react-m';
+import { AnimatePresence, useReducedMotion } from 'motion/react';
+import { NavButton } from './ui/MotionPrimitives';
+import { useMotionReady } from './ui/MotionProvider';
 import { useAuthStore } from '../stores/authStore';
 import { useDocumentStore } from '../stores/documentStore';
 import { LoadingFallback } from './ui/LoadingFallback';
@@ -24,8 +28,12 @@ const AdminReviewsView = lazy(() => import('./AdminReviewsView').then(module => 
 const AdminPaymentsView = lazy(() => import('./AdminPaymentsView').then(module => ({ default: module.AdminPaymentsView })));
 
 export const Dashboard: React.FC = () => {
+  const reduced = useReducedMotion();
+  const motionReady = useMotionReady();
   const { user, logout } = useAuthStore();
   const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews' | 'admin-payments' | 'account'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
+  const presenceKey = useRef(activeView);
+  if (!motionReady) presenceKey.current = activeView;
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [openTemplateSelector, setOpenTemplateSelector] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -138,12 +146,12 @@ export const Dashboard: React.FC = () => {
 
         <nav className="mt-6 flex-1">
           <div className="px-4 space-y-2">
-            {user?.role === 'admin' && <button onClick={() => setActiveView('admin-payments')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-payments' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><CreditCard className="w-5 h-5" /><span>Payments &amp; Refunds</span></button>}
-            <button onClick={() => setActiveView('account')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'account' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><UserCircle className="w-5 h-5" /><span>Account &amp; Privacy</span></button>
-            {user?.role === 'admin' && <><button onClick={() => setActiveView('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><ShieldCheck className="w-5 h-5" /><span>Lawyer Applications</span></button><button onClick={() => setActiveView('admin-users')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-users' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><Users className="w-5 h-5" /><span>User Management</span></button><button onClick={() => setActiveView('admin-reviews')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-reviews' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><MessageSquareText className="w-5 h-5" /><span>Review Moderation</span></button></>}
+            {user?.role === 'admin' && <NavButton onClick={() => setActiveView('admin-payments')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-payments' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><CreditCard className="w-5 h-5" /><span>Payments &amp; Refunds</span></NavButton>}
+            <NavButton onClick={() => setActiveView('account')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'account' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><UserCircle className="w-5 h-5" /><span>Account &amp; Privacy</span></NavButton>
+            {user?.role === 'admin' && <><NavButton onClick={() => setActiveView('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><ShieldCheck className="w-5 h-5" /><span>Lawyer Applications</span></NavButton><NavButton onClick={() => setActiveView('admin-users')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-users' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><Users className="w-5 h-5" /><span>User Management</span></NavButton><NavButton onClick={() => setActiveView('admin-reviews')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-reviews' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><MessageSquareText className="w-5 h-5" /><span>Review Moderation</span></NavButton></>}
             {user?.role === 'lawyer' && <>
-            <button onClick={() => setActiveView('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'profile' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><UserCircle className="w-5 h-5" /><span>Professional Profile</span></button>
-            <button
+            <NavButton onClick={() => setActiveView('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'profile' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><UserCircle className="w-5 h-5" /><span>Professional Profile</span></NavButton>
+            <NavButton
               onClick={() => setActiveView('editor')}
               className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeView === 'editor'
@@ -153,9 +161,9 @@ export const Dashboard: React.FC = () => {
             >
               <FileText className="w-5 h-5" />
               <span>Document Editor</span>
-            </button>
+            </NavButton>
 
-            <button
+            <NavButton
               onClick={() => setActiveView('documents')}
               className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeView === 'documents'
@@ -170,10 +178,10 @@ export const Dashboard: React.FC = () => {
                   {documents.length}
                 </span>
               )}
-            </button>
+            </NavButton>
             </>}
 
-            {user?.role !== 'admin' && <button
+            {user?.role !== 'admin' && <NavButton
               onClick={() => setActiveView('consultations')}
               className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeView === 'consultations'
@@ -183,9 +191,9 @@ export const Dashboard: React.FC = () => {
             >
               <MessagesSquare className="w-5 h-5" />
               <span>{user?.role === 'lawyer' ? 'Client Consultations' : 'Consult a Lawyer'}</span>
-            </button>}
+            </NavButton>}
 
-            {user?.role === 'lawyer' && <button
+            {user?.role === 'lawyer' && <NavButton
               onClick={() => setActiveView('subscription')}
               className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeView === 'subscription'
@@ -195,7 +203,7 @@ export const Dashboard: React.FC = () => {
             >
               <CreditCard className="w-5 h-5" />
               <span>Subscription</span>
-            </button>}
+            </NavButton>}
           </div>
         </nav>
 
@@ -280,7 +288,8 @@ export const Dashboard: React.FC = () => {
         <EmailVerificationBanner />
 
         {/* Content Area */}
-        <div key={activeView} className="view-transition min-h-0 flex-1 overflow-hidden">
+      <AnimatePresence key={presenceKey.current} mode="wait" initial={false}>
+        <m.div key={activeView} initial={reduced || !motionReady ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={motionReady ? { opacity: 0, y: reduced ? 0 : -6 } : undefined} transition={{ duration: reduced ? 0 : 0.18 }} className="view-transition min-h-0 flex-1 overflow-hidden">
           <Suspense fallback={<LoadingFallback />}>
           {activeView === 'account' && <AccountSettings />}
           {activeView === 'editor' && <DocumentEditor openTemplateSelector={openTemplateSelector} onTemplateSelectorOpened={() => setOpenTemplateSelector(false)} />}
@@ -293,7 +302,8 @@ export const Dashboard: React.FC = () => {
           {activeView === 'admin-reviews' && <AdminReviewsView />}
           {activeView === 'admin-payments' && <AdminPaymentsView />}
           </Suspense>
-        </div>
+        </m.div>
+        </AnimatePresence>
 
         <footer className="hidden shrink-0 flex-col gap-2 border-t border-line bg-white px-6 py-3 text-xs text-ink-faint sm:flex">
           <div className="flex items-center justify-between">
