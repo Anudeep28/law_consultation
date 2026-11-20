@@ -2,14 +2,14 @@ const http = require('http');
 const { randomUUID } = require('crypto');
 const { spawn } = require('child_process');
 const path = require('path');
-const { backendEnv, fingerprint } = require('./runtime.cjs');
+const { backendEnv, fingerprint, apiUrl, stubUrl } = require('./runtime.cjs');
 
 let backend;
 let ready = false;
 const checkReadiness = () => {
   if (backend.exitCode !== null || backend.killed) return;
   const retry = () => setTimeout(checkReadiness, 200).unref();
-  const probe = http.get('http://127.0.0.1:3002/api/health', (res) => {
+  const probe = http.get(`${apiUrl}/api/health`, (res) => {
     res.resume();
     if (res.statusCode === 200) ready = true;
     else retry();
@@ -40,7 +40,7 @@ const stub = http.createServer(async (req, res) => {
 });
 
 stub.on('error', (error) => { console.error(error); process.exit(1); });
-stub.listen(3901, '127.0.0.1', () => {
+stub.listen(Number(new URL(stubUrl).port), '127.0.0.1', () => {
   backend = spawn(process.execPath, ['server.js'], {
     cwd: path.join(__dirname, '..'), env: { ...process.env, ...backendEnv },
     stdio: ['ignore', 'pipe', 'inherit'],

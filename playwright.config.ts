@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const { backendEnv, stubUrl, fingerprint } = require('./e2e/runtime.cjs');
+const { backendEnv, stubUrl, fingerprint, webUrl } = require('./e2e/runtime.cjs');
 
 export default defineConfig({
   testDir: './e2e',
@@ -13,7 +13,7 @@ export default defineConfig({
   reporter: 'list',
   globalSetup: './e2e/global-setup.ts',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: webUrl,
     timezoneId: 'UTC',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -29,7 +29,7 @@ export default defineConfig({
     },
     {
       command: 'npm start',
-      url: 'http://localhost:3000',
+      url: webUrl,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

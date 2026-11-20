@@ -4,7 +4,7 @@ import { readFileSync } from 'fs';
 import { randomUUID } from 'crypto';
 
 const jwt = require('jsonwebtoken');
-const { fixturesPath, backendEnv } = require('./runtime.cjs');
+const { fixturesPath, backendEnv, apiUrl } = require('./runtime.cjs');
 const prisma = new PrismaClient();
 test.afterAll(async () => { await prisma.$disconnect(); });
 
@@ -22,7 +22,7 @@ test('cancelled and expired reservations retain private history while active slo
   const expired = await prisma.consultation.create({ data: {
     ...base, userId: fixtures.client.id, status: 'PENDING_PAYMENT', createdAt: new Date(Date.now() - 16 * 60000),
   } });
-  const response = await request.post('http://localhost:3002/api/consultations', {
+  const response = await request.post(`${apiUrl}/api/consultations`, {
     headers: { Authorization: `Bearer ${jwt.sign({ userId: fixtures.client.id }, backendEnv.JWT_SECRET)}` },
     data: { lawyerId: fixtures.lawyer.id, startsAt: startsAt.toISOString(), topic: 'Fresh booking', notes: 'A different client legal matter', mode: 'chat' },
   });
@@ -33,7 +33,7 @@ test('cancelled and expired reservations retain private history while active slo
   expect(body.consultation.transcript).toBe('');
   expect(await prisma.consultation.findUnique({ where: { id: old.id }, include: { messages: true, deliverables: true, payment: true } })).toEqual(old);
   expect((await prisma.consultation.findUniqueOrThrow({ where: { id: expired.id } })).status).toBe('CANCELLED');
-  const duplicate = await request.post('http://localhost:3002/api/consultations', {
+  const duplicate = await request.post(`${apiUrl}/api/consultations`, {
     headers: { Authorization: `Bearer ${jwt.sign({ userId: fixtures.tamperClient.id }, backendEnv.JWT_SECRET)}` },
     data: { lawyerId: fixtures.lawyer.id, startsAt: startsAt.toISOString(), topic: 'Collision', notes: 'A competing booking request', mode: 'chat' },
   });

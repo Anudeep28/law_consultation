@@ -6,11 +6,11 @@ export default defineConfig({
   plugins: [react()],
   envPrefix: 'REACT_APP_',
   server: {
-    port: 3000,
+    port: Number(process.env.E2E_WEB_PORT || 3000),
     strictPort: true,
     proxy: {
-      '/api': 'http://localhost:3002',
-      '/socket.io': { target: 'http://localhost:3002', ws: true },
+      '/api': `http://localhost:${process.env.E2E_API_PORT || 3002}`,
+      '/socket.io': { target: `http://localhost:${process.env.E2E_API_PORT || 3002}`, ws: true },
     },
   },
   build: {
