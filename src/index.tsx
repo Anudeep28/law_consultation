@@ -6,6 +6,7 @@ import { Toasts } from './components/ui/Toasts';
 import reportWebVitals from './reportWebVitals';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initializeMonitoring } from './services/monitoring';
+import { MotionProvider } from './components/ui/MotionProvider';
 
 initializeMonitoring();
 
@@ -15,8 +16,7 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
-      <Toasts />
+      <MotionProvider><App /><Toasts /></MotionProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

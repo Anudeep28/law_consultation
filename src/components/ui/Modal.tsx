@@ -1,6 +1,10 @@
 import React from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import { X } from 'lucide-react';
+import * as m from 'motion/react-m';
+import { AnimatePresence, useIsPresent } from 'motion/react';
+import { useReducedMotion } from './useReducedMotion';
+import { spring } from './MotionPrimitives';
 
 const MAX_WIDTHS = {
   sm: 'max-w-sm',
@@ -28,8 +32,7 @@ interface ModalProps {
   children: React.ReactNode;
 }
 
-export const Modal: React.FC<ModalProps> = ({
-  open,
+const ModalDialog: React.FC<ModalProps> = ({
   fullScreenOnMobile = false,
   onClose,
   title,
@@ -37,12 +40,25 @@ export const Modal: React.FC<ModalProps> = ({
   maxWidth = 'lg',
   panelClassName = '',
   children,
-}) => (
-  <Dialog open={open} onClose={onClose} className="relative z-[60]">
-    <DialogBackdrop transition className="dialog-backdrop fixed inset-0 bg-slate-950/45 backdrop-blur-sm" />
+}) => {
+  const reduced = useReducedMotion();
+  const present = useIsPresent();
+  const blockWhileExiting = (event: React.SyntheticEvent) => {
+    if (!present) { event.preventDefault(); event.stopPropagation(); }
+  };
+  return <Dialog static open onClose={onClose} className="relative z-[60]">
+    <DialogBackdrop as={m.div} initial={{ opacity: reduced ? 1 : 0 }} animate={{ opacity: 1, transition: { duration: reduced ? 0 : 0.18 } }} exit={{ opacity: 0, transition: { duration: reduced ? 0 : 0.18 } }} className="dialog-backdrop fixed inset-0 bg-slate-950/45 backdrop-blur-sm" />
     <div className={`fixed inset-0 flex items-center justify-center ${fullScreenOnMobile ? 'p-0 sm:p-4' : 'p-4'}`}>
       <DialogPanel
-        transition
+        as={m.div}
+        inert={!present}
+        onClickCapture={blockWhileExiting}
+        onSubmitCapture={blockWhileExiting}
+        onKeyDownCapture={blockWhileExiting}
+        onPointerDownCapture={blockWhileExiting}
+        initial={reduced ? false : { opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1, transition: reduced ? { duration: 0 } : spring }}
+        exit={{ opacity: 0, y: reduced ? 0 : 10, scale: reduced ? 1 : 0.98, transition: reduced ? { duration: 0 } : spring }}
         className={`dialog-panel w-full ${fullScreenOnMobile ? `max-w-none ${MOBILE_MAX_WIDTHS[maxWidth]} h-[100dvh] sm:h-[75vh] max-h-[100dvh] sm:max-h-[90vh] rounded-none sm:rounded-2xl` : `${MAX_WIDTHS[maxWidth]} max-h-[90vh] rounded-2xl`} overflow-hidden border border-line bg-white shadow-2xl ${panelClassName}`}
       >
         {title !== undefined && (
@@ -64,5 +80,9 @@ export const Modal: React.FC<ModalProps> = ({
         {children}
       </DialogPanel>
     </div>
-  </Dialog>
+  </Dialog>;
+};
+
+export const Modal: React.FC<ModalProps> = props => (
+  <AnimatePresence propagate>{props.open && <ModalDialog {...props} />}</AnimatePresence>
 );
