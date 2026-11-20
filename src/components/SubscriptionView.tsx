@@ -77,7 +77,7 @@ export const SubscriptionView: React.FC = () => {
             <button
               onClick={() => handleCheckout('single')}
               disabled={processingPlan !== null}
-              className="mt-6 w-full flex justify-center items-center gap-2 rounded-lg bg-brand-darker px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2a0d16] disabled:opacity-50 transition"
+              className="mt-6 w-full flex justify-center items-center gap-2 rounded-xl bg-brand-darker px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
             >
               {processingPlan === 'single' && <Loader2 className="w-4 h-4 animate-spin" />}
               Buy one document

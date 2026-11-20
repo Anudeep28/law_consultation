@@ -94,9 +94,9 @@ export const Dashboard: React.FC = () => {
     if (isExpired && user.subscriptionPlan !== 'single') return 'text-red-600';
     switch (user.subscriptionStatus) {
       case 'active':
-        return 'text-green-600';
+        return 'text-green-700';
       case 'trial':
-        return 'text-yellow-600';
+        return 'text-warning-ink';
       case 'expired':
         return 'text-red-600';
       default:
@@ -127,7 +127,7 @@ export const Dashboard: React.FC = () => {
     <div className="flex h-dvh min-h-0 bg-cream">
       {isMobileNavOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setIsMobileNavOpen(false)} />}
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-line bg-white shadow-lg transition-transform lg:static lg:translate-x-0 ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`app-sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-line transition-transform lg:static lg:translate-x-0 ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-start justify-between p-6">
           <div>
             <h1 className="text-2xl font-bold text-ink">Law Writer</h1>
@@ -224,7 +224,7 @@ export const Dashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Header */}
-        <div className="border-b border-line bg-white px-4 py-3 sm:px-6 sm:py-4">
+        <div className="app-topbar shrink-0 border-b border-line px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center justify-between gap-3">
             <button type="button" aria-label="Open navigation" className="shrink-0 rounded-lg border border-line p-2 text-brand lg:hidden" onClick={() => setIsMobileNavOpen(true)}><Menu className="h-5 w-5" /></button>
             <div className="min-w-0 flex-1">
@@ -280,7 +280,7 @@ export const Dashboard: React.FC = () => {
         <EmailVerificationBanner />
 
         {/* Content Area */}
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div key={activeView} className="view-transition min-h-0 flex-1 overflow-hidden">
           <Suspense fallback={<LoadingFallback />}>
           {activeView === 'account' && <AccountSettings />}
           {activeView === 'editor' && <DocumentEditor openTemplateSelector={openTemplateSelector} onTemplateSelectorOpened={() => setOpenTemplateSelector(false)} />}

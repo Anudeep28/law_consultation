@@ -83,7 +83,7 @@ export const AdminLawyerReviewView: React.FC = () => {
                       {lawyer.approvalStatus}
                     </span>
                   </div>
-                  <p className="font-semibold text-[#8a2637]">{lawyer.title}</p>
+                  <p className="font-semibold text-brand">{lawyer.title}</p>
                 </div>
                 <p className="text-sm font-semibold">
                   ₹{(lawyer.fee / 100).toLocaleString('en-IN')} / 10 min
@@ -121,7 +121,7 @@ export const AdminLawyerReviewView: React.FC = () => {
               <div className="mt-5 border-t border-cream-deep pt-4">
                 {lawyer.approvalStatus === 'pending' ? (
                   <>
-                    <label className="mb-3 flex items-start gap-2 rounded-lg bg-cream p-3 text-sm text-[#5f4635]">
+                    <label className="mb-3 flex items-start gap-2 rounded-lg bg-cream p-3 text-sm text-ink-body">
                       <input type="checkbox" className="mt-1" checked={credentialChecks[lawyer.id] || false} onChange={(event) => setCredentialChecks((current) => ({ ...current, [lawyer.id]: event.target.checked }))} />
                       <span>I checked the enrolment number and name against the relevant State Bar Council roll or official record. Format validation alone is not proof of enrolment.</span>
                     </label>
