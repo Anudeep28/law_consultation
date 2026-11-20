@@ -218,6 +218,31 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
     insertText(markdown);
   };
 
+  const templateModals = (
+    <>
+      {/* Template Selector Modal */}
+      {isTemplateSelectorOpen && (
+        <Suspense fallback={<LoadingFallback />}>
+        <TemplateSelector
+          onSelectTemplate={handleTemplateSelected}
+          onClose={() => setIsTemplateSelectorOpen(false)}
+        />
+        </Suspense>
+      )}
+  
+      {/* Template Filler Modal */}
+      {selectedTemplate && (
+        <Suspense fallback={<LoadingFallback />}>
+        <TemplateFillerModal
+          template={selectedTemplate}
+          onComplete={handleTemplateFilled}
+          onClose={() => setSelectedTemplate(null)}
+        />
+        </Suspense>
+      )}
+    </>
+  );
+
   if (!currentDocument) {
     return (
       <div className="flex items-center justify-center h-full bg-cream">
@@ -239,6 +264,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
             </button>
           </div>
         </div>
+        {templateModals}
       </div>
     );
   }
@@ -254,11 +280,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={commitRename}
             onKeyDown={handleTitleKeyDown}
-            className="flex-1 text-base font-semibold text-ink border border-accent-dark rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
+            className="min-w-0 basis-full sm:basis-auto flex-1 text-base font-semibold text-ink border border-accent-dark rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         ) : (
           <h2
-            className="flex-1 text-base font-semibold text-ink truncate cursor-pointer hover:text-brand"
+            className="min-w-0 basis-full sm:basis-auto flex-1 text-base font-semibold text-ink truncate cursor-pointer hover:text-brand"
             onDoubleClick={handleTitleDoubleClick}
             title="Double-click to rename"
           >
@@ -407,26 +433,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
       {/* Transcription Controls */}
       <TranscriptionControls />
 
-      {/* Template Selector Modal */}
-      {isTemplateSelectorOpen && (
-        <Suspense fallback={<LoadingFallback />}>
-        <TemplateSelector
-          onSelectTemplate={handleTemplateSelected}
-          onClose={() => setIsTemplateSelectorOpen(false)}
-        />
-        </Suspense>
-      )}
-
-      {/* Template Filler Modal */}
-      {selectedTemplate && (
-        <Suspense fallback={<LoadingFallback />}>
-        <TemplateFillerModal
-          template={selectedTemplate}
-          onComplete={handleTemplateFilled}
-          onClose={() => setSelectedTemplate(null)}
-        />
-        </Suspense>
-      )}
+      {templateModals}
 
       {/* Export Options Modal */}
       {isExportOptionsOpen && (
