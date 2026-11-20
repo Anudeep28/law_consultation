@@ -11,6 +11,7 @@ jest.mock('../db', () => ({
 }));
 
 const request = require('supertest');
+const http = require('http');
 const jwt = require('jsonwebtoken');
 const https = require('https');
 const { EventEmitter } = require('events');
@@ -27,6 +28,30 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+test.each(['provider', 'persistence'])('a %s failure releases the newly created reservation', async failure => {
+  const startsAt = new Date(Date.now() + 86400000);
+  startsAt.setUTCMinutes(20, 0, 0);
+  const lawyer = { id: 'lawyer', isVerified: true, fee: 1000, approvalStatus: 'APPROVED', availability: { days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '23:59' } };
+  prisma.lawyer.findUnique.mockResolvedValue(lawyer);
+  prisma.consultation.create.mockImplementation(async ({ data }) => ({ ...data, id: 'failed-order-reservation', lawyer }));
+  if (failure === 'persistence') prisma.payment.create.mockRejectedValueOnce(new Error('Database temporarily unavailable'));
+  const stub = http.createServer((req, res) => {
+    req.resume();
+    res.writeHead(failure === 'provider' ? 503 : 200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(failure === 'provider' ? { error: { description: 'Unavailable' } } : { id: 'order_test', amount: 1000, currency: 'INR' }));
+  });
+  await new Promise(resolve => stub.listen(0, '127.0.0.1', resolve));
+  process.env.RAZORPAY_API_URL = `http://127.0.0.1:${stub.address().port}`;
+  try {
+    const response = await request(app).post('/api/consultations').set('Authorization', authorization).send({ lawyerId: lawyer.id, startsAt, topic: 'Provider failure', notes: 'Synthetic provider failure notes', mode: 'chat' });
+    expect(response.status).toBe(500);
+    expect(prisma.consultation.updateMany).toHaveBeenCalledWith({ where: { id: 'failed-order-reservation', status: 'PENDING_PAYMENT', payment: { is: null } }, data: { status: 'CANCELLED' } });
+  } finally {
+    delete process.env.RAZORPAY_API_URL;
+    await new Promise(resolve => stub.close(resolve));
+  }
+});
+
 test('a cancelled slot creates a new consultation without touching the previous client data', async () => {
   const startsAt = new Date(Date.now() + 86400000);
   startsAt.setUTCMinutes(20, 0, 0);
@@ -40,6 +65,7 @@ test('a cancelled slot creates a new consultation without touching the previous 
   jest.spyOn(https, 'request').mockImplementation((url, options, callback) => {
     const outgoing = new EventEmitter();
     outgoing.write = jest.fn();
+    outgoing.setTimeout = jest.fn();
     outgoing.end = () => {
       const response = new EventEmitter();
       response.statusCode = 200;

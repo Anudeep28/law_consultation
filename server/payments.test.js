@@ -4,15 +4,15 @@ process.env.RAZORPAY_WEBHOOK_SECRET = 'test-webhook-secret';
 
 const mockTx = {
   payment: { updateMany: jest.fn() },
-  consultation: { update: jest.fn() },
-  user: { update: jest.fn() },
+  consultation: { update: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
+  user: { update: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
 };
 
 jest.mock('../db', () => ({
   user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   consultation: { findFirst: jest.fn() },
   consultationMessage: {},
-  payment: { findFirst: jest.fn(), findUnique: jest.fn() },
+  payment: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
   document: {},
   deliverable: {},
   emailVerificationToken: {},
@@ -23,10 +23,23 @@ jest.mock('../db', () => ({
 }));
 
 const crypto = require('crypto');
+const http = require('http');
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
 const { app } = require('../app');
 const prisma = require('../db');
+let stub;
+let providerPayment;
+
+beforeAll(async () => {
+  stub = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(providerPayment));
+  });
+  await new Promise(resolve => stub.listen(0, '127.0.0.1', resolve));
+  process.env.RAZORPAY_API_URL = `http://127.0.0.1:${stub.address().port}`;
+});
+afterAll(async () => { await new Promise(resolve => stub.close(resolve)); delete process.env.RAZORPAY_API_URL; });
 
 const lawyerUser = {
   id: 'lawyer-1', accountStatus: 'ACTIVE', role: 'LAWYER', name: 'Adv. Test', email: 'lawyer@example.com',
@@ -58,8 +71,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockTx.payment.updateMany.mockResolvedValue({ count: 1 });
   mockTx.user.update.mockResolvedValue({});
+  mockTx.user.findUnique.mockResolvedValue(lawyerUser);
+  mockTx.user.updateMany.mockResolvedValue({ count: 1 });
+  mockTx.consultation.updateMany.mockResolvedValue({ count: 1 });
   mockTx.consultation.update.mockResolvedValue({});
   prisma.notification.create.mockResolvedValue({ id: 'n-1' });
+  providerPayment = { id: 'pay_123', order_id: 'order_123', amount: 49900, currency: 'INR', status: 'captured' };
 });
 
 describe('POST /api/payments/verify', () => {
@@ -69,7 +86,7 @@ describe('POST /api/payments/verify', () => {
     prisma.user.findUnique.mockResolvedValue(lawyerUser);
     prisma.payment.findFirst.mockResolvedValue({
       id: 'p-1', razorpayOrderId: order.orderId, status: 'CREATED', plan: 'MONTHLY',
-      user: lawyerUser,
+      user: lawyerUser, userId: lawyerUser.id, amount: 49900, currency: 'INR',
     });
     const res = await request(app)
       .post('/api/payments/verify')
@@ -82,8 +99,8 @@ describe('POST /api/payments/verify', () => {
     expect(res.status).toBe(200);
     expect(res.body.verified).toBe(true);
     expect(mockTx.payment.updateMany).toHaveBeenCalledWith({
-      where: { id: 'p-1', status: 'CREATED' },
-      data: { status: 'PAID', razorpayPaymentId: order.paymentId },
+      where: { id: 'p-1', status: 'CREATED', refundId: null },
+      data: { status: 'PAID', razorpayPaymentId: order.paymentId, refundStatus: null, refundError: null },
     });
     expect(mockTx.user.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ subscriptionPlan: 'MONTHLY' }) })
@@ -131,16 +148,17 @@ describe('POST /api/payments/webhook', () => {
   const consultationPayment = {
     id: 'p-9', razorpayOrderId: 'order_999', status: 'CREATED', plan: 'CONSULTATION',
     amount: 50000, userId: 'client-1', user: clientUser,
+    currency: 'INR', consultationId: 'cons-1',
     consultation: {
       id: 'cons-1', mode: 'CHAT', status: 'PENDING_PAYMENT', topic: 'Lease review',
-      startsAt: new Date('2026-11-20T10:00:00Z'),
+      startsAt: new Date(Date.now() + 3600000), createdAt: new Date(),
       lawyer: { userId: 'lawyer-1' },
     },
   };
 
   const capturedEvent = (overrides = {}) => JSON.stringify({
     event: 'payment.captured',
-    payload: { payment: { entity: { id: 'pay_999', order_id: 'order_999', ...overrides } } },
+    payload: { payment: { entity: { id: 'pay_999', order_id: 'order_999', amount: 50000, currency: 'INR', status: 'captured', ...overrides } } },
   });
 
   it('rejects an invalid webhook signature', async () => {
@@ -155,7 +173,7 @@ describe('POST /api/payments/webhook', () => {
       startsAt: new Date('2026-11-20T10:00:00Z'),
       lawyer: { userId: 'lawyer-1' }, user: clientUser,
     };
-    mockTx.consultation.update.mockResolvedValue(booked);
+    mockTx.consultation.findUnique.mockResolvedValue(booked);
     prisma.payment.findUnique.mockResolvedValue(consultationPayment);
     prisma.user.findUnique.mockResolvedValue({ ...clientUser, pushSubscriptions: [] });
 
@@ -164,10 +182,10 @@ describe('POST /api/payments/webhook', () => {
 
     expect(res.status).toBe(200);
     expect(mockTx.payment.updateMany).toHaveBeenCalledWith({
-      where: { id: 'p-9', status: 'CREATED' },
-      data: { status: 'PAID', razorpayPaymentId: 'pay_999' },
+      where: { id: 'p-9', status: 'CREATED', refundId: null },
+      data: { status: 'PAID', razorpayPaymentId: 'pay_999', refundStatus: null, refundError: null },
     });
-    expect(mockTx.consultation.update).toHaveBeenCalledWith(
+    expect(mockTx.consultation.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'BOOKED' }) })
     );
     expect(prisma.notification.create).toHaveBeenCalledWith(
