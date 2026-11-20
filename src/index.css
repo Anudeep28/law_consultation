@@ -44,15 +44,16 @@ body {
     @apply relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-cream px-5 py-8 sm:px-8 lg:py-16;
     background-image: radial-gradient(ellipse at 5% 15%, #e0e7ff 0, transparent 50%), radial-gradient(ellipse at 95% 85%, #fef3c7 0, transparent 45%);
   }
-  .auth-layout { @apply relative mx-auto grid w-full max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-24; }
+  .auth-layout { @apply relative mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-2 lg:gap-16; }
   .auth-hero { @apply relative text-center lg:text-left; }
-  .auth-wordmark { @apply mb-6 inline-flex items-center gap-3 text-lg font-semibold tracking-tight text-ink lg:mb-12; }
+  .auth-wordmark { @apply mb-4 inline-flex items-center gap-3 text-lg font-semibold tracking-tight text-ink lg:mb-8; }
   .auth-symbol { @apply flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/20; }
-  .auth-hero h1 { @apply mx-auto max-w-lg font-display text-4xl leading-[1.05] text-ink sm:text-6xl lg:text-7xl; }
-  .auth-art { @apply relative mx-auto mt-10 hidden h-44 max-w-sm lg:block; }
-  .auth-art::before, .auth-art::after { content: ''; position: absolute; border: 1px solid #c7d2fe; border-radius: 1.5rem; background: #ffffff80; box-shadow: 0 16px 48px #312e8110; }
-  .auth-art::before { inset: 0 15% 15% 0; transform: rotate(-8deg); }
-  .auth-art::after { inset: 12% 0 0 15%; transform: rotate(5deg); background: linear-gradient(135deg, #ffffffa0, #eef2ff90); }
+  .auth-hero h1 { @apply mx-auto max-w-lg font-display text-3xl leading-[1.05] text-ink sm:text-5xl lg:text-6xl; }
+  .auth-features { @apply mx-auto mt-5 flex max-w-lg justify-center gap-3 text-[10px] font-medium text-ink-body sm:gap-5 sm:text-xs lg:justify-start; }
+  .auth-features li { @apply flex items-center gap-1.5; }
+  .auth-features svg { @apply h-4 w-4 shrink-0 text-brand; }
+  .auth-art { @apply relative mx-auto mt-8 hidden aspect-[52/35] w-full max-w-[520px] lg:block; }
+  .auth-feature-chip { @apply absolute flex items-center gap-2 whitespace-nowrap rounded-2xl border border-white bg-white/85 py-2 pl-2 pr-3 text-xs font-semibold text-ink shadow-lg shadow-indigo-950/5 backdrop-blur-md; }
   .auth-card { @apply mx-auto w-full max-w-md rounded-3xl border border-white bg-white/85 p-6 shadow-2xl shadow-indigo-950/10 backdrop-blur-xl sm:p-9; }
   .auth-card h2 { @apply mt-0 text-2xl font-semibold; }
   .app-sidebar { @apply bg-white/90 shadow-none backdrop-blur-xl; }
