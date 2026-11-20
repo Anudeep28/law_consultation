@@ -218,6 +218,31 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
     insertText(markdown);
   };
 
+  const templateModals = (
+    <>
+      {/* Template Selector Modal */}
+      {isTemplateSelectorOpen && (
+        <Suspense fallback={<LoadingFallback />}>
+        <TemplateSelector
+          onSelectTemplate={handleTemplateSelected}
+          onClose={() => setIsTemplateSelectorOpen(false)}
+        />
+        </Suspense>
+      )}
+  
+      {/* Template Filler Modal */}
+      {selectedTemplate && (
+        <Suspense fallback={<LoadingFallback />}>
+        <TemplateFillerModal
+          template={selectedTemplate}
+          onComplete={handleTemplateFilled}
+          onClose={() => setSelectedTemplate(null)}
+        />
+        </Suspense>
+      )}
+    </>
+  );
+
   if (!currentDocument) {
     return (
       <div className="flex items-center justify-center h-full bg-cream">
@@ -239,6 +264,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
             </button>
           </div>
         </div>
+        {templateModals}
       </div>
     );
   }
@@ -407,26 +433,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
       {/* Transcription Controls */}
       <TranscriptionControls />
 
-      {/* Template Selector Modal */}
-      {isTemplateSelectorOpen && (
-        <Suspense fallback={<LoadingFallback />}>
-        <TemplateSelector
-          onSelectTemplate={handleTemplateSelected}
-          onClose={() => setIsTemplateSelectorOpen(false)}
-        />
-        </Suspense>
-      )}
-
-      {/* Template Filler Modal */}
-      {selectedTemplate && (
-        <Suspense fallback={<LoadingFallback />}>
-        <TemplateFillerModal
-          template={selectedTemplate}
-          onComplete={handleTemplateFilled}
-          onClose={() => setSelectedTemplate(null)}
-        />
-        </Suspense>
-      )}
+      {templateModals}
 
       {/* Export Options Modal */}
       {isExportOptionsOpen && (

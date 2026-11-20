@@ -24,6 +24,19 @@ describe('DocumentEditor language selector', () => {
     expect(onOpened).toHaveBeenCalled();
   });
 
+  it('opens the template selector from the empty state', async () => {
+    const state = {
+      currentDocument: null,
+      selectionStart: 0, selectionEnd: 0, setSelection: vi.fn(),
+      updateDocument: vi.fn(), updateDocumentLanguage: vi.fn(), renameDocument: vi.fn(), createDocument: vi.fn(),
+    };
+    mockedUseDocumentStore.mockReturnValue(state as any);
+    (useDocumentStore as any).getState = vi.fn().mockReturnValue(state);
+    render(<DocumentEditor />);
+    fireEvent.click(screen.getByRole('button', { name: 'Use Template' }));
+    expect(await screen.findByRole('heading', { name: 'Choose Legal Template' })).toBeInTheDocument();
+  });
+
   it('displays the document language and calls updateDocumentLanguage on change', () => {
     const updateDocumentLanguage = vi.fn();
     const state = {
