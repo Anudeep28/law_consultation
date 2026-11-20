@@ -228,8 +228,18 @@ describe('refund lifecycle and cancellation policy', () => {
   test.each(['failed', 'processed'])('a refund.%s webhook before the API response is not regressed by a pending response', async status => {
     refundResponse.status = 'pending';
     onRefund = async () => { expect((await webhook(`refund.${status}`, { refund: { entity: { ...refundResponse, status } } })).status).toBe(200); };
-    expect((await cancel()).status).toBe(204);
+    expect((await cancel()).status).toBe(status === 'failed' ? 502 : 204);
     expect(payment.refundStatus).toBe(status === 'failed' ? 'FAILED' : 'PROCESSED');
+    expect(notifications.sendEmail).toHaveBeenCalledTimes(status === 'failed' ? 0 : 1);
+  });
+  test('an early external refund requiring review cannot send a stale pending confirmation', async () => {
+    refundResponse.status = 'pending';
+    onRefund = async () => {
+      expect((await webhook('refund.processed', { refund: { entity: { ...refundResponse, notes: {}, status: 'processed' } } })).status).toBe(200);
+    };
+    expect((await cancel()).status).toBe(502);
+    expect(payment.refundStatus).toBe('REVIEW');
+    expect(notifications.sendEmail).not.toHaveBeenCalled();
   });
   test.each([{ amount: 100 }, { currency: 'USD' }])('rejects a mismatched refund webhook %j', async change => {
     refundResponse.status = 'pending'; await cancel();

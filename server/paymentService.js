@@ -41,7 +41,9 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
       data: { refundId: result.id },
     });
     await refundEvent(result);
-    if (result.status === 'failed') throw paymentError('Refund failed. Please retry or contact support.', 502);
+    const current = await prisma.payment.findUnique({ where: { id } });
+    if (current?.refundStatus === 'FAILED') throw paymentError('Refund failed. Please retry or contact support.', 502);
+    if (current?.refundAttemptId !== attemptId || current?.refundId !== result.id || !['PENDING', 'PROCESSED'].includes(current?.refundStatus)) throw paymentError('Refund requires reconciliation. Please contact support.', 502);
     try {
       await notifications.sendEmail({
         to: payment.user.email, subject: 'Consultation refund initiated',
