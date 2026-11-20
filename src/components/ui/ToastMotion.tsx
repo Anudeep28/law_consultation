@@ -1,6 +1,7 @@
 import React from 'react';
 import * as m from 'motion/react-m';
-import { AnimatePresence, useReducedMotion } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import { useReducedMotion } from './useReducedMotion';
 import { spring } from './MotionPrimitives';
 
 export default function ToastMotion({ children }: { children: React.ReactElement[] }) {

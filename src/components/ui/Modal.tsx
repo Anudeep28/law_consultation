@@ -2,7 +2,8 @@ import React from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import { X } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { AnimatePresence, useIsPresent, useReducedMotion } from 'motion/react';
+import { AnimatePresence, useIsPresent } from 'motion/react';
+import { useReducedMotion } from './useReducedMotion';
 import { spring } from './MotionPrimitives';
 
 const MAX_WIDTHS = {

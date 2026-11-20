@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import * as m from 'motion/react-m';
-import { AnimatePresence, useReducedMotion } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import { useReducedMotion } from './ui/useReducedMotion';
 import { NavButton } from './ui/MotionPrimitives';
 import { useMotionReady } from './ui/MotionProvider';
 import { useAuthStore } from '../stores/authStore';

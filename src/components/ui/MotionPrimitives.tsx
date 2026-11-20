@@ -1,6 +1,7 @@
 import React from 'react';
 import * as m from 'motion/react-m';
-import { useReducedMotion, type HTMLMotionProps } from 'motion/react';
+import { type HTMLMotionProps } from 'motion/react';
+import { useReducedMotion } from './useReducedMotion';
 import { useMotionReady } from './MotionProvider';
 
 export const spring = { type: 'spring', stiffness: 420, damping: 32 } as const;

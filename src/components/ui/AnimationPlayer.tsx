@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { LottieLight, type LottieHandle } from 'lottie-react';
-import { useReducedMotion } from 'motion/react';
+import { useReducedMotion } from './useReducedMotion';
 import type { AnimationKind } from './DecorativeAnimation';
 
 const animations = {

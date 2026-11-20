@@ -1,6 +1,6 @@
 import React from 'react';
 import * as m from 'motion/react-m';
-import { useReducedMotion } from 'motion/react';
+import { useReducedMotion } from './useReducedMotion';
 import { spring } from './MotionPrimitives';
 
 export default function RoleIndicator() {
