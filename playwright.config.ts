@@ -30,7 +30,6 @@ export default defineConfig({
     {
       command: 'npm start',
       url: 'http://localhost:3000',
-      env: { PORT: '3000', BROWSER: 'none' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

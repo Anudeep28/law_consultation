@@ -1,14 +1,15 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { notify, Toasts, useToastStore } from './Toasts';
 import { Modal } from './Modal';
 
 beforeEach(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   useToastStore.setState({ toasts: [] });
 });
 afterEach(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 test('renders an empty polite live region', () => {
@@ -40,10 +41,10 @@ test('manually dismisses only the selected toast', () => {
 test('auto-dismisses after five seconds and keeps errors for eight seconds', () => {
   render(<Toasts />);
   act(() => { notify('Saved', 'success'); notify('Failed', 'error'); });
-  act(() => { jest.advanceTimersByTime(5000); });
+  act(() => { vi.advanceTimersByTime(5000); });
   expect(screen.queryByText('Saved')).not.toBeInTheDocument();
   expect(screen.getByRole('alert')).toHaveTextContent('Failed');
-  act(() => { jest.advanceTimersByTime(3000); });
+  act(() => { vi.advanceTimersByTime(3000); });
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
 
@@ -51,12 +52,12 @@ test('cleans up timers when unmounted', () => {
   const { unmount } = render(<Toasts />);
   act(() => { notify('Saved'); });
   unmount();
-  expect(jest.getTimerCount()).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 test('toast pointer clicks keep the modal open while outside clicks and Escape close it', async () => {
-  jest.useRealTimers();
-  const onClose = jest.fn();
+  vi.useRealTimers();
+  const onClose = vi.fn();
   await act(async () => {
     render(<><Modal open onClose={onClose} title="Export document"><p>Export settings</p></Modal><Toasts /></>);
   });

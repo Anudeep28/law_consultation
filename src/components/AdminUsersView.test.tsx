@@ -1,10 +1,11 @@
+import { vi, type MockedFunction } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { apiRequest } from '../services/api';
 import { AdminUsersView } from './AdminUsersView';
 
-jest.mock('../services/api', () => ({ apiRequest: jest.fn(), ApiError: class ApiError extends Error {} }));
+vi.mock('../services/api', () => ({ apiRequest: vi.fn(), ApiError: class ApiError extends Error {} }));
 
-const mockedApiRequest = apiRequest as jest.MockedFunction<typeof apiRequest>;
+const mockedApiRequest = apiRequest as MockedFunction<typeof apiRequest>;
 
 const user = { id: 'client-1', name: 'Test Client', email: 'client@example.com', role: 'client', accountStatus: 'active', createdAt: '2026-09-01T00:00:00.000Z' };
 

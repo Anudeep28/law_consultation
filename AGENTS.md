@@ -1,13 +1,15 @@
 # law-writer
 
-React 19 + CRA (craco) + TypeScript legal-document generator. Prisma + socket.io backend in `server.js`.
+React 19 + Vite + TypeScript legal-document generator. Prisma + socket.io backend in `server.js`.
 
 ## Commands
 
-- Dev client: `npm start` | Dev server: `npm run start:server`
-- Tests: `npm test -- --watchAll=false`
+- Dev client: `npm start` (port 3000, API/socket proxy to 3002) | Dev server: `npm run start:server`
+- Client tests: `npm test -- --watchAll=false` (Vitest, one run; legacy flag accepted)
+- Server tests: `npm run test:server` (Jest)
 - Typecheck: `npx tsc --noEmit`
-- Build: `npm run build`
+- Build: `npm run build` (outputs `build/`) | Preview: `npm run preview`
+- Tooling: Node >=24.15; browser env access is `import.meta.env.REACT_APP_*`
 - DB: `npm run db:generate` / `npm run db:migrate` / `npm run db:deploy`
 
 ## Skill routing — invoke proactively
