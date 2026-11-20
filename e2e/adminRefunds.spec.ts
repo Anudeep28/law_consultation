@@ -1,0 +1,44 @@
+import { test, expect } from '@playwright/test';
+import { PrismaClient } from '@prisma/client';
+import { createHmac, randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
+
+const jwt = require('jsonwebtoken');
+const { apiUrl, secret, backendEnv, fixturesPath } = require('./runtime.cjs');
+const prisma = new PrismaClient();
+test.afterAll(async () => { await prisma.$disconnect(); });
+
+test('administrator refunds a booked consultation through Payments & Refunds', async ({ page, request }) => {
+  const run = randomUUID();
+  const users = await Promise.all(['CLIENT', 'ADMIN'].map(role => prisma.user.create({ data: { email: `${role.toLowerCase()}-${run}@example.test`, name: `Refund ${role}`, passwordHash: 'jwt-only-test-fixture', role: role as 'CLIENT' | 'ADMIN', emailVerifiedAt: new Date(), phoneVerifiedAt: new Date(), emailNotifications: false, pushNotifications: false } })));
+  const [client, admin] = users;
+  const token = (userId: string) => jwt.sign({ userId }, backendEnv.JWT_SECRET);
+  const headers = { Authorization: `Bearer ${token(client.id)}` };
+  const startsAt = new Date(Date.now() + 10 * 86400000); startsAt.setUTCHours(12, 0, 0, 0);
+  const lawyerId = JSON.parse(readFileSync(fixturesPath, 'utf8')).lawyer.id;
+  const created = await request.post(`${apiUrl}/api/consultations`, { headers, data: { lawyerId, startsAt, mode: 'chat', topic: 'Admin refund regression', notes: 'Synthetic consultation for an audited full refund.' } });
+  expect(created.status()).toBe(201);
+  const { consultation, order } = await created.json();
+  const paymentId = `pay_e2e_${order.orderId}`;
+  const verified = await request.post(`${apiUrl}/api/consultations/${consultation.id}/verify-payment`, { headers, data: { razorpay_order_id: order.orderId, razorpay_payment_id: paymentId, razorpay_signature: createHmac('sha256', secret).update(`${order.orderId}|${paymentId}`).digest('hex') } });
+  expect(verified.status()).toBe(200);
+  await page.addInitScript(value => localStorage.setItem('law-writer-token', value), token(admin.id));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Payments & Refunds', exact: true }).click();
+  await page.getByLabel('Search payments').fill(consultation.id);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('button', { name: `Refund consultation ${consultation.id}`, exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Confirm full refund' });
+  await expect(dialog).toContainText('This cannot be undone');
+  await expect(dialog).toContainText(`INR ${(order.amount / 100).toFixed(2)}`);
+  await dialog.getByLabel('Refund reason').selectOption('LAWYER_NO_SHOW');
+  await dialog.getByLabel('Administrative note').fill('Support verified lawyer absence with both participants.');
+  await dialog.getByRole('button', { name: 'Confirm refund', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText('PROCESSED', { exact: true })).toBeVisible();
+  expect(await prisma.payment.findUniqueOrThrow({ where: { consultationId: consultation.id } })).toMatchObject({ status: 'REFUNDED', refundStatus: 'PROCESSED', amount: order.amount });
+  expect((await prisma.consultation.findUniqueOrThrow({ where: { id: consultation.id } })).status).toBe('CANCELLED');
+  const audit = await prisma.adminAuditLog.findFirstOrThrow({ where: { adminId: admin.id, action: 'CONSULTATION_REFUND' } });
+  expect(JSON.parse(audit.reason)).toMatchObject({ reason: 'LAWYER_NO_SHOW', amount: order.amount, consultationId: consultation.id });
+  expect(await prisma.notification.count({ where: { consultationId: consultation.id, type: 'CONSULTATION_REFUND' } })).toBe(2);
+});

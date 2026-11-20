@@ -5,7 +5,8 @@
 Audited all Razorpay handlers in `app.js`: consultation order/verify, raw signed
 webhook, document subscription/credit order/verify, cancellation and the pending
 reservation expiry helper. Also checked document credit consumption and admin
-routes. There is no in-app admin refund endpoint or refund worker.
+routes. The approved admin refund workflow below now covers consultation support
+refunds. There is no refund worker.
 
 `src/data/policies.ts` is unchanged. Its consultation policy allows the owning
 client to cancel before the start for a full refund, including any document
@@ -68,7 +69,7 @@ Cancellation is committed independently of provider availability so a refund
 failure cannot lose eligibility when the scheduled start passes. Financial
 failures return a support/retry error, and a durable state remains. A second
 cancellation is idempotent while a refund is pending, processed or under review.
-There is no automatic reconciliation scheduler or new admin UI in this change.
+There is no automatic reconciliation scheduler.
 Support must monitor required/failed/review and old pending rows. Initiated refund
 emails use existing Resend configuration; failed/skipped delivery does not roll
 back financial state.
@@ -78,12 +79,38 @@ retryable 503 rather than silently acknowledging the payment. Booking alerts are
 best-effort after settlement; financial processing is not retried because an
 email or notification failed.
 
+## Administrative consultation refunds
+
+Admins can search the latest 100 matching payments in **Payments & Refunds** by
+client email, lawyer name/ID or consultation ID, refresh webhook-driven states,
+and issue a full refund for lawyer no-show, technical failure or another reviewed
+reason. `POST /api/admin/consultations/:id/refund` requires ADMIN authentication,
+one of `LAWYER_NO_SHOW`, `TECHNICAL_FAILURE`, `OTHER`, and a trimmed 10–500 character
+note. It is limited to 10 requests per administrator per 15 minutes.
+
+Only PAID consultation payments with no refund, REQUIRED or FAILED are claimable;
+PENDING, PROCESSED and REVIEW return 409. Failed attempts can be retried, while
+ambiguous REVIEW outcomes must be reconciled first. The existing atomic claim,
+provider idempotency and webhook lifecycle are shared with client refunds.
+
+The claim, consultation status and AdminAuditLog entry commit together before any
+provider request. The audit action is `CONSULTATION_REFUND`; its `reason` field is
+structured JSON containing reason, note, amount in paise, currency, payment ID and
+consultation ID. Each accepted retry is audited. Notes stay administrative and
+are not sent to either participant. Both participants get best-effort in-app and
+opted-in email notifications, including when an accepted refund needs attention.
+
+Upcoming consultations become CANCELLED. Started BOOKED/PENDING_PAYMENT records
+become COMPLETED to close the appointment; this means its scheduling lifecycle is
+closed, not that legal services were delivered. Already CANCELLED or COMPLETED
+past records retain their status. Messages, documents and audit history remain.
+Provider failure returns 502 without undoing the accepted status/audit decision.
+
 ## Support-only cases / decisions not implemented
 
-- Lawyer no-show (policy 1.4) and technical disruption (2.1) still require support;
-  there is no participation evidence or existing admin refund tooling. Keep
-  manual support review, or authorize a new audited admin refund workflow? For
-  technical failures, should support choose cash refund or document credit?
+- Lawyer no-show (policy 1.4) and technical disruption (2.1) require human evidence
+  review. The approved admin tool issues full cash refunds only; automatic
+  attendance decisions and document-credit compensation are not implemented.
 - Unused document-credit refunds within seven days (3.2) remain support-only.
   Aggregate `documentCredits` does not identify the purchase whose credit was
   consumed. Before automating: is eligibility per purchase (requiring a credit

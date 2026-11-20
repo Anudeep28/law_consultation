@@ -64,6 +64,7 @@ enum NotificationChannel {
 }
 
 enum NotificationType {
+  CONSULTATION_REFUND
   CONSULTATION_REMINDER
   CONSULTATION_BOOKED
   CHAT_MESSAGE

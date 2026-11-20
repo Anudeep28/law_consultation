@@ -133,7 +133,7 @@ export interface Notification {
   id: string;
   userId: string;
   consultationId?: string;
-  type: 'CONSULTATION_REMINDER' | 'CONSULTATION_BOOKED' | 'CHAT_MESSAGE' | 'DELIVERABLE_READY';
+  type: 'CONSULTATION_REMINDER' | 'CONSULTATION_BOOKED' | 'CONSULTATION_REFUND' | 'CHAT_MESSAGE' | 'DELIVERABLE_READY';
   channels: ('IN_APP' | 'EMAIL' | 'PUSH')[];
   title: string;
   body: string;

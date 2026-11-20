@@ -11,12 +11,18 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     return expected.length === received.length && crypto.timingSafeEqual(expected, received);
   };
 
-  const refund = async (id) => {
+  const refund = async (id, onClaim) => {
     const attemptId = crypto.randomUUID();
-    const claimed = await prisma.payment.updateMany({
-      where: { id, status: 'PAID', refundStatus: { in: ['REQUIRED', 'FAILED'] } },
+    const claim = db => db.payment.updateMany({
+      where: { id, status: 'PAID', ...(onClaim ? { OR: [{ refundStatus: null }, { refundStatus: { in: ['REQUIRED', 'FAILED'] } }] } : { refundStatus: { in: ['REQUIRED', 'FAILED'] } }) },
       data: { refundStatus: 'PENDING', refundError: null, refundId: null, refundAttemptId: attemptId, refundRequestedAt: new Date() },
     });
+    const claimed = onClaim ? await prisma.$transaction(async tx => {
+      const result = await claim(tx);
+      if (result.count !== 1) throw paymentError('Payment is ineligible, already refunded, pending or requires review', 409);
+      await onClaim(tx);
+      return result;
+    }) : await claim(prisma);
     if (claimed.count !== 1) return;
     const payment = await prisma.payment.findUnique({ where: { id }, include: { user: true } });
     let result;
@@ -148,5 +154,34 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     if (paymentId) await refund(paymentId);
   };
 
-  return { verifySignature, settle, refundEvent, cancel };
+  const adminRefund = async (consultationId, adminId, reason, note) => {
+    const payment = await prisma.payment.findUnique({ where: { consultationId }, include: { consultation: { include: { lawyer: true } } } });
+    if (!payment || !payment.consultation || !payment.razorpayPaymentId) throw paymentError('No eligible consultation payment found', 409);
+    let failure;
+    let accepted = false;
+    try {
+      await refund(payment.id, async tx => {
+        const now = new Date();
+        await tx.consultation.updateMany({ where: { id: consultationId, startsAt: { gt: now } }, data: { status: 'CANCELLED' } });
+        await tx.consultation.updateMany({ where: { id: consultationId, startsAt: { lte: now }, status: { in: ['BOOKED', 'PENDING_PAYMENT'] } }, data: { status: 'COMPLETED' } });
+        await tx.adminAuditLog.create({ data: { adminId, targetUserId: payment.userId, action: 'CONSULTATION_REFUND', reason: JSON.stringify({ reason, note, amount: payment.amount, currency: payment.currency, paymentId: payment.id, consultationId }) } });
+      });
+      accepted = true;
+    } catch (error) {
+      if (error.status !== 502) throw error;
+      accepted = true;
+      failure = error;
+    }
+    if (accepted) {
+      for (const userId of [payment.userId, payment.consultation.lawyer.userId]) {
+        try {
+          await notifications.createNotification({ userId, consultationId, type: 'CONSULTATION_REFUND', title: failure ? 'Consultation refund needs attention' : 'Consultation refund initiated', body: `An administrator requested a full refund of ${payment.currency} ${(payment.amount / 100).toFixed(2)} for ${reason.toLowerCase().replaceAll('_', ' ')}.${failure ? ' Processing requires retry or reconciliation; support will follow up.' : ' Check the payment status for processing updates.'}`, channels: ['IN_APP', 'EMAIL'] });
+        } catch (err) { logger.error({ err, consultationId }, 'Admin refund notification failed'); }
+      }
+    }
+    if (failure) throw failure;
+    return prisma.payment.findUnique({ where: { id: payment.id }, select: { id: true, status: true, refundStatus: true, refundError: true } });
+  };
+
+  return { verifySignature, settle, refundEvent, cancel, adminRefund };
 };
