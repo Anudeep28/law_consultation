@@ -4,11 +4,13 @@ import { ExportOptions } from './ExportOptions';
 import { Document } from '../types';
 import { Packer } from 'docx';
 import { saveAs } from 'file-saver';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Toasts, useToastStore } from './ui/Toasts';
 
 vi.mock('file-saver', () => ({ saveAs: vi.fn() }));
 vi.mock('jspdf', () => {
-  return { default: vi.fn(function () { return {
+  return { jsPDF: vi.fn(function () { return {
     internal: { pageSize: { height: 297, width: 210 } },
     setFontSize: vi.fn(),
     setFont: vi.fn(),
@@ -16,8 +18,13 @@ vi.mock('jspdf', () => {
     text: vi.fn(),
     save: vi.fn(),
     addPage: vi.fn(),
+    getNumberOfPages: vi.fn(() => 1),
+    setPage: vi.fn(),
+    setTextColor: vi.fn(),
+    addImage: vi.fn(),
   }; }) };
 });
+vi.mock('html2canvas', () => ({ default: vi.fn().mockResolvedValue({ width: 600, height: 600, toDataURL: () => 'data:image/jpeg;base64,dGVzdA==' }) }));
 
 const mockDocument = (language = 'en'): Document => ({
   id: 'doc-1',
@@ -30,6 +37,28 @@ const mockDocument = (language = 'en'): Document => ({
 });
 
 describe('ExportOptions', () => {
+  it('exports empty Markdown without packing a DOCX or rendering a PDF', async () => {
+    const onClose = vi.fn();
+    render(<ExportOptions document={{ ...mockDocument(), content: '' }} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('radio', { name: /Markdown/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^export$/i }));
+    await waitFor(() => expect(saveAs).toHaveBeenCalledWith(expect.any(Blob), 'Test Document.md'));
+    expect(Packer.toBlob).not.toHaveBeenCalled();
+    expect(jsPDF).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it.each(['en', 'mr'])('exports %s PDF after loading its renderer', async language => {
+    const onClose = vi.fn();
+    render(<ExportOptions document={mockDocument(language)} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('radio', { name: /PDF/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^export$/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(jsPDF).toHaveBeenCalled();
+    expect(html2canvas).toHaveBeenCalledTimes(language === 'en' ? 0 : 1);
+    expect(Packer.toBlob).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     (Packer.toBlob as Mock).mockResolvedValue(new Blob([], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
   });

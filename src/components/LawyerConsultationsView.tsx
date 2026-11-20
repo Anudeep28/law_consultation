@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Calendar, Clock, MessageCircle, Phone, ShieldCheck } from 'lucide-react';
 import { apiRequest } from '../services/api';
 import { Consultation, Document } from '../types';
-import { ConsultationChat } from './ConsultationChat';
+import { LoadingFallback } from './ui/LoadingFallback';
 import { ConsultationRecorder } from './ConsultationRecorder';
 import { ConsultationDeliverables } from './ConsultationDeliverables';
 import { JoinCallButton } from './JoinCallButton';
+
+const ConsultationChat = lazy(() => import('./ConsultationChat').then(module => ({ default: module.ConsultationChat })));
 
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
@@ -57,6 +59,6 @@ export const LawyerConsultationsView: React.FC<LawyerConsultationsViewProps> = (
         })}
       </div>
     </div>
-    {activeChat && <ConsultationChat consultation={activeChat} onClose={() => setActiveChat(null)} onOpenDocument={onOpenDocument} />}
+    {activeChat && <Suspense fallback={<LoadingFallback />}><ConsultationChat consultation={activeChat} onClose={() => setActiveChat(null)} onOpenDocument={onOpenDocument} /></Suspense>}
   </div>;
 };

@@ -1,17 +1,23 @@
 import { notify } from './ui/Toasts';
-import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import React, { lazy, Suspense, useState, useRef, useEffect } from 'react';
 import { useDocumentStore } from '../stores/documentStore';
 import { supportedLanguages } from '../data/languages';
 import { getDocumentFontFamily } from '../utils/documentFonts';
-import { TemplateSelector } from './TemplateSelector';
-import { TemplateFillerModal } from './TemplateFillerModal';
+import { LoadingFallback } from './ui/LoadingFallback';
 import { TranscriptionControls } from './TranscriptionControls';
-import { ExportOptions } from './ExportOptions';
 import { Printer } from 'lucide-react';
 
-export const DocumentEditor: React.FC = () => {
+const TemplateSelector = lazy(() => import('./TemplateSelector').then(module => ({ default: module.TemplateSelector })));
+const TemplateFillerModal = lazy(() => import('./TemplateFillerModal').then(module => ({ default: module.TemplateFillerModal })));
+const ExportOptions = lazy(() => import('./ExportOptions').then(module => ({ default: module.ExportOptions })));
+const MarkdownPreview = lazy(() => import('./MarkdownPreview'));
+
+interface DocumentEditorProps {
+  openTemplateSelector?: boolean;
+  onTemplateSelectorOpened?: () => void;
+}
+
+export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSelector, onTemplateSelectorOpened }) => {
   const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [isExportOptionsOpen, setIsExportOptionsOpen] = useState(false);
@@ -64,9 +70,11 @@ export const DocumentEditor: React.FC = () => {
   }, [currentDocument?.id, setSelection]);
 
   useEffect(() => {
-    (window as any).__openTemplateSelector = () => setIsTemplateSelectorOpen(true);
-    return () => { delete (window as any).__openTemplateSelector; };
-  }, []);
+    if (openTemplateSelector) {
+      setIsTemplateSelectorOpen(true);
+      onTemplateSelectorOpened?.();
+    }
+  }, [openTemplateSelector, onTemplateSelectorOpened]);
 
   // Ctrl+R shortcut for voice recording
   useEffect(() => {
@@ -210,6 +218,31 @@ export const DocumentEditor: React.FC = () => {
     insertText(markdown);
   };
 
+  const templateModals = (
+    <>
+      {/* Template Selector Modal */}
+      {isTemplateSelectorOpen && (
+        <Suspense fallback={<LoadingFallback />}>
+        <TemplateSelector
+          onSelectTemplate={handleTemplateSelected}
+          onClose={() => setIsTemplateSelectorOpen(false)}
+        />
+        </Suspense>
+      )}
+  
+      {/* Template Filler Modal */}
+      {selectedTemplate && (
+        <Suspense fallback={<LoadingFallback />}>
+        <TemplateFillerModal
+          template={selectedTemplate}
+          onComplete={handleTemplateFilled}
+          onClose={() => setSelectedTemplate(null)}
+        />
+        </Suspense>
+      )}
+    </>
+  );
+
   if (!currentDocument) {
     return (
       <div className="flex items-center justify-center h-full bg-cream">
@@ -231,6 +264,7 @@ export const DocumentEditor: React.FC = () => {
             </button>
           </div>
         </div>
+        {templateModals}
       </div>
     );
   }
@@ -246,11 +280,11 @@ export const DocumentEditor: React.FC = () => {
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={commitRename}
             onKeyDown={handleTitleKeyDown}
-            className="flex-1 text-base font-semibold text-ink border border-accent-dark rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
+            className="min-w-0 basis-full sm:basis-auto flex-1 text-base font-semibold text-ink border border-accent-dark rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         ) : (
           <h2
-            className="flex-1 text-base font-semibold text-ink truncate cursor-pointer hover:text-brand"
+            className="min-w-0 basis-full sm:basis-auto flex-1 text-base font-semibold text-ink truncate cursor-pointer hover:text-brand"
             onDoubleClick={handleTitleDoubleClick}
             title="Double-click to rename"
           >
@@ -374,9 +408,9 @@ export const DocumentEditor: React.FC = () => {
               className="max-w-4xl mx-auto prose prose-lg max-w-none legal-document"
               style={{ fontFamily: getDocumentFontFamily(currentDocument.language) }}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <Suspense fallback={<LoadingFallback />}><MarkdownPreview>
                 {currentDocument.content}
-              </ReactMarkdown>
+              </MarkdownPreview></Suspense>
             </div>
           </div>
         ) : (
@@ -399,29 +433,16 @@ export const DocumentEditor: React.FC = () => {
       {/* Transcription Controls */}
       <TranscriptionControls />
 
-      {/* Template Selector Modal */}
-      {isTemplateSelectorOpen && (
-        <TemplateSelector
-          onSelectTemplate={handleTemplateSelected}
-          onClose={() => setIsTemplateSelectorOpen(false)}
-        />
-      )}
-
-      {/* Template Filler Modal */}
-      {selectedTemplate && (
-        <TemplateFillerModal
-          template={selectedTemplate}
-          onComplete={handleTemplateFilled}
-          onClose={() => setSelectedTemplate(null)}
-        />
-      )}
+      {templateModals}
 
       {/* Export Options Modal */}
       {isExportOptionsOpen && (
+        <Suspense fallback={<LoadingFallback />}>
         <ExportOptions
           document={currentDocument}
           onClose={() => setIsExportOptionsOpen(false)}
         />
+        </Suspense>
       )}
     </div>
   );

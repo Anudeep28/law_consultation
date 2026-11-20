@@ -10,6 +10,33 @@ vi.mock('../stores/documentStore', () => ({
 const mockedUseDocumentStore = useDocumentStore as unknown as MockedFunction<typeof useDocumentStore>;
 
 describe('DocumentEditor language selector', () => {
+  it('opens a requested template selector after the editor has loaded', async () => {
+    const state = {
+      currentDocument: { id: 'doc-1', title: 'Test', content: '', language: 'en', createdAt: new Date(), updatedAt: new Date(), userId: 'user-1' },
+      selectionStart: 0, selectionEnd: 0, setSelection: vi.fn(),
+      updateDocument: vi.fn(), updateDocumentLanguage: vi.fn(), renameDocument: vi.fn(), createDocument: vi.fn(),
+    };
+    mockedUseDocumentStore.mockReturnValue(state as any);
+    (useDocumentStore as any).getState = vi.fn().mockReturnValue(state);
+    const onOpened = vi.fn();
+    render(<DocumentEditor openTemplateSelector onTemplateSelectorOpened={onOpened} />);
+    expect(await screen.findByRole('heading', { name: 'Choose Legal Template' })).toBeInTheDocument();
+    expect(onOpened).toHaveBeenCalled();
+  });
+
+  it('opens the template selector from the empty state', async () => {
+    const state = {
+      currentDocument: null,
+      selectionStart: 0, selectionEnd: 0, setSelection: vi.fn(),
+      updateDocument: vi.fn(), updateDocumentLanguage: vi.fn(), renameDocument: vi.fn(), createDocument: vi.fn(),
+    };
+    mockedUseDocumentStore.mockReturnValue(state as any);
+    (useDocumentStore as any).getState = vi.fn().mockReturnValue(state);
+    render(<DocumentEditor />);
+    fireEvent.click(screen.getByRole('button', { name: 'Use Template' }));
+    expect(await screen.findByRole('heading', { name: 'Choose Legal Template' })).toBeInTheDocument();
+  });
+
   it('displays the document language and calls updateDocumentLanguage on change', () => {
     const updateDocumentLanguage = vi.fn();
     const state = {

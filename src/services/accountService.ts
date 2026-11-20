@@ -1,4 +1,3 @@
-import { saveAs } from 'file-saver';
 import { apiRequest, setAuthToken } from './api';
 import { refreshSocketAuthentication } from './socket';
 
@@ -14,6 +13,7 @@ export const logoutAllDevices = () => apiRequest<void>('/api/account/logout-all'
 
 export const exportAccountData = async () => {
   const data = await apiRequest<{ exportedAt: string }>('/api/account/export');
+  const { saveAs } = await import('file-saver');
   saveAs(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `law-writer-data-${data.exportedAt.slice(0, 10)}.json`);
 };
 

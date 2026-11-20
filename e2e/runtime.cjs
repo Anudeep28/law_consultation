@@ -10,19 +10,23 @@ if (!['localhost', '127.0.0.1', '[::1]'].includes(database.hostname) || !databas
 
 const secret = 'law-writer-e2e-razorpay-secret';
 const fingerprint = crypto.createHash('sha256').update(`${databaseUrl}|${secret}`).digest('hex');
+const apiPort = process.env.E2E_API_PORT || '3002';
+const apiUrl = `http://localhost:${apiPort}`;
+const webUrl = `http://localhost:${process.env.E2E_WEB_PORT || '3000'}`;
+const stubUrl = `http://127.0.0.1:${process.env.E2E_STUB_PORT || '3901'}`;
 
 module.exports = {
   databaseUrl,
   secret,
   fingerprint,
-  stubUrl: 'http://127.0.0.1:3901',
+  apiUrl, webUrl, stubUrl,
   fixturesPath: path.join(__dirname, '.auth', 'fixtures.json'),
   backendEnv: {
-    PORT: '3002', DATABASE_URL: databaseUrl, NODE_ENV: 'test',
+    PORT: apiPort, DATABASE_URL: databaseUrl, NODE_ENV: 'test',
     JWT_SECRET: 'law-writer-e2e-jwt-secret',
     RAZORPAY_ENV: 'test', RAZORPAY_KEY_ID: 'rzp_test_e2e', RAZORPAY_KEY_SECRET: secret,
     RAZORPAY_WEBHOOK_SECRET: 'law-writer-e2e-webhook-secret',
-    RAZORPAY_API_URL: 'http://127.0.0.1:3901',
+    RAZORPAY_API_URL: stubUrl,
     ADMIN_EMAIL: '', ADMIN_PASSWORD: '', RESEND_API_KEY: '', VAPID_PUBLIC_KEY: '', VAPID_PRIVATE_KEY: '',
   },
 };

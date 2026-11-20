@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { ResetPassword } from './components/Auth/ResetPassword';
-import { Dashboard } from './components/Dashboard';
+import { LoadingFallback } from './components/ui/LoadingFallback';
 import { verifyEmailToken } from './services/notificationService';
+
+const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
 
 function App() {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -69,7 +71,7 @@ function App() {
           <Register onToggleMode={toggleAuthMode} />
         )
       ) : (
-        <Dashboard />
+        <Suspense fallback={<LoadingFallback />}><Dashboard /></Suspense>
       )}
     </>
   );

@@ -1,16 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BadgeCheck, Calendar, Clock, CreditCard, Languages, Lock, MessageCircle, Phone, Search, ShieldCheck, Star } from 'lucide-react';
 import { apiRequest, ApiError } from '../services/api';
 import { consultationCheckout } from '../services/razorpayService';
 import { useAuthStore } from '../stores/authStore';
 import { Consultation, Lawyer } from '../types';
-import { ConsultationChat } from './ConsultationChat';
+import { LoadingFallback } from './ui/LoadingFallback';
 import { ConsultationDeliverables } from './ConsultationDeliverables';
 import { LawyerReviewForm } from './LawyerReviewForm';
 import { TrustSection } from './TrustSection';
 import { Modal } from './ui/Modal';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { JoinCallButton } from './JoinCallButton';
+
+const ConsultationChat = lazy(() => import('./ConsultationChat').then(module => ({ default: module.ConsultationChat })));
 
 const formatFee = (fee: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(fee / 100);
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
@@ -248,7 +250,7 @@ export const ConsultationsView: React.FC = () => {
         </Modal>
       )}
 
-      {activeChat && <ConsultationChat consultation={activeChat} onClose={() => setActiveChat(null)} />}
+      {activeChat && <Suspense fallback={<LoadingFallback />}><ConsultationChat consultation={activeChat} onClose={() => setActiveChat(null)} /></Suspense>}
 
       <ConfirmDialog
         open={pendingCancelId !== null}
