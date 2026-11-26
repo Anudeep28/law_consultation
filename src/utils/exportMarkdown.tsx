@@ -33,6 +33,7 @@ const preserveLineBreaks = () => (tree: MarkdownNode) => {
 export const parseExportMarkdown = (content: string): { html: string; blocks: ExportBlock[] } => {
   const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm, preserveLineBreaks]} components={{
     img: ({ alt }) => <>{alt}</>,
+    a: ({ href, children }) => <>{children}{href && children !== href ? ` (${href})` : ''}</>,
     li: ({ node, ...props }) => {
       const offset = node?.position?.start.offset;
       const number = offset === undefined ? undefined : content.slice(offset).match(/^\s*(\d+)[.)]\s+/)?.[1];

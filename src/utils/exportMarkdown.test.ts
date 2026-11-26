@@ -29,6 +29,15 @@ test('preserves consecutive single lines and explicit Markdown breaks in export 
   expect(new DOMParser().parseFromString(html, 'text/html').querySelectorAll('br')).toHaveLength(3);
 });
 
+test('preserves destinations for named and reference links without duplicating autolink URLs', () => {
+  const { blocks, html } = parseExportMarkdown('[**Court filing**](https://example.test/case?x=1&y=2) and [registry][ref]\n\n[ref]: https://example.test/registry\n\n<https://example.test/contact>');
+  expect(blocks[0].runs.map(run => run.text).join('')).toBe('Court filing (https://example.test/case?x=1&y=2) and registry (https://example.test/registry)');
+  expect(blocks[1].runs.map(run => run.text).join('')).toBe('https://example.test/contact');
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  expect(document.body.textContent).toContain('Court filing (https://example.test/case?x=1&y=2)');
+  expect(document.querySelector('strong')?.textContent).toBe('Court filing');
+});
+
 test('raw HTML and Markdown images cannot add executable markup or network requests', () => {
   const { html } = parseExportMarkdown('<img src="https://example.test/a" onerror="alert(1)">\n\n![Description](https://example.test/b)\n\n<script>alert(1)</script>');
   const document = new DOMParser().parseFromString(html, 'text/html');
