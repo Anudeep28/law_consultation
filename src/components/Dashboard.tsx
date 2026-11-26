@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useDocumentStore } from '../stores/documentStore';
 import { DocumentEditor } from './DocumentEditor';
 import { DocumentList } from './DocumentList';
+import { AccountSettings } from './AccountSettings';
 import { SubscriptionView } from './SubscriptionView';
 import { ConsultationsView } from './ConsultationsView';
 import { LawyerConsultationsView } from './LawyerConsultationsView';
@@ -21,7 +22,7 @@ import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlu
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
+  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews' | 'account'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [activePolicy, setActivePolicy] = useState<keyof typeof policies | null>(null);
@@ -134,6 +135,7 @@ export const Dashboard: React.FC = () => {
 
         <nav className="mt-6 flex-1">
           <div className="px-4 space-y-2">
+            <button onClick={() => setActiveView('account')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'account' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><UserCircle className="w-5 h-5" /><span>Account &amp; Privacy</span></button>
             {user?.role === 'admin' && <><button onClick={() => setActiveView('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><ShieldCheck className="w-5 h-5" /><span>Lawyer Applications</span></button><button onClick={() => setActiveView('admin-users')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-users' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><Users className="w-5 h-5" /><span>User Management</span></button><button onClick={() => setActiveView('admin-reviews')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-reviews' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><MessageSquareText className="w-5 h-5" /><span>Review Moderation</span></button></>}
             {user?.role === 'lawyer' && <>
             <button onClick={() => setActiveView('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'profile' ? 'bg-[#fff4d6] text-[#701f2f]' : 'text-[#6f5a49] hover:bg-[#fffaf0]'}`}><UserCircle className="w-5 h-5" /><span>Professional Profile</span></button>
@@ -223,6 +225,7 @@ export const Dashboard: React.FC = () => {
             <button type="button" aria-label="Open navigation" className="shrink-0 rounded-lg border border-[#eadbc1] p-2 text-[#701f2f] lg:hidden" onClick={() => setIsMobileNavOpen(true)}><Menu className="h-5 w-5" /></button>
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-lg font-semibold text-[#32151b] sm:text-xl">
+                {activeView === 'account' && 'Account & Privacy'}
                 {activeView === 'editor' && 'Document Editor'}
                 {activeView === 'documents' && 'My Documents'}
                 {activeView === 'consultations' && 'Lawyer Consultations'}
@@ -233,6 +236,7 @@ export const Dashboard: React.FC = () => {
                 {activeView === 'admin-reviews' && 'Review Moderation'}
               </h2>
               <p className="mt-1 hidden text-sm text-[#6f5a49] sm:block">
+                {activeView === 'account' && 'Download your data and manage your account'}
                 {activeView === 'editor' && 'Create and edit legal documents with AI-powered transcription'}
                 {activeView === 'documents' && `You have ${documents.length} document${documents.length !== 1 ? 's' : ''}`}
                 {activeView === 'consultations' && (user?.role === 'lawyer' ? 'Manage scheduled client sessions and active chats' : 'Book a private 10-minute session with a verified lawyer')}
@@ -272,6 +276,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Content Area */}
         <div className="min-h-0 flex-1 overflow-hidden">
+          {activeView === 'account' && <AccountSettings />}
           {activeView === 'editor' && <DocumentEditor />}
           {activeView === 'documents' && <DocumentList onNewDocument={handleNewDocument} onEditDocument={handleEditDocument} />}
           {activeView === 'consultations' && (user?.role === 'lawyer' ? <LawyerConsultationsView onOpenDocument={(document) => { void loadDocuments(); handleEditDocument(document); }} /> : <ConsultationsView />)}
