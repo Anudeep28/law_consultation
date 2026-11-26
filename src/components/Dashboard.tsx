@@ -1,16 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useDocumentStore } from '../stores/documentStore';
-import { DocumentEditor } from './DocumentEditor';
-import { DocumentList } from './DocumentList';
-import { AccountSettings } from './AccountSettings';
-import { SubscriptionView } from './SubscriptionView';
-import { ConsultationsView } from './ConsultationsView';
-import { LawyerConsultationsView } from './LawyerConsultationsView';
-import { LawyerProfileView } from './LawyerProfileView';
-import { AdminLawyerReviewView } from './AdminLawyerReviewView';
-import { AdminUsersView } from './AdminUsersView';
-import { AdminReviewsView } from './AdminReviewsView';
+import { LoadingFallback } from './ui/LoadingFallback';
 import { PhoneVerification } from './PhoneVerification';
 import { EmailVerificationBanner } from './EmailVerificationBanner';
 import { NotificationBell } from './NotificationBell';
@@ -20,10 +11,22 @@ import { policies, policyTitles } from '../data/policies';
 import { getSocket, disconnectSocket } from '../services/socket';
 import { UserCircle, FileText, CreditCard, LogOut, Plus, LayoutTemplate, FilePlus, Menu, MessageSquareText, MessagesSquare, ShieldCheck, Users, X } from 'lucide-react';
 
+const DocumentEditor = lazy(() => import('./DocumentEditor').then(module => ({ default: module.DocumentEditor })));
+const DocumentList = lazy(() => import('./DocumentList').then(module => ({ default: module.DocumentList })));
+const AccountSettings = lazy(() => import('./AccountSettings').then(module => ({ default: module.AccountSettings })));
+const SubscriptionView = lazy(() => import('./SubscriptionView').then(module => ({ default: module.SubscriptionView })));
+const ConsultationsView = lazy(() => import('./ConsultationsView').then(module => ({ default: module.ConsultationsView })));
+const LawyerConsultationsView = lazy(() => import('./LawyerConsultationsView').then(module => ({ default: module.LawyerConsultationsView })));
+const LawyerProfileView = lazy(() => import('./LawyerProfileView').then(module => ({ default: module.LawyerProfileView })));
+const AdminLawyerReviewView = lazy(() => import('./AdminLawyerReviewView').then(module => ({ default: module.AdminLawyerReviewView })));
+const AdminUsersView = lazy(() => import('./AdminUsersView').then(module => ({ default: module.AdminUsersView })));
+const AdminReviewsView = lazy(() => import('./AdminReviewsView').then(module => ({ default: module.AdminReviewsView })));
+
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
   const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews' | 'account'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
   const [showNewDocModal, setShowNewDocModal] = useState(false);
+  const [openTemplateSelector, setOpenTemplateSelector] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [activePolicy, setActivePolicy] = useState<keyof typeof policies | null>(null);
   const { documents, createDocument, setCurrentDocument, loadDocuments, clearDocuments } = useDocumentStore();
@@ -46,6 +49,7 @@ export const Dashboard: React.FC = () => {
   useEffect(() => setIsMobileNavOpen(false), [activeView]);
 
   const handleNewBlankDocument = async () => {
+    setOpenTemplateSelector(false);
     const document = await createDocument('Untitled Document');
     setShowNewDocModal(false);
     setActiveView(document ? 'editor' : 'subscription');
@@ -60,11 +64,8 @@ export const Dashboard: React.FC = () => {
       return;
     }
     setShowNewDocModal(false);
+    setOpenTemplateSelector(true);
     setActiveView('editor');
-    // Signal DocumentEditor to open template selector via a small delay
-    setTimeout(() => {
-      (window as any).__openTemplateSelector?.();
-    }, 100);
   };
 
   const handleNewDocument = () => {
@@ -72,6 +73,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleEditDocument = (document: any) => {
+    setOpenTemplateSelector(false);
     setCurrentDocument({
       ...document,
       createdAt: new Date(document.createdAt),
@@ -276,8 +278,9 @@ export const Dashboard: React.FC = () => {
 
         {/* Content Area */}
         <div className="min-h-0 flex-1 overflow-hidden">
+          <Suspense fallback={<LoadingFallback />}>
           {activeView === 'account' && <AccountSettings />}
-          {activeView === 'editor' && <DocumentEditor />}
+          {activeView === 'editor' && <DocumentEditor openTemplateSelector={openTemplateSelector} onTemplateSelectorOpened={() => setOpenTemplateSelector(false)} />}
           {activeView === 'documents' && <DocumentList onNewDocument={handleNewDocument} onEditDocument={handleEditDocument} />}
           {activeView === 'consultations' && (user?.role === 'lawyer' ? <LawyerConsultationsView onOpenDocument={(document) => { void loadDocuments(); handleEditDocument(document); }} /> : <ConsultationsView />)}
           {activeView === 'subscription' && <SubscriptionView />}
@@ -285,6 +288,7 @@ export const Dashboard: React.FC = () => {
           {activeView === 'admin' && <AdminLawyerReviewView />}
           {activeView === 'admin-users' && <AdminUsersView />}
           {activeView === 'admin-reviews' && <AdminReviewsView />}
+          </Suspense>
         </div>
 
         <footer className="hidden shrink-0 flex-col gap-2 border-t border-line bg-white px-6 py-3 text-xs text-ink-faint sm:flex">

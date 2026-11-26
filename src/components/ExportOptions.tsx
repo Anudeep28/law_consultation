@@ -1,10 +1,8 @@
 import { notify } from './ui/Toasts';
 import React, { useState } from 'react';
 import { Document } from '../types';
-import { saveAs } from 'file-saver';
-import { Document as DocxDocument, Packer, Paragraph, TextRun } from 'docx';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import type { TextRun } from 'docx';
+import type { jsPDF } from 'jspdf';
 import { getDocumentFontName, getDocumentFontFamily } from '../utils/documentFonts';
 import { Modal } from './ui/Modal';
 
@@ -18,14 +16,15 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
   const [filename, setFilename] = useState(document.title);
   const [isExporting, setIsExporting] = useState(false);
 
-  const exportAsMarkdown = () => {
+  const exportAsMarkdown = async () => {
+    const { saveAs } = await import('file-saver');
     const blob = new Blob([document.content], { type: 'text/markdown' });
     saveAs(blob, `${filename}.md`);
   };
 
   const documentFont = getDocumentFontName(document.language);
 
-  const parseInlineRuns = (text: string): TextRun[] => {
+  const parseInlineRuns = (text: string, TextRun: typeof import('docx').TextRun): TextRun[] => {
     const runs: TextRun[] = [];
     const regex = /\*\*(.*?)\*\*|\*(.*?)\*/g;
     let last = 0;
@@ -47,6 +46,9 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
 
   const exportAsDocx = async () => {
     try {
+      const [{ Document: DocxDocument, Packer, Paragraph, TextRun }, { saveAs }] = await Promise.all([
+        import('docx'), import('file-saver'),
+      ]);
       const lines = document.content.split('\n');
       const paragraphs = lines.map(line => {
         if (line.startsWith('# ')) {
@@ -66,17 +68,17 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
           });
         } else if (line.startsWith('- ')) {
           return new Paragraph({
-            children: parseInlineRuns(line.substring(2)),
+            children: parseInlineRuns(line.substring(2), TextRun),
             bullet: { level: 0 },
           });
         } else if (line.match(/^\d+\. /)) {
           return new Paragraph({
-            children: parseInlineRuns(line),
+            children: parseInlineRuns(line, TextRun),
           });
         } else if (line.trim() === '') {
           return new Paragraph({ children: [new TextRun({ text: '', font: documentFont })] });
         } else {
-          return new Paragraph({ children: parseInlineRuns(line) });
+          return new Paragraph({ children: parseInlineRuns(line, TextRun) });
         }
       });
 
@@ -132,6 +134,9 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
 
   const exportAsPdfCanvas = async () => {
     try {
+      const [{ jsPDF }, { default: html2canvas }] = await Promise.all([
+        import('jspdf'), import('html2canvas'),
+      ]);
       const fontFamily = getDocumentFontFamily(document.language);
       const htmlContent = markdownToHtml(document.content);
 
@@ -210,8 +215,9 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     }
   };
 
-  const exportAsPdfText = () => {
+  const exportAsPdfText = async () => {
     try {
+      const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
       const contentLines = document.content.split('\n');
       let yPosition = 25;
@@ -268,7 +274,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     if (isNonLatinDocument) {
       await exportAsPdfCanvas();
     } else {
-      exportAsPdfText();
+      await exportAsPdfText();
     }
   };
 
@@ -278,7 +284,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     try {
       switch (format) {
         case 'markdown':
-          exportAsMarkdown();
+          await exportAsMarkdown();
           break;
         case 'docx':
           await exportAsDocx();

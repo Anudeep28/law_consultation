@@ -9,7 +9,7 @@ React 19 + Vite + TypeScript legal-document generator. Prisma + socket.io backen
 - Server tests: `npm run test:server` (Jest)
 - Typecheck: `npx tsc --noEmit`
 - Build: `npm run build` (outputs `build/`) | Preview: `npm run preview`
-- Tooling: Node >=24.15; browser env access is `import.meta.env.REACT_APP_*`
+- Tooling: Node ^22.22.2 || ^24.15.0 || >=26; browser env access is `import.meta.env.REACT_APP_*`
 - DB: `npm run db:generate` / `npm run db:migrate` / `npm run db:deploy`
 
 ## Skill routing — invoke proactively

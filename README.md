@@ -30,6 +30,12 @@ select slots more than an hour ahead, and retain screenshots/traces on failure i
 ignored `test-results/`. Vitest/TypeScript only include `src/`; server Jest only
 includes `server/`, so neither collects the Playwright suite.
 
+For parallel worktrees, leave other servers running and choose distinct ports:
+`E2E_WEB_PORT=3200 E2E_API_PORT=3202 E2E_STUB_PORT=4901 npm run test:e2e`.
+These optional overrides configure Playwright, the Vite API/WebSocket proxy,
+the backend and the stub together; defaults remain 3000/3002/3901. Always use
+a separate disposable local database for each worktree.
+
 For application deployments, `RAZORPAY_API_URL` is optional and defaults to
 `https://api.razorpay.com`; HTTP is supported for the isolated local stub.
 
