@@ -21,6 +21,14 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum RefundStatus {
+  REQUIRED
+  PENDING
+  PROCESSED
+  FAILED
+  REVIEW
+}
+
 enum ConsultationStatus {
   PENDING_PAYMENT
   BOOKED
@@ -277,6 +285,12 @@ model Payment {
   razorpayPaymentId String?       @unique
   plan              SubscriptionPlan
   amount            Int
+  currency          String        @default("INR")
+  refundId          String?       @unique
+  refundStatus      RefundStatus?
+  refundError       String?
+  refundRequestedAt DateTime?
+  refundAttemptId   String?
   status            PaymentStatus @default(CREATED)
   consultationId    String?       @unique
   consultation      Consultation? @relation(fields: [consultationId], references: [id])

@@ -6,6 +6,8 @@ const { backendEnv, fingerprint, apiUrl, stubUrl } = require('./runtime.cjs');
 
 let backend;
 let ready = false;
+const orders = new Map();
+const refunds = new Map();
 const checkReadiness = () => {
   if (backend.exitCode !== null || backend.killed) return;
   const retry = () => setTimeout(checkReadiness, 200).unref();
@@ -23,6 +25,27 @@ const stub = http.createServer(async (req, res) => {
     res.writeHead(ready ? 200 : 503);
     return res.end(JSON.stringify({ ready }));
   }
+  if (req.method === 'GET' && req.url.startsWith('/v1/payments/pay_e2e_')) {
+    const paymentId = req.url.slice('/v1/payments/'.length);
+    const orderId = paymentId.slice('pay_e2e_'.length);
+    const order = orders.get(orderId);
+    res.writeHead(order ? 200 : 404);
+    return res.end(JSON.stringify(order ? { id: paymentId, order_id: orderId, amount: order.amount, currency: order.currency, status: 'captured' } : { error: { description: 'Unknown stub payment' } }));
+  }
+  if (req.method === 'POST' && /^\/v1\/payments\/pay_e2e_[a-zA-Z0-9_-]+\/refund$/.test(req.url)) {
+    const paymentId = req.url.split('/')[3];
+    const order = orders.get(paymentId.slice('pay_e2e_'.length));
+    let raw = '';
+    for await (const chunk of req) raw += chunk;
+    const body = JSON.parse(raw);
+    if (!order || body.amount !== order.amount || refunds.has(paymentId)) {
+      res.writeHead(400);
+      return res.end(JSON.stringify({ error: { description: 'Invalid or duplicate stub refund' } }));
+    }
+    const refund = { id: `rfnd_e2e_${randomUUID()}`, payment_id: paymentId, amount: body.amount, currency: order.currency, status: 'processed', notes: body.notes };
+    refunds.set(paymentId, refund);
+    return res.end(JSON.stringify(refund));
+  }
   if (req.method !== 'POST' || req.url !== '/v1/orders') {
     res.writeHead(404);
     return res.end(JSON.stringify({ error: 'Unknown stub endpoint' }));
@@ -32,7 +55,9 @@ const stub = http.createServer(async (req, res) => {
     for await (const chunk of req) raw += chunk;
     const { amount, currency } = JSON.parse(raw);
     if (!Number.isInteger(amount) || amount <= 0 || currency !== 'INR') throw new Error('Invalid order');
-    res.end(JSON.stringify({ id: `order_e2e_${randomUUID()}`, amount, currency }));
+    const order = { id: `order_e2e_${randomUUID()}`, amount, currency };
+    orders.set(order.id, order);
+    res.end(JSON.stringify(order));
   } catch {
     res.writeHead(400);
     res.end(JSON.stringify({ error: { description: 'Invalid stub order' } }));
