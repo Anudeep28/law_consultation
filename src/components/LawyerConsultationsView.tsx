@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Clock, MessageCircle, Phone, ShieldCheck, Video } from 'lucide-react';
+import { Calendar, Clock, MessageCircle, Phone, ShieldCheck } from 'lucide-react';
 import { apiRequest } from '../services/api';
 import { Consultation, Document } from '../types';
 import { ConsultationChat } from './ConsultationChat';
 import { ConsultationRecorder } from './ConsultationRecorder';
 import { ConsultationDeliverables } from './ConsultationDeliverables';
+import { JoinCallButton } from './JoinCallButton';
 
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
@@ -41,12 +42,12 @@ export const LawyerConsultationsView: React.FC<LawyerConsultationsViewProps> = (
           const now = Date.now();
           const canOpenChat = consultation.mode === 'chat' && consultation.status === 'booked' && new Date(consultation.startsAt).getTime() - 10 * 60 * 1000 <= now && new Date(consultation.endsAt).getTime() > now;
           const canViewHistory = consultation.mode === 'chat' && new Date(consultation.endsAt).getTime() <= now && consultation.status !== 'cancelled';
-          const canJoinCall = consultation.mode === 'call' && consultation.status === 'booked' && Boolean(consultation.meetingUrl) && new Date(consultation.endsAt).getTime() > now;
+          const canJoinCall = consultation.mode === 'call' && consultation.status === 'booked' && Boolean(consultation.meetingUrl || consultation.meetingProvider === 'jaas') && new Date(consultation.endsAt).getTime() > now;
           const canWork = consultation.status === 'booked' || consultation.status === 'completed';
           return <article key={consultation.id} className="rounded-xl border border-line bg-white p-5 shadow-sm">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div><div className="flex items-center gap-2"><h3 className="font-semibold text-ink">{consultation.client?.name || 'Client'}</h3><span className="rounded-full bg-cream-muted px-2 py-0.5 text-xs capitalize text-ink-muted">{consultation.status}</span></div><p className="mt-1 text-sm font-medium text-gray-700">{consultation.topic}</p><p className="mt-2 max-w-2xl text-sm text-gray-500">{consultation.notes}</p><p className="mt-3 flex items-center gap-1 text-sm text-gray-500"><Clock className="h-4 w-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
-              <div className="flex items-center gap-2"><span className="flex items-center gap-1 text-sm capitalize text-gray-500">{consultation.mode === 'chat' ? <MessageCircle className="h-4 w-4" /> : <Phone className="h-4 w-4" />}{consultation.mode}</span>{consultation.mode === 'call' && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{consultation.package === 'call_with_document' ? 'Call + legal document' : 'Call only'}</span>}{canOpenChat && <button onClick={() => setActiveChat(consultation)} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Open chat</button>}{canViewHistory && <button onClick={() => setActiveChat(consultation)} className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand">View conversation</button>}{canJoinCall && <a href={consultation.meetingUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white"><Video className="h-4 w-4" />Join call</a>}</div>
+              <div className="flex items-center gap-2"><span className="flex items-center gap-1 text-sm capitalize text-gray-500">{consultation.mode === 'chat' ? <MessageCircle className="h-4 w-4" /> : <Phone className="h-4 w-4" />}{consultation.mode}</span>{consultation.mode === 'call' && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{consultation.package === 'call_with_document' ? 'Call + legal document' : 'Call only'}</span>}{canOpenChat && <button onClick={() => setActiveChat(consultation)} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Open chat</button>}{canViewHistory && <button onClick={() => setActiveChat(consultation)} className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand">View conversation</button>}{canJoinCall && <JoinCallButton consultation={consultation} onError={setError} className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" />}</div>
             </div>
             {canWork && <div className="mt-4 space-y-3 border-t border-cream-deep pt-4">
               <ConsultationRecorder consultationId={consultation.id} />

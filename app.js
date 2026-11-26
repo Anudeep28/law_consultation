@@ -12,6 +12,7 @@ const prisma = require('./db');
 const notifications = require('./server/notifications');
 const { logger, createRequestLogging, errorHandler } = require('./server/logger');
 const { sentryIngestOrigins } = require('./server/monitoring');
+const meetings = require('./server/meetings');
 
 const app = express();
 app.disable('x-powered-by');
@@ -133,7 +134,7 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
     if (!payment || payment.status !== 'CREATED') return res.json({ received: true });
 
     const meetingUrl = payment.consultation?.mode === 'CALL'
-      ? `https://meet.jit.si/law-writer-${crypto.randomBytes(12).toString('hex')}`
+      ? meetings.createMeetingLocation()
       : null;
     const consultation = await prisma.$transaction(async (tx) => {
       const claimed = await tx.payment.updateMany({
@@ -264,7 +265,10 @@ app.get('/api/account/export', authenticate, rateLimit((req) => `account-export:
       exportedAt,
       profile: { ...serializeUser(user), phone: user.phone, createdAt: user.createdAt, updatedAt: user.updatedAt },
       lawyerProfile: user.lawyerProfile || null,
-      documents, clientConsultations, lawyerConsultations, payments, reviews, notifications: userNotifications,
+      documents,
+      clientConsultations: clientConsultations.map((consultation) => ({ ...consultation, meetingUrl: meetings.publicMeetingUrl(consultation) })),
+      lawyerConsultations: lawyerConsultations.map((consultation) => ({ ...consultation, meetingUrl: meetings.publicMeetingUrl(consultation) })),
+      payments, reviews, notifications: userNotifications,
     });
   } catch (error) {
     req.log.error({ err: error }, 'Account export failed:');
@@ -603,7 +607,8 @@ const serializeConsultation = (consultation) => ({
   mode: consultation.mode.toLowerCase(),
   package: consultation.package.toLowerCase(),
   status: consultation.status.toLowerCase(),
-  meetingUrl: consultation.meetingUrl,
+  meetingUrl: meetings.publicMeetingUrl(consultation),
+  meetingProvider: consultation.mode === 'CALL' && meetings.isJaasMeeting(consultation) ? 'jaas' : undefined,
   transcript: consultation.transcript || '',
   lawyer: serializeLawyer(consultation.lawyer),
   client: consultation.user ? { id: consultation.user.id, name: consultation.user.name, email: consultation.user.email } : undefined,
@@ -975,7 +980,7 @@ app.post('/api/consultations/:id/verify-payment', authenticate, requireRole('CLI
     }
 
     const meetingUrl = payment.consultation.mode === 'CALL'
-      ? `https://meet.jit.si/law-writer-${crypto.randomBytes(12).toString('hex')}`
+      ? meetings.createMeetingLocation()
       : null;
     const consultation = await prisma.$transaction(async (tx) => {
       const claimed = await tx.payment.updateMany({
@@ -1009,6 +1014,40 @@ app.post('/api/consultations/:id/verify-payment', authenticate, requireRole('CLI
       return res.status(409).json({ error: 'Payment has already been applied' });
     }
     res.status(500).json({ error: 'Unable to verify payment' });
+  }
+});
+
+app.get('/api/consultations/:id/meeting', authenticate, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const consultation = await prisma.consultation.findUnique({ where: { id: req.params.id }, include: { lawyer: true } });
+    if (!consultation) return res.status(404).json({ error: 'Consultation not found' });
+    if (consultation.userId !== req.user.id && consultation.lawyer.userId !== req.user.id) return res.status(403).json({ error: 'Only consultation participants may join' });
+    if (consultation.mode !== 'CALL' || consultation.status !== 'BOOKED') return res.status(409).json({ error: 'A booked call consultation is required' });
+    const now = Date.now();
+    if (now < new Date(consultation.startsAt).getTime() - 10 * 60000 || now >= new Date(consultation.endsAt).getTime()) {
+      return res.status(403).json({ error: 'Meeting opens 10 minutes before the booked session and closes when it ends' });
+    }
+    if (!meetings.jaasEnabled()) {
+      const url = meetings.publicMeetingUrl(consultation);
+      if (!url) return res.status(409).json({ error: 'Meeting is unavailable' });
+      return res.json({ url });
+    }
+    let room = meetings.storedRoom(consultation.meetingUrl);
+    if (!room) {
+      const location = `jaas:${meetings.randomRoom()}`;
+      const updated = await prisma.consultation.updateMany({ where: { id: consultation.id, status: 'BOOKED', meetingUrl: consultation.meetingUrl }, data: { meetingUrl: location } });
+      if (updated.count === 1) room = meetings.storedRoom(location);
+      else {
+        const current = await prisma.consultation.findUnique({ where: { id: consultation.id } });
+        if (current?.status === 'BOOKED') room = meetings.storedRoom(current.meetingUrl);
+      }
+      if (!room) return res.status(409).json({ error: 'Meeting changed. Please try again.' });
+    }
+    res.json({ url: meetings.mintMeetingUrl(consultation, req.user, room) });
+  } catch (err) {
+    req.log.error({ err }, 'Unable to create meeting link');
+    res.status(503).json({ error: 'Meeting service is unavailable. Please try again later.' });
   }
 });
 

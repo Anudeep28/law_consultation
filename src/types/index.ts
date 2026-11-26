@@ -61,6 +61,7 @@ export interface Consultation {
   package: 'call_only' | 'call_with_document';
   status: 'pending_payment' | 'booked' | 'cancelled' | 'completed';
   meetingUrl?: string;
+  meetingProvider?: 'jaas';
   transcript?: string;
   lawyer: Lawyer;
   client?: Pick<User, 'id' | 'name' | 'email'>;

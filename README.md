@@ -278,6 +278,22 @@ Sentry is opt-in:
 
 Both SDKs use `sendDefaultPii: false`. Before sending, request bodies, headers, cookies, query strings, user context, and breadcrumbs are removed. Backend JSON-parser exception messages are also sanitized. Do not enable session replay or add sensitive document/user data to error messages or SDK contexts. No Sentry account or live event is required for local tests; SDK initialization, capture, scrubbing and conditional CSP allowances are covered with mocks.
 
+### Optional JaaS Private Calls
+
+With all JaaS variables unset, new call bookings still use public `meet.jit.si` links and the existing Join call link behavior. To enable 8x8 Jitsi as a Service, upload your public RSA key in the JaaS console and set these **server-only** variables together:
+
+- `JAAS_APP_ID`: the AppID, such as `vpaas-magic-cookie-…`.
+- `JAAS_API_KEY_ID`: the full API key ID used as JWT `kid` (typically `<appId>/<keyId>`).
+- `JAAS_PRIVATE_KEY`: the matching RSA PEM private key (2048 bits or stronger). Both actual newlines and literal `\n` escapes are supported. Keep this in your deployment secret store, never in source control or a `REACT_APP_*` variable.
+
+JWT format follows the official [JaaS JWT documentation](https://developer.8x8.com/jaas/docs/api-keys-jwt): RS256 with the configured `kid`, `aud: "jitsi"`, `iss: "chat"`, `sub: <appId>`, an exact random room with `context.room.regex: false`, and the authenticated requester's ID/name/email in `context.user`. Only the assigned lawyer receives `moderator: "true"`; clients receive `"false"`. Optional recording, transcription, streaming, telephony, file upload and visitor-list features are disabled.
+
+`GET /api/consultations/:id/meeting` requires an ACTIVE authenticated participant and a BOOKED CALL consultation. It returns `{ "url": "https://8x8.vc/<appId>/<room>?jwt=<token>" }` only from 10 minutes before the start until strictly before the end. `nbf` is the opening time; `exp` is the consultation end plus a 60-second grace period. Responses are `Cache-Control: no-store`. Missing consultations return 404, other users/window violations 403, and invalid mode/status 409. Incomplete/invalid JaaS configuration fails closed with 503 rather than falling back to a public meeting.
+
+New JaaS bookings store only `jaas:<random-room>` in the existing `meetingUrl` column, so no migration is needed. Existing public bookings are hidden from consultation responses when JaaS is enabled and converted atomically to a random JaaS room on their first eligible join request. Lists and exports never contain a JaaS join URL/token; reminders tell participants to join from the app. The client/lawyer Join call button requests a fresh token and opens a new tab; allow pop-ups for the app. Disabling JaaS does not downgrade already-private rooms to public links. Previously shared public Jitsi links cannot be revoked by this application.
+
+JaaS JWTs identify a participant but are still bearer credentials: do not forward a signed URL. Expiry limits admission with the token; it does not guarantee disconnection of an already-admitted participant. No JaaS iframe, script, or browser API connection is used—only top-level navigation—so **no CSP changes are required**. JWT claims, signatures, authorization/window checks, privacy of list/export/reminder payloads, and frontend joining are tested without contacting 8x8; verify live admission with your configured JaaS tenant before rollout.
+
 ## Contributing
 
 1. Fork the repository
