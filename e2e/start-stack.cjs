@@ -25,12 +25,22 @@ const stub = http.createServer(async (req, res) => {
     res.writeHead(ready ? 200 : 503);
     return res.end(JSON.stringify({ ready }));
   }
+  if (req.method === 'GET' && req.url.startsWith('/v1/refunds/')) {
+    const refund = [...refunds.values()].find(item => item.id === req.url.slice('/v1/refunds/'.length));
+    res.writeHead(refund ? 200 : 404);
+    return res.end(JSON.stringify(refund || { error: 'Unknown refund' }));
+  }
+  if (req.method === 'GET' && /^\/v1\/payments\/[^/]+\/refunds\?/.test(req.url)) {
+    const refund = refunds.get(req.url.split('/')[3]);
+    const skip = Number(new URL(req.url, 'http://localhost').searchParams.get('skip'));
+    return res.end(JSON.stringify({ items: refund && skip === 0 ? [refund] : [] }));
+  }
   if (req.method === 'GET' && req.url.startsWith('/v1/payments/pay_e2e_')) {
     const paymentId = req.url.slice('/v1/payments/'.length);
     const orderId = paymentId.slice('pay_e2e_'.length);
     const order = orders.get(orderId);
     res.writeHead(order ? 200 : 404);
-    return res.end(JSON.stringify(order ? { id: paymentId, order_id: orderId, amount: order.amount, currency: order.currency, status: 'captured' } : { error: { description: 'Unknown stub payment' } }));
+    return res.end(JSON.stringify(order ? { id: paymentId, order_id: orderId, amount: order.amount, currency: order.currency, status: 'captured', amount_refunded: refunds.get(paymentId)?.amount || 0 } : { error: { description: 'Unknown stub payment' } }));
   }
   if (req.method === 'POST' && /^\/v1\/payments\/pay_e2e_[a-zA-Z0-9_-]+\/refund$/.test(req.url)) {
     const paymentId = req.url.split('/')[3];

@@ -2,6 +2,10 @@ const crypto = require('crypto');
 
 const validId = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
 const paymentError = (message, status = 400) => Object.assign(new Error(message), { status });
+const REFUND_REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
+const PENDING_REVIEW_WINDOW_MS = 15 * 60 * 1000;
+const reviewWhere = (now = new Date()) => ({ OR: [{ refundStatus: 'REVIEW' }, { refundStatus: 'PENDING', updatedAt: { lte: new Date(now.getTime() - PENDING_REVIEW_WINDOW_MS) } }] });
+const needsReview = (payment, now = new Date()) => payment.refundStatus === 'REVIEW' || payment.refundStatus === 'PENDING' && new Date(payment.updatedAt).getTime() <= now.getTime() - PENDING_REVIEW_WINDOW_MS;
 
 module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl }) => {
   const verifySignature = (orderId, paymentId, signature, secret) => {
@@ -60,6 +64,11 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
   };
 
+  const applyRefundStatus = (db, payment, entity, reconciled = false) => db.payment.updateMany({
+    where: { id: payment.id, status: payment.status, refundAttemptId: payment.refundAttemptId ?? null, refundStatus: { in: ['PENDING', 'FAILED', 'REVIEW'] }, OR: [{ refundId: reconciled ? payment.refundId ?? null : null }, { refundId: entity.id }] },
+    data: { refundId: entity.id, refundStatus: { processed: 'PROCESSED', failed: 'FAILED', pending: 'PENDING' }[entity.status], status: entity.status === 'processed' ? 'REFUNDED' : payment.status, refundError: entity.status === 'failed' ? 'Provider reported refund failure; retry is available.' : null },
+  });
+
   const refundEvent = async (entity, orderId) => {
     if (!validId(entity.id) || !validId(entity.payment_id)) throw paymentError('Malformed refund payload');
     let payment = await prisma.payment.findUnique({ where: { razorpayPaymentId: entity.payment_id } });
@@ -81,15 +90,107 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
     if (entity.amount !== payment.amount || entity.currency !== payment.currency) throw paymentError('Refund amount or currency mismatch');
     if (entity.notes?.refundAttemptId !== payment.refundAttemptId) return;
-    if (payment.refundId && payment.refundId !== entity.id) return;
     const status = { processed: 'PROCESSED', failed: 'FAILED', pending: 'PENDING' }[entity.status];
     if (!status) throw paymentError('Invalid refund status');
     if (status === 'PENDING') return;
-    await prisma.payment.updateMany({
-      where: { id: payment.id, status: 'PAID', refundAttemptId: payment.refundAttemptId, refundStatus: { in: ['PENDING', 'FAILED', 'REVIEW'] }, OR: [{ refundId: null }, { refundId: entity.id }] },
-      data: { refundId: entity.id, refundStatus: status, status: status === 'PROCESSED' ? 'REFUNDED' : 'PAID', refundError: status === 'FAILED' ? 'Provider reported refund failure; retry is available.' : null },
-    });
+    const applied = await applyRefundStatus(prisma, payment, entity);
+    if (applied.count !== 1) {
+      const current = await prisma.payment.findUnique({ where: { id: payment.id } });
+      if (current?.status === 'REFUNDED' || current?.refundStatus === 'PROCESSED' || current?.refundAttemptId !== payment.refundAttemptId || current?.refundStatus === 'REVIEW' && current?.refundId && current.refundId !== entity.id) return;
+      throw paymentError('Refund state changed; retry delivery', 503);
+    }
   };
+
+  const reviewState = payment => ({ status: payment.status, refundStatus: payment.refundStatus, refundId: payment.refundId, refundAttemptId: payment.refundAttemptId, refundError: payment.refundError });
+  const reviewNotification = async payment => {
+    if (payment.refundStatus !== 'PROCESSED') return;
+    for (const userId of new Set([payment.userId, payment.consultation?.lawyer?.userId].filter(Boolean))) {
+      try {
+        await notifications.createNotification({ userId, consultationId: payment.consultationId || undefined, type: 'CONSULTATION_REFUND', title: 'Refund processed', body: `A full refund of ${payment.currency} ${(payment.amount / 100).toFixed(2)} has been confirmed. Bank processing typically takes 5–10 business days.`, channels: ['IN_APP', 'EMAIL'] });
+      } catch (err) { logger.error({ err, paymentId: payment.id }, 'Reconciled refund notification failed'); }
+    }
+  };
+
+  const reconcile = async (id, adminId, resolution) => {
+    const result = await prisma.$transaction(async tx => {
+      // Serialize provider checks, manual overrides and webhook writes on this payment.
+      const locked = await tx.$queryRaw`SELECT "id" FROM "Payment" WHERE "id" = ${id} FOR UPDATE`;
+      if (!locked.length) throw paymentError('Payment not found', 404);
+      const payment = await tx.payment.findUnique({ where: { id }, include: { consultation: { include: { lawyer: true } } } });
+      const before = reviewState(payment);
+      let provider = { result: 'already_reconciled' }, failure, autoRefund = false;
+      if (resolution && payment.refundStatus !== 'REVIEW') throw paymentError('Only review-required payments can be resolved', 409);
+      if (payment.refundStatus === 'PENDING' && needsReview(payment)) {
+        await tx.payment.updateMany({ where: { id, refundStatus: 'PENDING' }, data: { refundStatus: 'REVIEW', refundError: 'Pending refund has not updated for at least 15 minutes; reconcile provider status.' } });
+        payment.refundStatus = 'REVIEW';
+      }
+      if (payment.refundStatus === 'REVIEW') {
+        try {
+          if (resolution) {
+            provider = { result: 'manual_override', outcome: resolution.outcome };
+            await tx.payment.updateMany({ where: { id, refundStatus: 'REVIEW' }, data: { status: resolution.outcome === 'REFUNDED' ? 'REFUNDED' : payment.status, refundStatus: resolution.outcome === 'REFUNDED' ? 'PROCESSED' : null, refundError: null } });
+          } else {
+            if (!validId(payment.razorpayPaymentId)) throw paymentError('Provider payment ID is unavailable; manual review is required.', 502);
+            let entity;
+            if (payment.refundId) {
+              try { entity = await request('GET', `/v1/refunds/${encodeURIComponent(payment.refundId)}`); }
+              catch (error) { if (error.providerStatus !== 404) throw error; }
+              if (entity && entity.id !== payment.refundId) throw paymentError('Provider refund ID mismatch; review retained.', 502);
+            }
+            const replacedFailure = entity?.status === 'failed' && payment.refundAttemptId && entity.notes?.refundAttemptId !== payment.refundAttemptId;
+            if (!entity || replacedFailure) {
+              const items = [];
+              for (let page = 0; ; page++) {
+                if (page === 5) throw paymentError('Provider refund history exceeds the review limit; manual review is required.', 502);
+                const list = await request('GET', `/v1/payments/${encodeURIComponent(payment.razorpayPaymentId)}/refunds?count=100&skip=${page * 100}`);
+                if (!Array.isArray(list?.items)) throw paymentError('Invalid provider refund list; review retained.', 502);
+                items.push(...list.items);
+                if (list.items.length < 100) break;
+              }
+              const exact = items.filter(item => payment.refundAttemptId && item.notes?.refundAttemptId === payment.refundAttemptId);
+              if (exact.length === 1 && !items.some(item => item !== exact[0] && item.status !== 'failed')) entity = exact[0];
+              else if (items.length === 1 && !items[0].notes?.refundAttemptId) entity = items[0];
+              else if (items.length || replacedFailure) throw paymentError('Ambiguous provider refund history; review retained.', 502);
+            }
+            if (entity) {
+              if (!validId(entity.id) || entity.payment_id !== payment.razorpayPaymentId || entity.amount !== payment.amount || entity.currency !== payment.currency || !['processed', 'pending', 'failed'].includes(entity.status)) throw paymentError('Provider refund validation failed; review retained.', 502);
+              if (entity.status === 'failed' && payment.refundAttemptId && entity.notes?.refundAttemptId !== payment.refundAttemptId) throw paymentError('Failed provider refund is outside the original attempt; review retained.', 502);
+              provider = { result: entity.status, refundId: entity.id, paymentId: entity.payment_id, amount: entity.amount, currency: entity.currency };
+              const applied = await applyRefundStatus(tx, payment, entity, true);
+              if (applied.count !== 1) throw paymentError('Refund state changed; retry reconciliation.', 409);
+            } else {
+              const capture = await request('GET', `/v1/payments/${encodeURIComponent(payment.razorpayPaymentId)}`);
+              if (capture?.id !== payment.razorpayPaymentId || capture.order_id !== payment.razorpayOrderId || capture.amount !== payment.amount || capture.currency !== payment.currency || capture.status !== 'captured' || capture.amount_refunded !== 0) throw paymentError('Provider capture validation failed; review retained.', 502);
+              const requestedAt = payment.refundRequestedAt ? new Date(payment.refundRequestedAt).getTime() : NaN;
+              const reviewRetained = Boolean(payment.refundAttemptId) && (!Number.isFinite(requestedAt) || Date.now() < requestedAt + REFUND_REVIEW_WINDOW_MS);
+              autoRefund = !reviewRetained && payment.status === 'PAID' && payment.consultation?.status === 'CANCELLED';
+              provider = { result: 'no_refund_found', paymentId: capture.id, autoRefund, reviewRetained, retryAfter: reviewRetained && Number.isFinite(requestedAt) ? new Date(requestedAt + REFUND_REVIEW_WINDOW_MS).toISOString() : null };
+              await tx.payment.updateMany({ where: { id, refundStatus: 'REVIEW' }, data: { refundStatus: reviewRetained ? 'REVIEW' : autoRefund ? 'REQUIRED' : 'FAILED', refundError: reviewRetained ? 'No provider refund found yet. Original attempt remains under review; allow at least 24 hours before retrying.' : 'No refund found at provider; retry is available.', ...(reviewRetained ? {} : { refundId: null }) } });
+            }
+          }
+          const current = await tx.payment.findUnique({ where: { id } });
+          if (current.refundStatus === 'PROCESSED' && payment.consultationId) await tx.consultation.updateMany({ where: { id: payment.consultationId, status: 'PENDING_PAYMENT' }, data: { status: 'CANCELLED' } });
+        } catch (error) {
+          failure = paymentError(error.status ? error.message : 'Unable to check Razorpay; review retained.', error.status || 502);
+          provider = { result: 'error', message: failure.message, providerStatus: error.providerStatus || null };
+        }
+      }
+      const after = await tx.payment.findUnique({ where: { id } });
+      const audit = await tx.adminAuditLog.create({ data: { adminId, targetUserId: payment.userId, action: resolution ? 'PAYMENT_REVIEW_RESOLVE' : 'PAYMENT_RECONCILE', reason: JSON.stringify({ paymentId: id, before, after: reviewState(after), provider, note: resolution?.note || null }) } });
+      return { payment: { ...after, consultation: payment.consultation }, changed: before.refundStatus !== 'PROCESSED' && after.refundStatus === 'PROCESSED', failure, autoRefund, auditId: audit.id, before, provider };
+    }, { maxWait: 10000, timeout: 65000 });
+    if (result.autoRefund && !result.failure) {
+      try { await refund(id); } catch (error) { result.failure = error; }
+      result.payment = await prisma.payment.findUnique({ where: { id }, include: { consultation: { include: { lawyer: true } } } });
+      result.changed = result.before.refundStatus !== 'PROCESSED' && result.payment.refundStatus === 'PROCESSED';
+      await prisma.adminAuditLog.update({ where: { id: result.auditId }, data: { reason: JSON.stringify({ paymentId: id, before: result.before, after: reviewState(result.payment), provider: { ...result.provider, refundStatus: result.payment.refundStatus }, note: null }) } });
+    }
+    if (result.changed) await reviewNotification(result.payment);
+    if (result.failure) throw result.failure;
+    return { payment: result.payment, message: result.autoRefund ? 'Late payment refund requested.' : result.provider.result === 'already_reconciled' ? 'Payment already reconciled.' : result.provider.reviewRetained ? 'No provider refund found yet. Original attempt remains under review.' : result.provider.result === 'no_refund_found' ? 'No provider refund found. Refund can be retried.' : resolution ? 'Payment review resolved.' : `Provider refund is ${result.provider.result}.` };
+  };
+
+  const canResumeRefund = payment => payment?.consultation?.status === 'CANCELLED' && (payment.refundStatus === 'REQUIRED' || payment.refundStatus === 'FAILED' && Boolean(payment.refundAttemptId));
 
   const settle = async (payment, entity) => {
     if (!validId(entity.id) || entity.order_id !== payment.razorpayOrderId || entity.amount !== payment.amount || entity.currency !== payment.currency || entity.status !== 'captured') {
@@ -98,12 +199,13 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
     if (payment.razorpayPaymentId && payment.razorpayPaymentId !== entity.id) throw paymentError('Payment ID mismatch');
     if (payment.status !== 'CREATED') {
-      if (['REQUIRED', 'FAILED'].includes(payment.refundStatus)) await refund(payment.id);
+      if (canResumeRefund(payment)) await refund(payment.id);
       return { applied: false };
     }
     if (payment.refundStatus === 'REVIEW' && payment.refundId) throw paymentError('Payment refund requires reconciliation before access can be granted', 409);
     const result = await prisma.$transaction(async (tx) => {
-      const claimed = await tx.payment.updateMany({ where: { id: payment.id, status: 'CREATED', refundId: null }, data: { status: 'PAID', razorpayPaymentId: entity.id, refundStatus: null, refundError: null } });
+      const failedRefund = payment.refundStatus === 'FAILED';
+      const claimed = await tx.payment.updateMany({ where: { id: payment.id, status: 'CREATED', refundId: payment.refundId ?? null, ...(failedRefund ? { refundStatus: 'FAILED' } : { refundId: null }) }, data: { status: 'PAID', razorpayPaymentId: entity.id, ...(failedRefund ? { refundId: null } : {}), refundStatus: null, refundError: null } });
       if (claimed.count !== 1) return { applied: false };
       if (payment.consultationId) {
         const now = new Date();
@@ -128,8 +230,8 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
         : { subscriptionPlan: timedAccess ? user.subscriptionPlan : 'SINGLE', documentCredits: { increment: 1 } } });
       return { applied: true };
     });
-    const current = await prisma.payment.findUnique({ where: { id: payment.id } });
-    if (['REQUIRED', 'FAILED'].includes(current?.refundStatus)) await refund(payment.id);
+    const current = await prisma.payment.findUnique({ where: { id: payment.id }, include: { consultation: true } });
+    if (canResumeRefund(current)) await refund(payment.id);
     if (result.consultation?.lawyer?.userId) {
       const consultation = result.consultation;
       try {
@@ -183,5 +285,5 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     return prisma.payment.findUnique({ where: { id: payment.id }, select: { id: true, status: true, refundStatus: true, refundError: true } });
   };
 
-  return { verifySignature, settle, refundEvent, cancel, adminRefund };
+  return { verifySignature, settle, refundEvent, cancel, adminRefund, reconcile, reviewWhere, needsReview };
 };

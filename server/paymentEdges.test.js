@@ -12,7 +12,7 @@ const mockTx = {
 };
 jest.mock('../db', () => ({
   user: { findUnique: jest.fn() },
-  payment: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
+  payment: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn(async () => 0) },
   consultation: { findUnique: jest.fn() },
   $transaction: jest.fn(fn => fn(mockTx)),
 }));
@@ -172,7 +172,7 @@ describe('admin consultation refunds', () => {
   });
   test('listing searches client email, consultation ID and lawyer and handles empty results', async () => {
     const response = await request(app).get('/api/admin/payments?q=example').set('Authorization', auth());
-    expect(response.status).toBe(200); expect(response.body).toEqual({ payments: [] });
+    expect(response.status).toBe(200); expect(response.body).toEqual({ payments: [], reviewCount: 0 });
     expect(prisma.payment.findMany.mock.calls[0][0]).toMatchObject({ take: 100, where: { OR: [{ user: { email: { contains: 'example' } } }, { consultationId: { contains: 'example' } }, { consultation: { lawyer: { OR: [{ name: { contains: 'example' } }, { id: 'example' }] } } }] } });
   });
   test('listing failures return a safe error', async () => {
@@ -331,6 +331,19 @@ describe('refund lifecycle and cancellation policy', () => {
     expect((await cancel()).status).toBe(status === 'failed' ? 502 : 204);
     expect(payment.refundStatus).toBe(status === 'failed' ? 'FAILED' : 'PROCESSED');
     expect(notifications.sendEmail).toHaveBeenCalledTimes(status === 'failed' ? 0 : 1);
+  });
+  test('a processed webhook can apply when the API records its refund ID after the webhook read', async () => {
+    refundResponse.status = 'pending';
+    onRefund = async () => {
+      const update = prisma.payment.updateMany.getMockImplementation();
+      prisma.payment.updateMany.mockImplementationOnce(async args => {
+        payment.refundId = refundResponse.id;
+        return update(args);
+      });
+      expect((await webhook('refund.processed', { refund: { entity: { ...refundResponse, status: 'processed' } } })).status).toBe(200);
+    };
+    expect((await cancel()).status).toBe(204);
+    expect(payment.refundStatus).toBe('PROCESSED');
   });
   test('an early external refund requiring review cannot send a stale pending confirmation', async () => {
     refundResponse.status = 'pending';

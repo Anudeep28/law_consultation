@@ -51,18 +51,44 @@ New nullable payment fields record `refundStatus`, `refundId`, `refundAttemptId`
   it after committing the financial record. A duplicate capture event or owning
   client's repeat cancellation can resume it after a process interruption.
 - `PENDING`: an attempt has been claimed or accepted by Razorpay. Do not issue a
-  new refund. Processed/failed webhooks finish it; monitor old pending rows for
-  reconciliation if the initiating process died or webhooks are unavailable.
+  new refund. Processed/failed webhooks finish it. Rows with no update for at
+  least 15 minutes appear in the review queue and count with a provider-check
+  action. Reconciliation promotes these to REVIEW before checking, so provider
+  failures remain actionable. A read/check does not refresh an untouched pending
+  row's timestamp. Correlated webhooks match payment ID and attempt key even if
+  reconciliation is replacing a dashboard refund ID; conflicting writes request
+  webhook redelivery instead of silently losing the terminal event.
 - `FAILED`: explicit provider rejection or a matching failed webhook. The owning
-  client's cancellation endpoint can retry; a captured event replay can also
-  resume an eligible failed refund. Each confirmed-failed attempt gets a new ID.
+  client's cancellation endpoint can retry. Capture replays only resume refunds
+  owed for CANCELLED consultations: REQUIRED, or FAILED with an app-generated
+  attempt ID. Imported dashboard failures do not authorize automatic refunds of
+  active bookings or document purchases. Each confirmed-failed attempt gets a
+  new ID when a refund is explicitly requested or an eligible retry resumes.
+  A failed dashboard refund without the stored attempt's correlation notes
+  cannot retire that attempt. If it replaced the stored refund ID, reconciliation
+  searches the payment's paginated provider history for the original attempt and
+  applies its authoritative status. Missing, conflicting or unavailable history
+  retains REVIEW, even for cancelled bookings. An unrelated failure is not
+  evidence that the app's ambiguous attempt failed.
 - `REVIEW`: ambiguous network/5xx response, unexpected provider response,
   mismatched capture, or provider-dashboard refund outside tracked attempts.
   This is deliberately not automatically retried with a new key. Reconcile with
-  Razorpay first to avoid refunding twice. The payment row retains the attempt ID;
-  any retry of an ambiguous request must use that original
-  `X-Refund-Idempotency` key and identical amount/notes body. Do not reset state
-  merely because an API response was lost.
+  Razorpay first to avoid refunding twice. Empty refund history is not proof that
+  a recent ambiguous request failed. For **24 hours from refundRequestedAt**,
+  reconciliation retains REVIEW and the original attempt ID, refund ID and
+  timestamp; automatic and admin refund retries remain blocked. Repeated checks
+  do not restart this window. Missing timestamps retain REVIEW until a provider
+  outcome is found or an admin verifies records and manually resolves the item.
+  Matching processed/pending/failed provider refunds are applied immediately.
+  After 24 hours, empty history can release REVIEW only when a fresh provider
+  payment lookup confirms captured status and exactly zero refunded amount.
+  The payment then becomes retryable FAILED (or REQUIRED for a cancelled booking
+  whose refund is resumed through the existing path). This retires the ambiguous
+  attempt; a subsequent retry uses a new idempotency key. Before this release,
+  any direct provider retry must use the original `X-Refund-Idempotency` key and
+  identical amount/notes body. Do not reset state merely because an API response
+  was lost. Manual overrides require independent provider verification and an
+  audited note; this waiting window does not prevent recording such a resolution.
 - `PROCESSED`: the full matching refund is processed; payment status is REFUNDED.
 
 Cancellation is committed independently of provider availability so a refund
@@ -70,6 +96,121 @@ failure cannot lose eligibility when the scheduled start passes. Financial
 failures return a support/retry error, and a durable state remains. A second
 cancellation is idempotent while a refund is pending, processed or under review.
 There is no automatic reconciliation scheduler.
+
+### Executable refund transition table
+
+`server/paymentReview.test.js` executes every cell below, including duplicate
+delivery, financial state, provider POST count and notification count. Separate
+barrier tests deliver processed/failed webhooks while reconciliation holds the
+payment lock. The table has 180 admission/event cells and 30 in-flight API
+completion cells. All provider IDs, payment IDs, currency, amounts and attempt
+keys must validate; invalid evidence retains review or requests redelivery.
+
+State names: NONE = PAID without a refund; REQUIRED = cancelled booking owed a
+refund; PENDING = tracked, updated less than 15 minutes ago; STALE = tracked
+PENDING updated at least 15 minutes ago; FAILED = confirmed app failure for a
+cancelled booking; REVIEW = review of the app refund; OTHER = review caused by a
+different dashboard refund; PROCESSED = terminal full refund. CREATED/OTHER-C
+are unfulfilled CREATED payments reviewing the app/another refund respectively.
+
+Results: K = keep the complete financial state and refund ID; P = PENDING;
+F = FAILED; R = REVIEW; X = PROCESSED + REFUNDED; E = untracked full refund,
+REFUNDED but still REVIEW; N = clear refund status via audited manual override.
+Except X/E, preserve the payment's PAID/CREATED status and access entitlements.
+Same/different IDs below refer to the tracked app attempt, not just its payment.
+
+#### New request admission, followed by its API result
+
+Only REQUIRED/eligible FAILED may claim an automatic retry. A pending claim,
+review, active purchase or processed refund cannot start another provider POST.
+
+| State | Pending | Processed | Failed | Rejected 4xx | Timeout/5xx |
+| --- | --- | --- | --- | --- | --- |
+| NONE | K | K | K | K | K |
+| REQUIRED | P | X | F | F | R |
+| PENDING | K | K | K | K | K |
+| STALE | K | K | K | K | K |
+| FAILED | P | X | F | F | R |
+| REVIEW | K | K | K | K | K |
+| OTHER | K | K | K | K | K |
+| PROCESSED | K | K | K | K | K |
+| CREATED | K | K | K | K | K |
+| OTHER-C | K | K | K | K | K |
+
+#### An already-issued API request completes after another event
+
+The attempt key must still match. Terminal processed state cannot regress;
+pending/rejected responses cannot erase a prior webhook failure or another
+refund's review. These cells start one actual claimed request, change its
+persisted state before returning the response, then complete that request.
+
+| State at completion | Pending | Processed | Failed | Rejected 4xx | Timeout |
+| --- | --- | --- | --- | --- | --- |
+| PENDING | P | X | F | F | R |
+| STALE | P | X | F | F | R |
+| FAILED | F | X | F | F | F |
+| REVIEW | R | X | F | R | R |
+| OTHER | R | R | R | R | R |
+| PROCESSED | X | X | X | X | X |
+
+#### Signed refund webhooks
+
+Same-ID terminal events may finalize the claimed refund, including before its
+API response. A different ID with the same key cannot clear another refund's
+REVIEW. The conditional write can succeed after a concurrent reconciliation has
+committed that original ID; otherwise review stays intact or delivery retries.
+An uncorrelated external partial refund always requires provider review.
+
+| State | Same processed | Same failed | Different processed | Different failed | External partial |
+| --- | --- | --- | --- | --- | --- |
+| NONE | E | R | E | R | R |
+| REQUIRED | E | R | E | R | R |
+| PENDING | X | F | K | K | R |
+| STALE | X | F | K | K | R |
+| FAILED | X | F | K | K | R |
+| REVIEW | X | F | K | K | R |
+| OTHER | K | K | K | K | R |
+| PROCESSED | K | K | K | K | K |
+| CREATED | X | F | K | K | R |
+| OTHER-C | K | K | K | K | R |
+
+#### Authoritative provider reconciliation and manual resolution
+
+OTHER can clear only after checking the refund that caused review: a matching
+full outcome, or history showing that dashboard attempt failed and identifying
+the original app attempt with no other non-failed refunds. A partial/non-failed
+competing refund, mismatched amount/currency, missing correlation, conflicting
+history or unavailable provider is not proof of failure. An old empty history
+also requires a fresh captured payment with exactly zero refunded amount.
+
+| State | Processed | Pending | Failed | Empty recent/undated | Empty after 24h | Provider error | Manual refunded | Manual no refund |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NONE | K | K | K | K | K | K | K | K |
+| REQUIRED | K | K | K | K | K | K | K | K |
+| PENDING | K | K | K | K | K | K | K | K |
+| STALE | X | P | F | R | F | R | K | K |
+| FAILED | K | K | K | K | K | K | K | K |
+| REVIEW | X | P | F | R | F | R | X | N |
+| OTHER | X | P | F | R | F | R | X | N |
+| PROCESSED | K | K | K | K | K | K | K | K |
+| CREATED | X | P | F | R | F | R | X | N |
+| OTHER-C | X | P | F | R | F | R | X | N |
+
+The empty-history F cell for a cancelled, already-paid booking instead resumes
+REQUIRED through the existing claim path; a separate regression covers that
+automatic refund. Missing/invalid provider evidence never makes that claim.
+
+Notification accounting: a winning reconciliation/manual transition from any
+non-PROCESSED state into PROCESSED sends one processed confirmation to each
+distinct participant, after commit. Duplicate/concurrent checks send none extra.
+Webhook callbacks do not resend initiation notices. A successful initiating API
+request sends its single existing initiation email; failed/review outcomes do
+not send a success email. These are separate messages, asserted separately in
+the tables. Replaying a confirmed failed/rejected request can make a new attempt
+with a new key (zero successful refunds); a timeout/pending/processed attempt
+cannot. Best-effort notification delivery has no durable outbox: exactly-once
+here means one dispatch per winning transition, not guaranteed email delivery
+after a process crash or retry inside an external mail provider.
 Support must monitor required/failed/review and old pending rows. Initiated refund
 emails use existing Resend configuration; failed/skipped delivery does not roll
 back financial state.
