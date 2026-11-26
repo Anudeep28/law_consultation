@@ -13,7 +13,14 @@ export interface ExportBlock {
 }
 
 export const parseExportMarkdown = (content: string): { html: string; blocks: ExportBlock[] } => {
-  const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: ({ alt }) => <>{alt}</> }}>{content}</ReactMarkdown>);
+  const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+    img: ({ alt }) => <>{alt}</>,
+    li: ({ node, ...props }) => {
+      const offset = node?.position?.start.offset;
+      const number = offset === undefined ? undefined : content.slice(offset).match(/^\s*(\d+)[.)]\s+/)?.[1];
+      return <li {...props} value={number === undefined ? undefined : Number(number)} data-export-number={number} />;
+    },
+  }}>{content}</ReactMarkdown>);
   const body = new DOMParser().parseFromString(html, 'text/html').body;
   const blocks: ExportBlock[] = [];
   const inline = (nodes: Node[], bold = false, italics = false): ExportRun[] => nodes.flatMap(node => {
@@ -29,7 +36,7 @@ export const parseExportMarkdown = (content: string): { html: string; blocks: Ex
     if (['UL', 'OL'].includes(element.tagName)) {
       const start = Number(element.getAttribute('start') || 1);
       [...element.children].forEach((item, index) => {
-        blocks.push({ kind: 'paragraph', prefix: element.tagName === 'OL' ? `${start + index}. ` : '• ', depth, runs: inline([...item.childNodes]) });
+        blocks.push({ kind: 'paragraph', prefix: element.tagName === 'OL' ? `${item.getAttribute('data-export-number') || start + index}. ` : '• ', depth, runs: inline([...item.childNodes]) });
         [...item.children].filter(child => ['UL', 'OL'].includes(child.tagName)).forEach(child => walk(child, depth + 1));
       });
       return;

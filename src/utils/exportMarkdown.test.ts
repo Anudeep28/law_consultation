@@ -15,6 +15,13 @@ test('empty Markdown produces an empty export model', () => {
   expect(parseExportMarkdown('')).toEqual({ html: '', blocks: [] });
 });
 
+test('preserves skipped and nested clause numbers in the export model and HTML', () => {
+  const { blocks, html } = parseExportMarkdown('1. First\n2. Second\n5. Fifth\n   1. Nested first\n   4. Nested fourth');
+  expect(blocks.map(block => block.prefix)).toEqual(['1. ', '2. ', '5. ', '1. ', '4. ']);
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  expect([...document.querySelectorAll('ol > li')].map(item => item.getAttribute('value'))).toEqual(['1', '2', '5', '1', '4']);
+});
+
 test('raw HTML and Markdown images cannot add executable markup or network requests', () => {
   const { html } = parseExportMarkdown('<img src="https://example.test/a" onerror="alert(1)">\n\n![Description](https://example.test/b)\n\n<script>alert(1)</script>');
   const document = new DOMParser().parseFromString(html, 'text/html');
