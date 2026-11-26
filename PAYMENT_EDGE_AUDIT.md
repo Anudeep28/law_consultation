@@ -62,10 +62,22 @@ New nullable payment fields record `refundStatus`, `refundId`, `refundAttemptId`
 - `REVIEW`: ambiguous network/5xx response, unexpected provider response,
   mismatched capture, or provider-dashboard refund outside tracked attempts.
   This is deliberately not automatically retried with a new key. Reconcile with
-  Razorpay first to avoid refunding twice. The payment row retains the attempt ID;
-  any retry of an ambiguous request must use that original
-  `X-Refund-Idempotency` key and identical amount/notes body. Do not reset state
-  merely because an API response was lost.
+  Razorpay first to avoid refunding twice. Empty refund history is not proof that
+  a recent ambiguous request failed. For **24 hours from refundRequestedAt**,
+  reconciliation retains REVIEW and the original attempt ID, refund ID and
+  timestamp; automatic and admin refund retries remain blocked. Repeated checks
+  do not restart this window. Missing timestamps retain REVIEW until a provider
+  outcome is found or an admin verifies records and manually resolves the item.
+  Matching processed/pending/failed provider refunds are applied immediately.
+  After 24 hours, empty history can release REVIEW only when a fresh provider
+  payment lookup confirms captured status and exactly zero refunded amount.
+  The payment then becomes retryable FAILED (or REQUIRED for a cancelled booking
+  whose refund is resumed through the existing path). This retires the ambiguous
+  attempt; a subsequent retry uses a new idempotency key. Before this release,
+  any direct provider retry must use the original `X-Refund-Idempotency` key and
+  identical amount/notes body. Do not reset state merely because an API response
+  was lost. Manual overrides require independent provider verification and an
+  audited note; this waiting window does not prevent recording such a resolution.
 - `PROCESSED`: the full matching refund is processed; payment status is REFUNDED.
 
 Cancellation is committed independently of provider availability so a refund

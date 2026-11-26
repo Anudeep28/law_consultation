@@ -2,6 +2,7 @@ const crypto = require('crypto');
 
 const validId = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
 const paymentError = (message, status = 400) => Object.assign(new Error(message), { status });
+const REFUND_REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl }) => {
   const verifySignature = (orderId, paymentId, signature, secret) => {
@@ -147,9 +148,11 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
             } else {
               const capture = await request('GET', `/v1/payments/${encodeURIComponent(payment.razorpayPaymentId)}`);
               if (capture?.id !== payment.razorpayPaymentId || capture.order_id !== payment.razorpayOrderId || capture.amount !== payment.amount || capture.currency !== payment.currency || capture.status !== 'captured' || capture.amount_refunded !== 0) throw paymentError('Provider capture validation failed; review retained.', 502);
-              autoRefund = payment.status === 'PAID' && payment.consultation?.status === 'CANCELLED';
-              provider = { result: 'no_refund_found', paymentId: capture.id, autoRefund };
-              await tx.payment.updateMany({ where: { id, refundStatus: 'REVIEW' }, data: { refundStatus: autoRefund ? 'REQUIRED' : 'FAILED', refundError: 'No refund found at provider; retry is available.', refundId: null } });
+              const requestedAt = payment.refundRequestedAt ? new Date(payment.refundRequestedAt).getTime() : NaN;
+              const reviewRetained = Boolean(payment.refundAttemptId) && (!Number.isFinite(requestedAt) || Date.now() < requestedAt + REFUND_REVIEW_WINDOW_MS);
+              autoRefund = !reviewRetained && payment.status === 'PAID' && payment.consultation?.status === 'CANCELLED';
+              provider = { result: 'no_refund_found', paymentId: capture.id, autoRefund, reviewRetained, retryAfter: reviewRetained && Number.isFinite(requestedAt) ? new Date(requestedAt + REFUND_REVIEW_WINDOW_MS).toISOString() : null };
+              await tx.payment.updateMany({ where: { id, refundStatus: 'REVIEW' }, data: { refundStatus: reviewRetained ? 'REVIEW' : autoRefund ? 'REQUIRED' : 'FAILED', refundError: reviewRetained ? 'No provider refund found yet. Original attempt remains under review; allow at least 24 hours before retrying.' : 'No refund found at provider; retry is available.', ...(reviewRetained ? {} : { refundId: null }) } });
             }
           }
           const current = await tx.payment.findUnique({ where: { id } });
@@ -170,7 +173,7 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
     if (result.changed) await reviewNotification(result.payment);
     if (result.failure) throw result.failure;
-    return { payment: result.payment, message: result.autoRefund ? 'Late payment refund requested.' : result.provider.result === 'already_reconciled' ? 'Payment already reconciled.' : result.provider.result === 'no_refund_found' ? 'No provider refund found. Refund can be retried.' : resolution ? 'Payment review resolved.' : `Provider refund is ${result.provider.result}.` };
+    return { payment: result.payment, message: result.autoRefund ? 'Late payment refund requested.' : result.provider.result === 'already_reconciled' ? 'Payment already reconciled.' : result.provider.reviewRetained ? 'No provider refund found yet. Original attempt remains under review.' : result.provider.result === 'no_refund_found' ? 'No provider refund found. Refund can be retried.' : resolution ? 'Payment review resolved.' : `Provider refund is ${result.provider.result}.` };
   };
 
   const canResumeRefund = payment => payment?.consultation?.status === 'CANCELLED' && (payment.refundStatus === 'REQUIRED' || payment.refundStatus === 'FAILED' && Boolean(payment.refundAttemptId));

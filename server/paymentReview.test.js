@@ -137,17 +137,54 @@ test('an absent stored refund is found through its payment history', async () =>
   expect(calls.map(call => call.path)).toEqual(['/v1/refunds/rfnd_review', '/v1/payments/pay_review/refunds?count=100&skip=0']);
 });
 test('no refund clears review to retryable FAILED after validating capture', async () => {
-  payment.refundId = null;
+  payment.refundId = null; payment.refundRequestedAt = new Date(Date.now() - 25 * 3600000);
   provider = async req => req.url.includes('/refunds') ? { items: [] } : { id: 'pay_review', order_id: 'order_review', amount: 25000, currency: 'INR', status: 'captured', amount_refunded: 0 };
   expect((await post()).status).toBe(200); expect(payment.refundStatus).toBe('FAILED');
 });
 test('a late capture without a provider refund uses the atomic idempotent refund path', async () => {
-  payment.refundId = null; payment.consultation.status = 'CANCELLED';
+  payment.refundId = null; payment.refundAttemptId = null; payment.consultation.status = 'CANCELLED';
   provider = async (req, body) => req.method === 'POST' ? { ...refund('processed'), notes: body.notes } : req.url.includes('/refunds') ? { items: [] } : { id: 'pay_review', order_id: 'order_review', amount: 25000, currency: 'INR', status: 'captured', amount_refunded: 0 };
   expect((await Promise.all([post(), post()])).map(response => response.status)).toEqual([200, 200]);
   expect(payment.refundStatus).toBe('PROCESSED');
   const writes = calls.filter(call => call.method === 'POST'); expect(writes).toHaveLength(1); expect(writes[0].key).toBe(writes[0].body.notes.refundAttemptId);
   expect(audits.some(entry => JSON.parse(entry.reason).provider.autoRefund)).toBe(true);
+});
+test('a timed-out original attempt cannot be replaced while its history is still empty', async () => {
+  payment.refundId = null; payment.refundAttemptId = null; payment.refundStatus = 'REQUIRED'; payment.consultation.status = 'CANCELLED';
+  const timeout = jest.fn().mockRejectedValue(new Error('Razorpay request timed out'));
+  const service = require('./paymentService')({ prisma, request: timeout, notifications, logger: { error: jest.fn() }, meetings: {}, pendingTtl: 900000 });
+  await expect(service.settle(payment, capture())).rejects.toMatchObject({ status: 502 });
+  expect(payment.refundStatus).toBe('REVIEW');
+  const originalAttempt = payment.refundAttemptId, requestedAt = payment.refundRequestedAt;
+  expect(timeout.mock.calls[0][3]['X-Refund-Idempotency']).toBe(originalAttempt);
+  provider = async (req, body) => req.method === 'POST' ? { ...refund('processed'), notes: body.notes } : req.url.includes('/refunds') ? { items: [] } : capture();
+  expect((await post()).status).toBe(200);
+  expect(payment).toMatchObject({ refundStatus: 'REVIEW', refundAttemptId: originalAttempt, refundRequestedAt: requestedAt });
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
+  const retry = await request(app).post('/api/admin/consultations/cons_review/refund').set('Authorization', auth()).send({ reason: 'OTHER', note: 'Checking an ambiguous original provider attempt' });
+  expect(retry.status).toBe(409);
+  provider = async () => ({ items: [{ ...refund('processed'), notes: { refundAttemptId: originalAttempt } }] });
+  expect((await post()).status).toBe(200);
+  expect(payment).toMatchObject({ refundStatus: 'PROCESSED', refundAttemptId: originalAttempt });
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+  expect(JSON.parse(audits[0].reason)).toMatchObject({ after: { refundStatus: 'REVIEW' }, provider: { reviewRetained: true } });
+});
+test.each([null, 0, 23.99, -1])('empty history retains a recent or undated attempt (%s hours old)', async hours => {
+  payment.refundId = null; payment.refundRequestedAt = hours === null ? null : new Date(Date.now() - hours * 3600000);
+  provider = async req => req.url.includes('/refunds') ? { items: [] } : capture();
+  for (let i = 0; i < 2; i++) {
+    const response = await post(); expect(response.status).toBe(200);
+    expect(response.body.message).toContain('remains under review');
+    expect(payment).toMatchObject({ refundStatus: 'REVIEW', refundAttemptId: 'attempt_review' });
+  }
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+});
+test.each([24, 25])('empty history releases an attempt after the 24-hour review window (%s hours old)', async hours => {
+  payment.refundId = null; payment.refundRequestedAt = new Date(Date.now() - hours * 3600000);
+  provider = async req => req.url.includes('/refunds') ? { items: [] } : capture();
+  expect((await post()).status).toBe(200);
+  expect(payment.refundStatus).toBe('FAILED');
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
 });
 test.each([undefined, -1, '0', 1])('no-refund recovery rejects unsafe refunded amounts (%s)', async amountRefunded => {
   payment.refundId = null; payment.consultation.status = 'CANCELLED';
