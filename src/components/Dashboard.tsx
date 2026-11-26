@@ -206,6 +206,13 @@ export const Dashboard: React.FC = () => {
               <span>Subscription</span>
             </NavButton>}
           </div>
+          <section aria-label="Legal policies" className="mt-6 space-y-1 border-t border-line px-4 py-3 sm:hidden">
+            {(['terms', 'privacy', 'refunds', 'disclaimer'] as const).map(key => (
+              <button key={key} type="button" onClick={() => setActivePolicy(key)} className="block w-full rounded-lg px-4 py-2 text-left text-sm text-ink-muted hover:bg-cream hover:text-brand">
+                {policyTitles[key]}
+              </button>
+            ))}
+          </section>
         </nav>
 
         <div className="p-4 border-t border-line">
@@ -274,6 +281,7 @@ export const Dashboard: React.FC = () => {
             )}
             {activeView === 'editor' && (
               <button
+                aria-label="New Document"
                 onClick={handleNewDocument}
                 className="flex items-center space-x-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-dark transition"
               >

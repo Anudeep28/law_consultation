@@ -12,6 +12,9 @@ export class Paragraph {
 export class TextRun {
   constructor(public props: unknown) {}
 }
+export class ExternalHyperlink {
+  constructor(public props: unknown) {}
+}
 
 export const Packer = {
   toBlob: vi.fn().mockResolvedValue(new Blob([], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })),

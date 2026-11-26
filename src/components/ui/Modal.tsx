@@ -84,5 +84,5 @@ const ModalDialog: React.FC<ModalProps> = ({
 };
 
 export const Modal: React.FC<ModalProps> = props => (
-  <AnimatePresence propagate>{props.open && <ModalDialog {...props} />}</AnimatePresence>
+  <AnimatePresence propagate={props.open}>{props.open && <ModalDialog {...props} />}</AnimatePresence>
 );
