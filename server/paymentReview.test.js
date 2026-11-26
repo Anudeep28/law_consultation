@@ -129,12 +129,44 @@ test('an unrelated dashboard failure cannot retire an existing ambiguous app att
   payment.consultation.status = 'CANCELLED'; payment.refundRequestedAt = new Date();
   const external = { ...refund('failed'), id: 'rfnd_external', notes: {} };
   expect((await webhook('refund.failed', { refund: { entity: external } })).status).toBe(200);
-  provider = async (req, body) => req.method === 'POST' ? { ...refund('processed'), notes: body.notes } : external;
+  provider = async (req, body) => req.method === 'POST' ? { ...refund('processed'), notes: body.notes } : req.url.includes('/refunds?') ? { items: [external] } : external;
   expect((await post()).status).toBe(502);
   expect(payment).toMatchObject({ refundStatus: 'REVIEW', refundAttemptId: 'attempt_review' });
   expect((await webhook('payment.captured', { payment: { entity: capture() } })).status).toBe(200);
   expect(payment.status).toBe('PAID');
   expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
+});
+test.each([['failed', 'PAID', 'FAILED'], ['pending', 'PAID', 'PENDING'], ['processed', 'REFUNDED', 'PROCESSED']])('finds the original %s app refund after a dashboard failure replaces its ID', async (status, expected, refundStatus) => {
+  payment.consultation.status = 'CANCELLED';
+  const external = { ...refund('failed'), id: 'rfnd_dashboard', notes: {} };
+  const original = { ...refund(status), id: 'rfnd_original' };
+  expect((await webhook('refund.failed', { refund: { entity: external } })).status).toBe(200);
+  expect(payment).toMatchObject({ refundStatus: 'REVIEW', refundId: external.id });
+  provider = async req => req.url.includes('/refunds?') ? { items: [external, original] } : external;
+  const responses = await Promise.all([post(), post()]);
+  expect(responses.map(response => response.status)).toEqual([200, 200]);
+  expect(payment).toMatchObject({ status: expected, refundStatus, refundId: original.id, refundAttemptId: 'attempt_review' });
+  expect(calls.filter(call => call.path.includes('/refunds?'))).toHaveLength(1);
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+  expect(JSON.parse(audits[0].reason)).toMatchObject({ after: { refundId: original.id, refundStatus }, provider: { result: status, refundId: original.id } });
+  expect(audits).toHaveLength(2);
+  expect(notifications.createNotification).toHaveBeenCalledTimes(status === 'processed' ? 2 : 0);
+});
+test.each(['empty', 'duplicate', 'conflicting', 'unavailable', 'invalid'])('retains review when original refund history is %s after an ID replacement', async kind => {
+  const external = { ...refund('failed'), id: 'rfnd_dashboard', notes: {} };
+  const original = { ...refund('failed'), id: 'rfnd_original' };
+  payment.refundId = external.id;
+  provider = async req => {
+    if (!req.url.includes('/refunds?')) return external;
+    if (kind === 'unavailable') return { error: true, httpStatus: 503, message: 'Provider unavailable' };
+    if (kind === 'invalid') return {};
+    return { items: kind === 'empty' ? [] : kind === 'duplicate' ? [original, { ...original, id: 'rfnd_duplicate' }] : [original, { ...external, status: 'pending' }] };
+  };
+  expect((await post()).status).toBe(502);
+  expect(payment).toMatchObject({ refundStatus: 'REVIEW', refundId: external.id, refundAttemptId: 'attempt_review' });
+  expect(calls.filter(call => call.path.includes('/refunds?'))).toHaveLength(1);
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+  expect(JSON.parse(audits[0].reason)).toMatchObject({ after: { refundStatus: 'REVIEW' }, provider: { result: 'error' } });
 });
 test.each([true, false])('matches refund history by correlation or untracked full amount (%s)', async tracked => {
   payment.refundId = null;

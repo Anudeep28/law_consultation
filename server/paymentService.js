@@ -126,7 +126,8 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
               catch (error) { if (error.providerStatus !== 404) throw error; }
               if (entity && entity.id !== payment.refundId) throw paymentError('Provider refund ID mismatch; review retained.', 502);
             }
-            if (!entity) {
+            const replacedFailure = entity?.status === 'failed' && payment.refundAttemptId && entity.notes?.refundAttemptId !== payment.refundAttemptId;
+            if (!entity || replacedFailure) {
               const items = [];
               for (let page = 0; ; page++) {
                 if (page === 5) throw paymentError('Provider refund history exceeds the review limit; manual review is required.', 502);
@@ -138,7 +139,7 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
               const exact = items.filter(item => payment.refundAttemptId && item.notes?.refundAttemptId === payment.refundAttemptId);
               if (exact.length === 1 && !items.some(item => item !== exact[0] && item.status !== 'failed')) entity = exact[0];
               else if (items.length === 1 && !items[0].notes?.refundAttemptId) entity = items[0];
-              else if (items.length) throw paymentError('Ambiguous provider refund history; review retained.', 502);
+              else if (items.length || replacedFailure) throw paymentError('Ambiguous provider refund history; review retained.', 502);
             }
             if (entity) {
               if (!validId(entity.id) || entity.payment_id !== payment.razorpayPaymentId || entity.amount !== payment.amount || entity.currency !== payment.currency || !['processed', 'pending', 'failed'].includes(entity.status)) throw paymentError('Provider refund validation failed; review retained.', 502);
