@@ -85,13 +85,13 @@ export const AccountSettings: React.FC = () => {
   return (
     <div className="h-full overflow-y-auto bg-cream p-4 sm:p-6">
       <div className="mx-auto max-w-3xl space-y-6 text-ink">
-        <section className="rounded-2xl border border-line bg-white p-6">
+        <section className="rounded-2xl border border-line bg-cream-raised p-6">
           <h1 className="text-xl font-bold">Account &amp; Privacy</h1>
           <p className="my-4 text-sm text-ink-muted">Download a JSON copy of your profile, documents, consultations, payments, reviews, and notifications. Keep this file secure: it contains personal and legal information.</p>
           <button type="button" disabled={downloading || deleting} onClick={download} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-50">{downloading ? 'Preparing download...' : 'Download my data'}</button>
           {downloadError && <p role="alert" className="mt-3 text-sm text-brand">{downloadError}</p>}
         </section>
-        <section className="rounded-2xl border border-line bg-white p-6">
+        <section className="rounded-2xl border border-line bg-cream-raised p-6">
           <h2 className="font-bold">Password &amp; sessions</h2>
           <form onSubmit={updatePassword} className="mt-4 space-y-4">
             <PasswordRules />

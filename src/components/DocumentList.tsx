@@ -83,7 +83,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
     <div className="h-full overflow-y-auto bg-cream">
       <div className="max-w-6xl mx-auto px-6 py-7">
         {/* Search and Filter Bar */}
-        <div className="rounded-2xl border border-line bg-white p-4 mb-6 shadow-sm">
+        <div className="rounded-2xl border border-line bg-cream-raised p-4 mb-6 shadow-sm">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-4 top-3.5 h-4 w-4 text-ink-faint" />
@@ -108,7 +108,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
 
         {/* Documents Grid */}
         {filteredDocuments.length === 0 ? (
-          <div className="rounded-2xl border border-line bg-white p-12 text-center shadow-sm">
+          <div className="rounded-2xl border border-line bg-cream-raised p-12 text-center shadow-sm">
             <DecorativeAnimation kind="empty" />
             <h3 className="text-lg font-semibold text-ink mb-2">
               {searchTerm ? 'No documents found' : 'No documents yet'}
@@ -134,7 +134,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
               <AnimatedCard index={index}
                 key={document.id}
                 onClick={() => handleOpenDocument(document)}
-                className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm hover:shadow-xl cursor-pointer"
+                className="group overflow-hidden rounded-2xl border border-line bg-cream-raised p-5 shadow-sm hover:shadow-xl cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
@@ -204,7 +204,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
 
         {/* Document Stats */}
         {documents.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-line bg-white p-4 shadow-sm">
+          <div className="mt-6 rounded-2xl border border-line bg-cream-raised p-4 shadow-sm">
             <div className="flex items-center justify-between text-sm text-ink-muted">
               <span>
                 Showing {filteredDocuments.length} of {documents.length} document{documents.length !== 1 ? 's' : ''}

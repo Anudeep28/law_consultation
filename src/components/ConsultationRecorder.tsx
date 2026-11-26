@@ -75,7 +75,7 @@ export const ConsultationRecorder: React.FC<ConsultationRecorderProps> = ({ cons
           value={language}
           onChange={(event) => setLanguage(event.target.value)}
           disabled={isRecording}
-          className="rounded-lg border border-line-soft bg-white px-2 py-1.5 text-sm text-ink disabled:opacity-50"
+          className="rounded-lg border border-line-soft bg-cream-raised px-2 py-1.5 text-sm text-ink disabled:opacity-50"
         >
           {supportedLanguages.map((lang) => (
             <option key={lang.code} value={lang.code}>{lang.nativeName}</option>

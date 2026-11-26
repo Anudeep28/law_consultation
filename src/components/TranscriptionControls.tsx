@@ -150,7 +150,7 @@ export const TranscriptionControls: React.FC = () => {
   const isPaused = transcriptionSession?.isPaused;
 
   return (
-    <div className="bg-white border-t border-line px-4 pt-3 pb-4">
+    <div className="bg-cream-raised border-t border-line px-4 pt-3 pb-4">
       {/* Language selectors — always visible */}
       <div className="flex flex-wrap items-center gap-4 mb-3">
         <div className="flex min-w-0 items-center gap-2 flex-1">

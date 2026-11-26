@@ -115,9 +115,9 @@ export const Login: React.FC<LoginProps> = ({ onToggleMode }) => {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-3 rounded-lg border border-line-soft bg-white p-1">
+          <div className="grid grid-cols-3 rounded-lg border border-line-soft bg-cream-raised p-1">
             {(['client', 'lawyer', 'admin'] as UserRole[]).map((accountRole) => (
-              <button key={accountRole} type="button" onClick={() => setRole(accountRole)} className={`relative isolate rounded-md px-2 py-2 text-xs font-semibold ${role === accountRole ? 'text-white' : 'text-ink-muted'}`}>
+              <button key={accountRole} type="button" onClick={() => setRole(accountRole)} className={`relative isolate rounded-md px-2 py-2 text-xs font-semibold ${role === accountRole ? 'text-on-brand' : 'text-ink-muted'}`}>
                 {role === accountRole && <Suspense fallback={<span aria-hidden="true" className="absolute inset-0 -z-10 rounded-md bg-brand" />}><RoleIndicator /></Suspense>}
                 {accountRole === 'client' ? 'Client' : accountRole === 'lawyer' ? 'Lawyer' : 'Admin'}
               </button>

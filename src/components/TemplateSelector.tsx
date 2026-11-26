@@ -85,7 +85,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
           </div>
 
           {/* Preview pane */}
-          <div className="flex-none md:flex-1 md:overflow-y-auto bg-white">
+          <div className="flex-none md:flex-1 md:overflow-y-auto bg-cream-raised">
             {previewTemplate ? (
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">

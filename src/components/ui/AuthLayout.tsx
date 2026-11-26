@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { BadgeCheck, CreditCard, FileText, Scale } from 'lucide-react';
+import { ThemeControl } from './ThemeControl';
 
 const AuthHeroIllustration = lazy(() => import('./AuthHeroIllustration').then(module => ({ default: module.AuthHeroIllustration })));
 
@@ -11,6 +12,7 @@ class HeroBoundary extends React.Component<{ children: React.ReactNode }, { fail
 
 export const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <main className="auth-scene">
+    <div className="absolute right-3 top-3 z-10"><ThemeControl /></div>
     <div className="auth-layout">
       <section className="auth-hero">
         <div className="auth-wordmark"><span className="auth-symbol"><Scale aria-hidden="true" className="h-6 w-6" /></span>Law Writer</div>

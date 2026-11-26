@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { ThemeControl } from './ui/ThemeControl';
 import * as m from 'motion/react-m';
 import { AnimatePresence } from 'motion/react';
 import { useReducedMotion } from './ui/useReducedMotion';
@@ -262,6 +263,7 @@ export const Dashboard: React.FC = () => {
               </p>
             </div>
             
+            <ThemeControl />
             {activeView === 'documents' && (
               <button
                 aria-label="New Document"
@@ -306,7 +308,7 @@ export const Dashboard: React.FC = () => {
         </m.div>
         </AnimatePresence>
 
-        <footer className="hidden shrink-0 flex-col gap-2 border-t border-line bg-white px-6 py-3 text-xs text-ink-faint sm:flex">
+        <footer className="hidden shrink-0 flex-col gap-2 border-t border-line bg-cream-raised px-6 py-3 text-xs text-ink-faint sm:flex">
           <div className="flex items-center justify-between">
             <span>Built by Eneru 2026</span>
             <span>Powered by ElevenLabs and DeepSeek</span>

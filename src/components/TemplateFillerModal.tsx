@@ -188,7 +188,7 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
                   className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                     isRecording
                       ? 'bg-red-600 text-white animate-pulse'
-                      : 'bg-white border border-line-soft text-brand hover:bg-cream'
+                      : 'bg-cream-raised border border-line-soft text-brand hover:bg-cream'
                   }`}
                 >
                   {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}

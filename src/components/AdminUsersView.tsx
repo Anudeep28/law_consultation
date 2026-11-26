@@ -33,7 +33,7 @@ export const AdminUsersView: React.FC = () => {
     <h1 className="text-2xl font-bold text-ink">User management</h1><p className="text-sm text-ink-muted">Suspend, deactivate, or reactivate client and lawyer accounts. Records are preserved.</p>
     <div className="relative mt-5"><Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search users" className="w-full rounded-lg border border-line py-2 pl-10 pr-3" /></div>
     {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    <div className="mt-5 space-y-3">{filtered.map((user) => <article key={user.id} className="rounded-xl border border-line bg-white p-4 shadow-sm">
+    <div className="mt-5 space-y-3">{filtered.map((user) => <article key={user.id} className="rounded-xl border border-line bg-cream-raised p-4 shadow-sm">
       <div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-bold text-ink">{user.name}</h2><p className="text-sm text-gray-600">{user.email} · <span className="capitalize">{user.role}</span></p></div><span className="h-fit rounded-full bg-cream-muted px-3 py-1 text-xs font-semibold uppercase text-ink-muted">{user.accountStatus}</span></div>
       {user.statusReason && <p className="mt-2 text-sm text-red-700">Reason: {user.statusReason}</p>}
       <label className="mt-3 block text-sm font-medium">Administrative reason<input aria-label={`Reason for ${user.name}`} value={reasons[user.id] || ''} onChange={(event) => setReasons((current) => ({ ...current, [user.id]: event.target.value }))} maxLength={500} className="mt-1 w-full rounded-lg border border-line-soft px-3 py-2" /></label>

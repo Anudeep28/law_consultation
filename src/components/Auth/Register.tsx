@@ -47,7 +47,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 rounded-lg border border-line-soft bg-white p-1">
+          <div className="grid grid-cols-2 rounded-lg border border-line-soft bg-cream-raised p-1">
             {(['client', 'lawyer'] as UserRole[]).map((accountRole) => (
               <button key={accountRole} type="button" onClick={() => setRole(accountRole)} className={`rounded-md px-3 py-2 text-sm font-semibold ${role === accountRole ? 'bg-brand text-white' : 'text-ink-muted'}`}>
                 {accountRole === 'client' ? 'Public / Client' : 'Lawyer'}

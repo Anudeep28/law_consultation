@@ -149,7 +149,7 @@ export const NotificationBell: React.FC = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-line bg-white shadow-lg sm:w-96">
+        <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-line bg-cream-raised shadow-lg sm:w-96">
           <div className="flex items-center justify-between border-b border-line p-3">
             <h3 className="text-sm font-semibold text-ink">Notifications</h3>
             {unreadCount > 0 && (

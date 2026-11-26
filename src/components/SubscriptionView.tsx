@@ -51,7 +51,7 @@ export const SubscriptionView: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className={`rounded-2xl border-2 bg-white p-6 shadow-sm ${trialActive ? 'border-accent' : 'border-line'}`}>
+          <div className={`rounded-2xl border-2 bg-cream-raised p-6 shadow-sm ${trialActive ? 'border-accent' : 'border-line'}`}>
             <Clock className="w-8 h-8 text-accent-dark mb-4" />
             <h4 className="text-lg font-semibold text-ink">New user trial</h4>
             <p className="text-3xl font-bold text-ink mt-2">Free</p>
@@ -65,7 +65,7 @@ export const SubscriptionView: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-2xl border-2 border-line bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border-2 border-line bg-cream-raised p-6 shadow-sm">
             <FileText className="w-8 h-8 text-brand mb-4" />
             <h4 className="text-lg font-semibold text-ink">Single document</h4>
             <p className="text-3xl font-bold text-ink mt-2">₹10</p>
@@ -85,7 +85,7 @@ export const SubscriptionView: React.FC = () => {
             <p className="mt-3 text-center text-xs text-ink-faint">Credits available: {user.documentCredits}</p>
           </div>
 
-          <div className={`rounded-2xl border-2 bg-white p-6 shadow-sm ${monthlyActive ? 'border-brand' : 'border-line'}`}>
+          <div className={`rounded-2xl border-2 bg-cream-raised p-6 shadow-sm ${monthlyActive ? 'border-brand' : 'border-line'}`}>
             <div className="inline-flex rounded-full bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning-ink mb-3">Best value</div>
             <h4 className="text-lg font-semibold text-ink">Monthly</h4>
             <p className="text-3xl font-bold text-ink mt-2">₹499<span className="text-sm font-normal text-ink-faint"> / month</span></p>

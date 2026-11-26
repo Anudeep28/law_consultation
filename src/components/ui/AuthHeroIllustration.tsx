@@ -19,7 +19,7 @@ export const AuthHeroIllustration = () => {
     <svg viewBox="0 0 520 350" fill="none" focusable="false" className="h-full w-full">
       <defs>
         <linearGradient id={`${id}-paper`} x1="170" y1="80" x2="360" y2="310" gradientUnits="userSpaceOnUse">
-          <stop stopColor="white" /><stop offset="1" stopColor="#EEF2FF" />
+          <stop stopColor="rgb(var(--illustration-paper))" /><stop offset="1" stopColor="rgb(var(--illustration-soft))" />
         </linearGradient>
         <radialGradient id={`${id}-halo`}>
           <stop stopColor="#C7D2FE" stopOpacity=".65" /><stop offset="1" stopColor="#EEF2FF" stopOpacity="0" />
@@ -46,15 +46,15 @@ export const AuthHeroIllustration = () => {
         <path d="M272 272c9-18 14-24 10-11-6 19 6-9 11-4s-5 13 2 10 11-11 13-6 8 2 15-4M271 282h55" stroke="#4F46E5" strokeWidth="2" strokeLinecap="round" />
       </g>
       <g filter={`url(#${id}-shadow)`}>
-        <rect x="23" y="126" width="140" height="143" rx="26" fill="white" fillOpacity=".85" stroke="#E0E7FF" />
+        <rect x="23" y="126" width="140" height="143" rx="26" fill="rgb(var(--illustration-paper))" fillOpacity=".85" stroke="#E0E7FF" />
         <circle cx="93" cy="155" r="8" fill="#FBBF24" />
         <path d="M93 164v76m-27 5h54m-42-5h30M47 175l91-12" stroke="#4F46E5" strokeWidth="5" strokeLinecap="round" />
         <path d="m55 175-14 35h29l-15-35Zm75-10-15 35h29l-14-35Z" stroke="#818CF8" strokeWidth="2" strokeLinejoin="round" />
         <path d="M36 210a19 19 0 0 0 38 0H36Zm74-10a19 19 0 0 0 38 0h-38Z" fill="#4F46E5" />
       </g>
       <g filter={`url(#${id}-shadow)`}>
-        <rect x="306" y="27" width="191" height="119" rx="23" fill="white" fillOpacity=".95" stroke="#C7D2FE" />
-        <path d="m331 145-10 17 34-17" fill="white" stroke="#C7D2FE" strokeLinejoin="round" />
+        <rect x="306" y="27" width="191" height="119" rx="23" fill="rgb(var(--illustration-paper))" fillOpacity=".95" stroke="#C7D2FE" />
+        <path d="m331 145-10 17 34-17" fill="rgb(var(--illustration-paper))" stroke="#C7D2FE" strokeLinejoin="round" />
         <circle cx="350" cy="89" r="29" fill="#EEF2FF" />
         <circle cx="350" cy="82" r="11" fill="#E7B18A" />
         <path d="M339 81c-3-16 23-18 23 0l-8-4-15 4Z" fill="#334155" />
@@ -73,7 +73,7 @@ export const AuthHeroIllustration = () => {
         <path d="M397 121h6" stroke="#4F46E5" strokeWidth="2" strokeLinecap="round" />
       </g>
       <g filter={`url(#${id}-shadow)`}>
-        <rect x="396" y="209" width="86" height="86" rx="25" fill="white" fillOpacity=".9" stroke="#E0E7FF" />
+        <rect x="396" y="209" width="86" height="86" rx="25" fill="rgb(var(--illustration-paper))" fillOpacity=".9" stroke="#E0E7FF" />
         <path d="m439 222 8 5 9 1 2 9 5 8-5 8-2 9-9 2-8 5-8-5-9-2-2-9-5-8 5-8 2-9 9-1 8-5Z" fill="#4F46E5" />
         <path d="m429 245 7 7 13-15" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M427 282h24" stroke="#A5B4FC" strokeWidth="3" strokeLinecap="round" />
