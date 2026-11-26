@@ -1,6 +1,7 @@
 import { notify } from './ui/Toasts';
 import React, { useState } from 'react';
 import { Document } from '../types';
+import type { ParagraphChild } from 'docx';
 import type { jsPDF } from 'jspdf';
 import { getDocumentFontName, getDocumentFontFamily } from '../utils/documentFonts';
 import { Modal } from './ui/Modal';
@@ -26,7 +27,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
 
   const exportAsDocx = async () => {
     try {
-      const [{ Document: DocxDocument, Packer, Paragraph, TextRun }, { saveAs }] = await Promise.all([
+      const [{ Document: DocxDocument, Packer, Paragraph, TextRun, ExternalHyperlink }, { saveAs }] = await Promise.all([
         import('docx'), import('file-saver'),
       ]);
       const { blocks } = parseExportMarkdown(document.content);
@@ -37,7 +38,10 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
         return new Paragraph({
           children: [
             ...(block.prefix ? [new TextRun({ text: block.prefix, font: documentFont })] : []),
-            ...block.runs.flatMap(run => run.text.split('\n').map((text, index) => new TextRun({ ...run, text, break: index ? 1 : undefined, bold: heading || run.bold, size, font: documentFont }))),
+            ...block.runs.flatMap<ParagraphChild>(({ href, ...run }) => {
+              const children = run.text.split('\n').map((text, index) => new TextRun({ ...run, text, break: index ? 1 : undefined, bold: heading || run.bold, size, font: documentFont, style: href ? 'Hyperlink' : undefined }));
+              return href ? [new ExternalHyperlink({ link: href, children })] : children;
+            }),
           ],
           ...(heading ? { heading: block.level === 1 ? 'Title' : block.level === 2 ? 'Heading1' : 'Heading2' } : {}),
           ...(block.depth ? { indent: { left: block.depth * 360 } } : {}),

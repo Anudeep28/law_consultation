@@ -10,7 +10,7 @@ test('DOCX and PDF preserve clause numbers, chronology lines and link destinatio
   expect(login.status()).toBe(200);
   const { token } = await login.json();
   await page.addInitScript(value => localStorage.setItem('law-writer-token', value), token);
-  const content = '# **AFFIDAVIT** {{full_name}}\n\n1. First\n2. Second\n5. Fifth\n\n01 Jan: Filed\n02 Jan: Served\n03 Jan: Heard\n\n[Court filing](https://example.test/case)';
+  const content = '# **AFFIDAVIT** {{full_name}}\n\n1. First\n2. Second\n5. Fifth\n\n01 Jan: Filed\n02 Jan: Served\n03 Jan: Heard\n\n[Court filing](https://example.test/case)\n\nadvocate@example.test\n\n[+919876543210](tel:+919876543210)\n\nhttps://example.test/contact';
   await page.route('**/api/documents', route => route.fulfill({ json: { documents: [{
     id: 'export-regression', title: 'Export regression fixture', content, language: 'en', userId: bookingLawyer.id,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -38,13 +38,22 @@ test('DOCX and PDF preserve clause numbers, chronology lines and link destinatio
       expect(text).toContain('AFFIDAVIT {{full_name}}');
       expect(xml.match(/<w:br\s*\/>/g)).toHaveLength(2);
       expect(text).not.toContain('**');
+      expect(text.match(/advocate@example\.test/g)).toHaveLength(1);
+      expect(text.match(/\+919876543210/g)).toHaveLength(1);
+      expect(text.match(/https:\/\/example\.test\/contact/g)).toHaveLength(1);
+      const relationships: string = await archive.file('word/_rels/document.xml.rels').async('string');
+      expect(relationships).toContain('Target="mailto:advocate@example.test"');
+      expect(relationships).toContain('Target="tel:+919876543210"');
     } else {
       const lines = [...bytes.toString('latin1').matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/g)]
         .map(match => match[1].replace(/\\([\\()])/g, '$1'));
       expect(lines).toEqual(expect.arrayContaining([
         '5. Fifth', '01 Jan: Filed', '02 Jan: Served', '03 Jan: Heard', 'Court filing (https://example.test/case)',
+        'advocate@example.test', '+919876543210', 'https://example.test/contact',
       ]));
       expect(lines.join('\n')).not.toContain('**');
+      expect(lines.join('\n')).not.toContain('mailto:');
+      expect(lines.join('\n')).not.toContain('tel:');
     }
   }
 });

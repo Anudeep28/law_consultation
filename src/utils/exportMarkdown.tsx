@@ -1,9 +1,9 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export interface ExportRun { text: string; bold: boolean; italics: boolean }
+export interface ExportRun { text: string; bold: boolean; italics: boolean; href?: string }
 export interface ExportBlock {
   kind: 'paragraph' | 'heading' | 'rule';
   runs: ExportRun[];
@@ -30,10 +30,18 @@ const preserveLineBreaks = () => (tree: MarkdownNode) => {
   visit(tree);
 };
 
+const linkLabel = (children: React.ReactNode): string => React.Children.toArray(children).map(child =>
+  React.isValidElement<{ children?: React.ReactNode }>(child) ? linkLabel(child.props.children) : String(child)
+).join('');
+
 export const parseExportMarkdown = (content: string): { html: string; blocks: ExportBlock[] } => {
-  const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm, preserveLineBreaks]} components={{
+  const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm, preserveLineBreaks]} urlTransform={url => /^tel:/i.test(url) ? url : defaultUrlTransform(url)} components={{
     img: ({ alt }) => <>{alt}</>,
-    a: ({ href, children }) => <>{children}{href && children !== href ? ` (${href})` : ''}</>,
+    a: ({ href, children }) => {
+      const label = linkLabel(children);
+      const duplicate = label === href || label === href?.replace(/^(?:mailto:|tel:)/i, '');
+      return href ? <a href={href}>{children}{duplicate ? '' : ` (${href})`}</a> : <>{children}</>;
+    },
     li: ({ node, ...props }) => {
       const offset = node?.position?.start.offset;
       const number = offset === undefined ? undefined : content.slice(offset).match(/^\s*(\d+)[.)]\s+/)?.[1];
@@ -51,6 +59,7 @@ export const parseExportMarkdown = (content: string): { html: string; blocks: Ex
     const element = node as Element;
     if (['UL', 'OL'].includes(element.tagName)) return [];
     if (element.tagName === 'BR') return [{ text: '\n', bold, italics }];
+    if (element.tagName === 'A' && element.getAttribute('href')) return inline([...node.childNodes], bold, italics).map(run => ({ ...run, href: element.getAttribute('href')! }));
     return inline([...node.childNodes], bold || element.tagName === 'STRONG', italics || element.tagName === 'EM');
   });
   const walk = (element: Element, depth = 0) => {

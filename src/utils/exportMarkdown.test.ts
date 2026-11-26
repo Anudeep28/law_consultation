@@ -38,9 +38,23 @@ test('preserves destinations for named and reference links without duplicating a
   expect(document.querySelector('strong')?.textContent).toBe('Court filing');
 });
 
-test('raw HTML and Markdown images cannot add executable markup or network requests', () => {
-  const { html } = parseExportMarkdown('<img src="https://example.test/a" onerror="alert(1)">\n\n![Description](https://example.test/b)\n\n<script>alert(1)</script>');
+test('deduplicates URL, email and telephone labels while retaining hyperlink targets', () => {
+  const { blocks, html } = parseExportMarkdown('advocate@example.test\n\n[**advocate@example.test**](mailto:advocate@example.test)\n\n[+919876543210](tel:+919876543210)\n\n<https://example.test/contact>');
+  expect(blocks.map(block => block.runs.map(run => run.text).join(''))).toEqual([
+    'advocate@example.test', 'advocate@example.test', '+919876543210', 'https://example.test/contact',
+  ]);
+  expect(blocks.map(block => block.runs[0].href)).toEqual([
+    'mailto:advocate@example.test', 'mailto:advocate@example.test', 'tel:+919876543210', 'https://example.test/contact',
+  ]);
   const document = new DOMParser().parseFromString(html, 'text/html');
-  expect(document.querySelector('img, script, link, [onerror]')).toBeNull();
+  expect(document.querySelectorAll('a')).toHaveLength(4);
+  expect(document.body.textContent).not.toContain('(mailto:');
+  expect(document.body.textContent).not.toContain('(tel:');
+});
+
+test('raw HTML and Markdown images cannot add executable markup or network requests', () => {
+  const { html } = parseExportMarkdown('<img src="https://example.test/a" onerror="alert(1)">\n\n![Description](https://example.test/b)\n\n<script>alert(1)</script>\n\n[Unsafe](javascript:alert%281%29)');
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  expect(document.querySelector('img, script, link, [onerror], a[href^="javascript:"]')).toBeNull();
   expect(document.body.textContent).toContain('Description');
 });

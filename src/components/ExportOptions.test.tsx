@@ -52,6 +52,18 @@ describe('ExportOptions', () => {
     expect(runs.map(run => run.text).join('')).toBe('01 Jan: Filed02 Jan: Served03 Jan: Heard');
   });
 
+  it('keeps email addresses as single DOCX hyperlink labels', async () => {
+    const onClose = vi.fn();
+    render(<ExportOptions document={{ ...mockDocument(), content: 'advocate@example.test' }} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: /^export$/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const packed = (Packer.toBlob as Mock).mock.calls[0][0] as unknown as { sections: { children: { props: { children: { props: { link?: string; children?: { props: { text: string } }[] } }[] } }[] }[] };
+    const links = packed.sections[0].children[0].props.children.map(child => child.props);
+    expect(links).toHaveLength(1);
+    expect(links[0].link).toBe('mailto:advocate@example.test');
+    expect(links[0].children?.map(child => child.props.text).join('')).toBe('advocate@example.test');
+  });
+
   it('renders heading inline formatting, rules and list text in DOCX without leaking Markdown', async () => {
     const onClose = vi.fn();
     render(<ExportOptions document={{ ...mockDocument(), content: formattedContent }} onClose={onClose} />);
