@@ -109,7 +109,7 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
   const renderFieldInput = (field: TemplateField) => {
     const value = fieldValues[field.id] ?? '';
     const commonClass =
-      'w-full px-3 py-2 border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] placeholder-[#a89580] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 text-sm';
+      'w-full px-3 py-2 border border-line-soft rounded-lg bg-cream-raised text-ink placeholder-ink-weakest focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 text-sm';
 
     if (field.type === 'textarea') {
       return (
@@ -152,16 +152,16 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
         {/* Progress bar */}
         <div className="px-6 pt-4">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-[#8c6b54]">
+            <span className="text-xs text-ink-faint">
               Field {currentFieldIndex + 1} of {template.fields.length}
             </span>
-            <span className="text-xs text-[#8c6b54]">
+            <span className="text-xs text-ink-faint">
               {template.fields.filter((f) => fieldValues[f.id]?.trim()).length} / {template.fields.length} filled
             </span>
           </div>
-          <div className="w-full bg-[#f0e4d2] rounded-full h-1.5">
+          <div className="w-full bg-cream-deep rounded-full h-1.5">
             <div
-              className="bg-[#701f2f] h-1.5 rounded-full transition-all"
+              className="bg-brand h-1.5 rounded-full transition-all"
               style={{
                 width: `${(template.fields.filter((f) => fieldValues[f.id]?.trim()).length / template.fields.length) * 100}%`,
               }}
@@ -172,9 +172,9 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
         {/* Active field */}
         {currentField && (
           <div className="px-6 py-4 flex-1 overflow-y-auto">
-            <div className="bg-[#fff1f3] border border-[#eadbc1] rounded-xl p-4 mb-4">
+            <div className="bg-brand-soft border border-line rounded-xl p-4 mb-4">
               <div className="flex items-start justify-between mb-2">
-                <label className="text-sm font-semibold text-[#701f2f]">
+                <label className="text-sm font-semibold text-brand">
                   {currentField.name}
                   {currentField.required && <span className="text-red-500 ml-1">*</span>}
                 </label>
@@ -188,7 +188,7 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
                   className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                     isRecording
                       ? 'bg-red-600 text-white animate-pulse'
-                      : 'bg-white border border-[#e6d8c2] text-[#701f2f] hover:bg-[#fffaf0]'
+                      : 'bg-white border border-line-soft text-brand hover:bg-cream'
                   }`}
                 >
                   {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -209,20 +209,20 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
                   onClick={() => setActiveFieldId(field.id)}
                   className={`text-left px-3 py-2 rounded-lg border text-xs transition ${
                     field.id === activeFieldId
-                      ? 'border-[#701f2f] bg-[#fff1f3]'
+                      ? 'border-brand bg-brand-soft'
                       : fieldValues[field.id]?.trim()
                       ? 'border-green-300 bg-green-50'
-                      : 'border-[#eadbc1] bg-[#fffaf0] hover:bg-[#f2e4cc]'
+                      : 'border-line bg-cream hover:bg-cream-hover'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-[#32151b] truncate">{field.name}</span>
+                    <span className="font-medium text-ink truncate">{field.name}</span>
                     {fieldValues[field.id]?.trim() && (
                       <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0 ml-1" />
                     )}
                   </div>
                   {fieldValues[field.id]?.trim() && (
-                    <p className="text-[#6f5a49] truncate mt-0.5">{fieldValues[field.id]}</p>
+                    <p className="text-ink-muted truncate mt-0.5">{fieldValues[field.id]}</p>
                   )}
                 </button>
               ))}
@@ -231,12 +231,12 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#eadbc1] flex items-center justify-between bg-[#fffaf0]">
+        <div className="px-6 py-4 border-t border-line flex items-center justify-between bg-cream">
           <div className="flex space-x-2">
             <button
               onClick={goPrev}
               disabled={currentFieldIndex === 0}
-              className="flex items-center space-x-1 px-3 py-2 text-sm text-[#6f5a49] bg-[#f8f1e5] rounded-lg hover:bg-[#f2e4cc] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="flex items-center space-x-1 px-3 py-2 text-sm text-ink-muted bg-cream-muted rounded-lg hover:bg-cream-hover disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Prev</span>
@@ -244,7 +244,7 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
             <button
               onClick={goNext}
               disabled={currentFieldIndex === template.fields.length - 1}
-              className="flex items-center space-x-1 px-3 py-2 text-sm text-[#6f5a49] bg-[#f8f1e5] rounded-lg hover:bg-[#f2e4cc] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="flex items-center space-x-1 px-3 py-2 text-sm text-ink-muted bg-cream-muted rounded-lg hover:bg-cream-hover disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               <span>Next</span>
               <ChevronRight className="w-4 h-4" />
@@ -253,7 +253,7 @@ export const TemplateFillerModal: React.FC<TemplateFillerModalProps> = ({
           <button
             onClick={handleGenerate}
             disabled={!allRequiredFilled}
-            className="flex items-center space-x-2 px-5 py-2 bg-[#701f2f] text-white text-sm font-medium rounded-lg hover:bg-[#541522] disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="flex items-center space-x-2 px-5 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             <CheckCircle className="w-4 h-4" />
             <span>Generate Document</span>

@@ -51,7 +51,7 @@ export const PhoneVerification: React.FC = () => {
         <div className="flex flex-col gap-2 min-[420px]:flex-row">
           <input aria-label="Mobile number" type="tel" inputMode="numeric" value={phone} onChange={(event) => setPhone(event.target.value)} disabled={otpSent} className="min-w-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm" placeholder="10-digit mobile" />
           {otpSent && <input aria-label="One-time password" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(event) => setOtp(event.target.value)} className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm min-[420px]:w-32" placeholder="OTP" />}
-          <button type="button" disabled={isLoading} onClick={otpSent ? verifyOtp : sendOtp} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#701f2f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{otpSent && <CheckCircle className="h-4 w-4" />}{isLoading ? 'Please wait...' : otpSent ? 'Verify OTP' : 'Send OTP'}</button>
+          <button type="button" disabled={isLoading} onClick={otpSent ? verifyOtp : sendOtp} className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{otpSent && <CheckCircle className="h-4 w-4" />}{isLoading ? 'Please wait...' : otpSent ? 'Verify OTP' : 'Send OTP'}</button>
         </div>
       </div>
       {message && <p role="alert" className="mx-auto mt-2 max-w-5xl text-xs text-amber-900">{message}</p>}

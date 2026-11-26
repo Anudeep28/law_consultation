@@ -42,7 +42,7 @@ export const EmailVerificationBanner: React.FC = () => {
             type="button"
             onClick={handleSend}
             disabled={status === 'sending'}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#701f2f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             {status === 'sending' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
