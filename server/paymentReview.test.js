@@ -4,7 +4,7 @@ process.env.RAZORPAY_KEY_ID = 'rzp_test_review';
 process.env.RAZORPAY_KEY_SECRET = 'review-test-secret';
 process.env.RAZORPAY_WEBHOOK_SECRET = 'review-test-webhook';
 
-jest.mock('../db', () => ({ user: { findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() }, payment: { findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() }, consultation: { updateMany: jest.fn(), findUnique: jest.fn() }, adminAuditLog: { create: jest.fn(), update: jest.fn() }, $transaction: jest.fn() }));
+jest.mock('../db', () => ({ user: { findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() }, payment: { findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() }, consultation: { updateMany: jest.fn(), findUnique: jest.fn() }, adminAuditLog: { create: jest.fn(), update: jest.fn() }, $transaction: jest.fn(), $queryRaw: jest.fn() }));
 jest.mock('./notifications', () => ({ createNotification: jest.fn(), sendEmail: jest.fn(), setSocketIo: jest.fn() }));
 const http = require('http');
 const crypto = require('crypto');
@@ -39,6 +39,7 @@ beforeEach(() => {
   actor = { id: `admin_${Math.random()}`, role: 'ADMIN', accountStatus: 'ACTIVE', tokenVersion: 0 };
   payment = { id: 'payment_review', userId: 'client_review', status: 'PAID', refundStatus: 'REVIEW', refundId: 'rfnd_review', refundAttemptId: 'attempt_review', refundError: 'Ambiguous refund outcome', amount: 25000, currency: 'INR', razorpayPaymentId: 'pay_review', razorpayOrderId: 'order_review', consultationId: 'cons_review', user: { email: 'client@example.test' }, consultation: { id: 'cons_review', status: 'COMPLETED', lawyer: { userId: 'lawyer_review' } } };
   provider = async () => refund('processed');
+  prisma.$queryRaw.mockImplementation(async (_query, id) => id === payment.id ? [{ id }] : []);
   prisma.user.findUnique.mockImplementation(async () => actor);
   prisma.payment.findUnique.mockImplementation(async () => JSON.parse(JSON.stringify(payment)));
   prisma.payment.findMany.mockImplementation(async () => [JSON.parse(JSON.stringify(payment))]);
@@ -72,7 +73,70 @@ test('requires authentication and lists review context with a global count', asy
   expect((await request(app).post('/api/admin/payments/payment_review/resolve').send({})).status).toBe(401);
   const response = await request(app).get('/api/admin/payments/review?q=client').set('Authorization', auth());
   expect(response.status).toBe(200); expect(response.body.reviewCount).toBe(1);
-  expect(prisma.payment.findMany.mock.calls[0][0].where).toMatchObject({ refundStatus: 'REVIEW' });
+  expect(prisma.payment.findMany.mock.calls[0][0].where.AND[0].OR[0]).toEqual({ refundStatus: 'REVIEW' });
+});
+test.each(['processed', 'failed'])('a correlated %s webhook survives an original-refund recovery commit race', async status => {
+  const external = { ...refund('failed'), id: 'rfnd_dashboard', notes: {} };
+  const original = { ...refund('pending'), id: 'rfnd_original' };
+  payment.refundId = external.id;
+  const snapshot = JSON.parse(JSON.stringify(payment));
+  let readWebhook, releaseCommit, delivery;
+  const webhookRead = new Promise(resolve => { readWebhook = resolve; });
+  const committed = new Promise(resolve => { releaseCommit = resolve; });
+  const find = prisma.payment.findUnique.getMockImplementation();
+  prisma.payment.findUnique.mockImplementation(async args => {
+    if (args.where.razorpayPaymentId) { readWebhook(); return snapshot; }
+    return find(args);
+  });
+  const update = prisma.payment.updateMany.getMockImplementation();
+  prisma.payment.updateMany.mockImplementation(async args => {
+    if (args.data.refundStatus === (status === 'processed' ? 'PROCESSED' : 'FAILED')) await committed;
+    return update(args);
+  });
+  provider = async req => {
+    if (!req.url.includes('/refunds?')) return external;
+    delivery = webhook(`refund.${status}`, { refund: { entity: { ...original, status } } }).then(response => response);
+    await webhookRead;
+    return { items: [external, original] };
+  };
+  const response = await post();
+  releaseCommit();
+  expect(response.status).toBe(200);
+  expect((await delivery).status).toBe(200);
+  expect(payment).toMatchObject({ refundId: original.id, refundStatus: status === 'processed' ? 'PROCESSED' : 'FAILED' });
+});
+test.each([14, 15, 16])('pending refunds updated %s minutes ago are reconcilable only once stale', async minutes => {
+  payment.refundStatus = 'PENDING'; payment.updatedAt = new Date(Date.now() - minutes * 60000);
+  const updatedAt = payment.updatedAt;
+  provider = async () => refund('processed');
+  expect((await post()).status).toBe(200);
+  expect(payment.refundStatus).toBe(minutes >= 15 ? 'PROCESSED' : 'PENDING');
+  expect(calls.length > 0).toBe(minutes >= 15);
+  if (minutes < 15) expect(payment.updatedAt).toEqual(updatedAt);
+});
+test('a conflicting terminal webhook requests redelivery instead of losing the update', async () => {
+  prisma.payment.updateMany.mockResolvedValueOnce({ count: 0 });
+  expect((await webhook('refund.processed', { refund: { entity: refund('processed') } })).status).toBe(503);
+  expect(payment.refundStatus).toBe('REVIEW');
+  expect((await webhook('refund.processed', { refund: { entity: refund('processed') } })).status).toBe(200);
+  expect(payment.refundStatus).toBe('PROCESSED');
+});
+test('a stale pending refund with unavailable provider status remains reviewable', async () => {
+  payment.refundStatus = 'PENDING'; payment.updatedAt = new Date(Date.now() - 16 * 60000);
+  provider = async () => ({ error: 'Unavailable' });
+  expect((await post()).status).toBe(502);
+  expect(payment.refundStatus).toBe('REVIEW');
+  expect(JSON.parse(audits[0].reason)).toMatchObject({ before: { refundStatus: 'PENDING' }, after: { refundStatus: 'REVIEW' } });
+});
+test('the review queue includes stale pending rows and preserves search alongside the review predicate', async () => {
+  payment.refundStatus = 'PENDING'; payment.updatedAt = new Date(Date.now() - 16 * 60000);
+  const response = await request(app).get('/api/admin/payments/review?q=client').set('Authorization', auth());
+  expect(response.status).toBe(200);
+  expect(response.body.payments[0].needsReview).toBe(true);
+  const where = prisma.payment.findMany.mock.calls[0][0].where;
+  expect(where.AND[0].OR).toEqual([{ refundStatus: 'REVIEW' }, { refundStatus: 'PENDING', updatedAt: { lte: expect.any(Date) } }]);
+  expect(where.OR[0]).toMatchObject({ user: { email: { contains: 'client' } } });
+  expect(prisma.payment.count.mock.calls[0][0].where).toEqual(where.AND[0]);
 });
 test.each([['processed', 'REFUNDED', 'PROCESSED'], ['pending', 'PAID', 'PENDING'], ['failed', 'PAID', 'FAILED']])('applies provider %s and audits before and after', async (status, expected, refundStatus) => {
   provider = async () => refund(status);
@@ -259,7 +323,7 @@ test.each(['REFUNDED', 'NO_REFUND_NEEDED'])('manually resolves %s once with an a
   expect((await post('resolve', body)).status).toBe(409); expect(calls).toHaveLength(0);
 });
 test('missing payments return 404 without touching the provider', async () => {
-  prisma.payment.updateMany.mockResolvedValueOnce({ count: 0 }); expect((await post()).status).toBe(404); expect(calls).toHaveLength(0);
+  prisma.$queryRaw.mockResolvedValueOnce([]); expect((await post()).status).toBe(404); expect(calls).toHaveLength(0);
 });
 test('notification failure does not roll back a reconciled provider refund', async () => {
   notifications.createNotification.mockRejectedValueOnce(new Error('Unavailable'));

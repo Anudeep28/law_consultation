@@ -51,8 +51,13 @@ New nullable payment fields record `refundStatus`, `refundId`, `refundAttemptId`
   it after committing the financial record. A duplicate capture event or owning
   client's repeat cancellation can resume it after a process interruption.
 - `PENDING`: an attempt has been claimed or accepted by Razorpay. Do not issue a
-  new refund. Processed/failed webhooks finish it; monitor old pending rows for
-  reconciliation if the initiating process died or webhooks are unavailable.
+  new refund. Processed/failed webhooks finish it. Rows with no update for at
+  least 15 minutes appear in the review queue and count with a provider-check
+  action. Reconciliation promotes these to REVIEW before checking, so provider
+  failures remain actionable. A read/check does not refresh an untouched pending
+  row's timestamp. Correlated webhooks match payment ID and attempt key even if
+  reconciliation is replacing a dashboard refund ID; conflicting writes request
+  webhook redelivery instead of silently losing the terminal event.
 - `FAILED`: explicit provider rejection or a matching failed webhook. The owning
   client's cancellation endpoint can retry. Capture replays only resume refunds
   owed for CANCELLED consultations: REQUIRED, or FAILED with an app-generated

@@ -3,6 +3,9 @@ const crypto = require('crypto');
 const validId = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
 const paymentError = (message, status = 400) => Object.assign(new Error(message), { status });
 const REFUND_REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
+const PENDING_REVIEW_WINDOW_MS = 15 * 60 * 1000;
+const reviewWhere = (now = new Date()) => ({ OR: [{ refundStatus: 'REVIEW' }, { refundStatus: 'PENDING', updatedAt: { lte: new Date(now.getTime() - PENDING_REVIEW_WINDOW_MS) } }] });
+const needsReview = (payment, now = new Date()) => payment.refundStatus === 'REVIEW' || payment.refundStatus === 'PENDING' && new Date(payment.updatedAt).getTime() <= now.getTime() - PENDING_REVIEW_WINDOW_MS;
 
 module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl }) => {
   const verifySignature = (orderId, paymentId, signature, secret) => {
@@ -87,11 +90,15 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
     if (entity.amount !== payment.amount || entity.currency !== payment.currency) throw paymentError('Refund amount or currency mismatch');
     if (entity.notes?.refundAttemptId !== payment.refundAttemptId) return;
-    if (payment.refundId && payment.refundId !== entity.id) return;
     const status = { processed: 'PROCESSED', failed: 'FAILED', pending: 'PENDING' }[entity.status];
     if (!status) throw paymentError('Invalid refund status');
     if (status === 'PENDING') return;
-    await applyRefundStatus(prisma, payment, entity);
+    const applied = await applyRefundStatus(prisma, payment, entity);
+    if (applied.count !== 1) {
+      const current = await prisma.payment.findUnique({ where: { id: payment.id } });
+      if (current?.status === 'REFUNDED' || current?.refundStatus === 'PROCESSED' || current?.refundAttemptId !== payment.refundAttemptId) return;
+      throw paymentError('Refund state changed; retry delivery', 503);
+    }
   };
 
   const reviewState = payment => ({ status: payment.status, refundStatus: payment.refundStatus, refundId: payment.refundId, refundAttemptId: payment.refundAttemptId, refundError: payment.refundError });
@@ -107,12 +114,16 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
   const reconcile = async (id, adminId, resolution) => {
     const result = await prisma.$transaction(async tx => {
       // Serialize provider checks, manual overrides and webhook writes on this payment.
-      const locked = await tx.payment.updateMany({ where: { id }, data: { updatedAt: new Date() } });
-      if (locked.count !== 1) throw paymentError('Payment not found', 404);
+      const locked = await tx.$queryRaw`SELECT "id" FROM "Payment" WHERE "id" = ${id} FOR UPDATE`;
+      if (!locked.length) throw paymentError('Payment not found', 404);
       const payment = await tx.payment.findUnique({ where: { id }, include: { consultation: { include: { lawyer: true } } } });
       const before = reviewState(payment);
       let provider = { result: 'already_reconciled' }, failure, autoRefund = false;
       if (resolution && payment.refundStatus !== 'REVIEW') throw paymentError('Only review-required payments can be resolved', 409);
+      if (payment.refundStatus === 'PENDING' && needsReview(payment)) {
+        await tx.payment.updateMany({ where: { id, refundStatus: 'PENDING' }, data: { refundStatus: 'REVIEW', refundError: 'Pending refund has not updated for at least 15 minutes; reconcile provider status.' } });
+        payment.refundStatus = 'REVIEW';
+      }
       if (payment.refundStatus === 'REVIEW') {
         try {
           if (resolution) {
@@ -273,5 +284,5 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     return prisma.payment.findUnique({ where: { id: payment.id }, select: { id: true, status: true, refundStatus: true, refundError: true } });
   };
 
-  return { verifySignature, settle, refundEvent, cancel, adminRefund, reconcile };
+  return { verifySignature, settle, refundEvent, cancel, adminRefund, reconcile, reviewWhere, needsReview };
 };

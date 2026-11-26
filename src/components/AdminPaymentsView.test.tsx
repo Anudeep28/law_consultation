@@ -75,6 +75,22 @@ test('filters the review queue and checks the provider, then refreshes the count
   expect(api).toHaveBeenCalledWith('/api/admin/payments/payment-1/reconcile', { method: 'POST' });
   expect(useToastStore.getState().toasts[0].message).toBe('Provider refund is processed.');
 });
+test.each([true, false])('pending refunds are actionable only when the server flags them stale (%s)', async needsReview => {
+  api.mockResolvedValue({ payments: [{ ...payment, refundStatus: 'PENDING', needsReview }] });
+  render(<AdminPaymentsView />);
+  await screen.findByText('PENDING');
+  expect(screen.getByLabelText(`${needsReview ? 1 : 0} payments need review`)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Mark payment payment-1 resolved' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Refund consultation cons-1' })).not.toBeInTheDocument();
+  if (!needsReview) {
+    expect(screen.queryByRole('button', { name: 'Check with Razorpay for payment payment-1' })).not.toBeInTheDocument();
+    return;
+  }
+  api.mockResolvedValueOnce({ message: 'Provider refund is processed.' }).mockResolvedValue({ payments: [], reviewCount: 0 });
+  fireEvent.click(screen.getByRole('button', { name: 'Check with Razorpay for payment payment-1' }));
+  expect(await screen.findByText('No payments found.')).toBeInTheDocument();
+  expect(api).toHaveBeenCalledWith('/api/admin/payments/payment-1/reconcile', { method: 'POST' });
+});
 
 test('manual resolution validates outcome/note and submits the trimmed audit note', async () => {
   api.mockResolvedValue({ payments: [{ ...payment, refundStatus: 'REVIEW' }], reviewCount: 1 });

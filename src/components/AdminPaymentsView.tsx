@@ -7,11 +7,13 @@ import { notify } from './ui/Toasts';
 interface Payment {
   id: string; amount: number; currency: string; status: string; plan: string;
   refundStatus: string | null; refundError: string | null; refundId: string | null;
+  needsReview?: boolean;
   razorpayPaymentId?: string | null; razorpayOrderId?: string; refundAttemptId?: string | null; refundRequestedAt?: string | null;
   user: { name: string; email: string };
   consultation: { id: string; status: string; startsAt: string; lawyer: { name: string } } | null;
 }
 const amount = (payment: Payment) => `${payment.currency} ${(payment.amount / 100).toFixed(2)}`;
+const needsReview = (payment: Payment) => payment.needsReview || payment.refundStatus === 'REVIEW';
 
 export const AdminPaymentsView: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -36,7 +38,7 @@ export const AdminPaymentsView: React.FC = () => {
       const result = await apiRequest<{ payments: Payment[]; reviewCount?: number }>(`/api/admin/payments${onlyReview ? '/review' : ''}?q=${encodeURIComponent(search.trim())}`);
       if (id !== requestId.current) return;
       setPayments(result.payments);
-      setReviewCount(result.reviewCount ?? result.payments.filter(payment => payment.refundStatus === 'REVIEW').length);
+      setReviewCount(result.reviewCount ?? result.payments.filter(needsReview).length);
     } catch { if (id === requestId.current) setError('Unable to load payments. Please refresh.'); }
     finally { if (id === requestId.current) setLoading(false); }
   };
@@ -86,13 +88,13 @@ export const AdminPaymentsView: React.FC = () => {
     {error && <p role="alert" className="mt-4 rounded-lg bg-brand-soft p-3 text-brand">{error}</p>}
     {loading ? <p role="status" className="mt-4 text-ink-muted">Loading payments…</p> : !error && payments.length === 0 ? <p className="mt-4 text-ink-muted">No payments found.</p> : <div className="mt-5 space-y-3">{payments.map((payment, index) => <AnimatedArticle index={index} key={payment.id} className="rounded-xl border border-line bg-white p-4 shadow-sm">
       <div className="flex flex-wrap justify-between gap-3"><div className="min-w-0 break-words"><h2 className="font-bold text-ink">{payment.user.email}</h2><p className="text-sm text-ink-muted">{payment.consultation?.lawyer.name || payment.plan} · {amount(payment)}</p><p className="text-xs text-ink-faint">Payment: {payment.id}</p>{payment.consultation && <p className="text-xs text-ink-faint">Consultation: {payment.consultation.id} · {payment.consultation.status}</p>}</div><span className="h-fit rounded-full bg-cream-muted px-3 py-1 text-sm font-semibold text-ink">{payment.refundStatus || payment.status}</span></div>
-      {payment.refundStatus === 'REVIEW' && <p className="mt-2 font-semibold text-brand">Needs review — reconcile with Razorpay before retrying.</p>}
+      {needsReview(payment) && <p className="mt-2 font-semibold text-brand">Needs review — reconcile with Razorpay before retrying.</p>}
       {payment.refundError && <p className="mt-2 text-sm text-brand">{payment.refundError}</p>}
       {payment.refundId && <p className="mt-2 break-all text-xs text-ink-muted">Refund: {payment.refundId}</p>}
-      {payment.refundStatus === 'REVIEW' && <div className="mt-3 space-y-2">
+      {needsReview(payment) && <div className="mt-3 space-y-2">
         <p className="break-all text-xs text-ink-muted">Provider order: {payment.razorpayOrderId || 'Unavailable'} · Payment: {payment.razorpayPaymentId || 'Unavailable'}</p>
         <p className="break-all text-xs text-ink-muted">Attempt: {payment.refundAttemptId || 'Untracked'} · Last refund attempt: {payment.refundRequestedAt ? new Date(payment.refundRequestedAt).toLocaleString() : 'Not recorded'}</p>
-        <div className="flex flex-wrap gap-2"><PrimaryButton disabled={busy} onClick={() => void reviewAction(payment)} aria-label={`Check with Razorpay for payment ${payment.id}`} className="rounded-lg bg-brand px-4 py-2 text-sm text-white">Check with Razorpay</PrimaryButton><button type="button" disabled={busy} aria-label={`Mark payment ${payment.id} resolved`} onClick={() => { setResolving(payment); setOutcome(''); setNote(''); setValidation(''); }} className="rounded-lg border border-line px-4 py-2 text-sm text-ink">Mark resolved</button></div>
+        <div className="flex flex-wrap gap-2"><PrimaryButton disabled={busy} onClick={() => void reviewAction(payment)} aria-label={`Check with Razorpay for payment ${payment.id}`} className="rounded-lg bg-brand px-4 py-2 text-sm text-white">Check with Razorpay</PrimaryButton>{payment.refundStatus === 'REVIEW' && <button type="button" disabled={busy} aria-label={`Mark payment ${payment.id} resolved`} onClick={() => { setResolving(payment); setOutcome(''); setNote(''); setValidation(''); }} className="rounded-lg border border-line px-4 py-2 text-sm text-ink">Mark resolved</button>}</div>
       </div>}
       {payment.consultation && payment.status === 'PAID' && (!payment.refundStatus || ['FAILED', 'REQUIRED'].includes(payment.refundStatus)) && <PrimaryButton onClick={() => { setSelected(payment); setReason(''); setNote(''); setValidation(''); }} aria-label={`Refund consultation ${payment.consultation.id}`} className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">{payment.refundStatus === 'FAILED' ? 'Retry refund' : 'Refund'}</PrimaryButton>}
     </AnimatedArticle>)}</div>}

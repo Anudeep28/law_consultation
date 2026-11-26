@@ -771,12 +771,14 @@ app.post('/api/admin/payments/:id/resolve', authenticate, requireRole('ADMIN'), 
 app.get(['/api/admin/payments', '/api/admin/payments/review'], authenticate, requireRole('ADMIN'), rateLimit(req => `admin-payments:${req.user.id}`, 120, 15 * 60 * 1000), async (req, res) => {
   const query = String(req.query.q || '').trim().slice(0, 200);
   try {
-    const payments = await prisma.payment.findMany({
-      where: { ...(req.path.endsWith('/review') ? { refundStatus: 'REVIEW' } : {}), ...(query ? { OR: [{ user: { email: { contains: query, mode: 'insensitive' } } }, { consultationId: { contains: query, mode: 'insensitive' } }, { consultation: { lawyer: { OR: [{ name: { contains: query, mode: 'insensitive' } }, { id: query }] } } }] } : {}) },
+    const now = new Date();
+    const reviewWhere = payments.reviewWhere(now);
+    const rows = await prisma.payment.findMany({
+      where: { ...(req.path.endsWith('/review') ? { AND: [reviewWhere] } : {}), ...(query ? { OR: [{ user: { email: { contains: query, mode: 'insensitive' } } }, { consultationId: { contains: query, mode: 'insensitive' } }, { consultation: { lawyer: { OR: [{ name: { contains: query, mode: 'insensitive' } }, { id: query }] } } }] } : {}) },
       orderBy: { updatedAt: 'desc' }, take: 100,
       select: { id: true, amount: true, currency: true, status: true, plan: true, razorpayPaymentId: true, razorpayOrderId: true, refundAttemptId: true, refundRequestedAt: true, refundStatus: true, refundError: true, refundId: true, updatedAt: true, user: { select: { email: true, name: true } }, consultation: { select: { id: true, status: true, startsAt: true, lawyer: { select: { name: true } } } } },
     });
-    res.json({ payments, reviewCount: await prisma.payment.count({ where: { refundStatus: 'REVIEW' } }) });
+    res.json({ payments: rows.map(payment => ({ ...payment, needsReview: payments.needsReview(payment, now) })), reviewCount: await prisma.payment.count({ where: reviewWhere }) });
   } catch { res.status(500).json({ error: 'Unable to load payments' }); }
 });
 
