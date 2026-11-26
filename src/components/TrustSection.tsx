@@ -36,7 +36,7 @@ const trustPoints = [
 
 export const TrustSection: React.FC = () => {
   return (
-    <section className="rounded-2xl border border-line bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-line bg-cream-raised p-6 shadow-sm">
       <div className="mb-6 text-center">
         <h2 className="text-xl font-bold text-ink">Why Law Writer?</h2>
         <p className="mt-1 text-sm text-ink-muted">

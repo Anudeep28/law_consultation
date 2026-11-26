@@ -59,7 +59,7 @@ const ModalDialog: React.FC<ModalProps> = ({
         initial={reduced ? false : { opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1, transition: reduced ? { duration: 0 } : spring }}
         exit={{ opacity: 0, y: reduced ? 0 : 10, scale: reduced ? 1 : 0.98, transition: reduced ? { duration: 0 } : spring }}
-        className={`dialog-panel w-full ${fullScreenOnMobile ? `max-w-none ${MOBILE_MAX_WIDTHS[maxWidth]} h-[100dvh] sm:h-[75vh] max-h-[100dvh] sm:max-h-[90vh] rounded-none sm:rounded-2xl` : `${MAX_WIDTHS[maxWidth]} max-h-[90vh] rounded-2xl`} overflow-hidden border border-line bg-white shadow-2xl ${panelClassName}`}
+        className={`dialog-panel w-full ${fullScreenOnMobile ? `max-w-none ${MOBILE_MAX_WIDTHS[maxWidth]} h-[100dvh] sm:h-[75vh] max-h-[100dvh] sm:max-h-[90vh] rounded-none sm:rounded-2xl` : `${MAX_WIDTHS[maxWidth]} max-h-[90vh] rounded-2xl`} overflow-hidden border border-line bg-cream-raised shadow-2xl ${panelClassName}`}
       >
         {title !== undefined && (
           <div className="flex items-center justify-between border-b border-line bg-cream px-6 py-4">

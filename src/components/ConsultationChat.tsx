@@ -83,11 +83,11 @@ export const ConsultationChat: React.FC<ConsultationChatProps> = ({ consultation
 
         <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-800">{isReadOnly ? 'Read-only conversation history' : 'Do not share passwords, OTPs, payment details, or unnecessary identity documents in chat.'}</div>
         <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-cream">
-          <div className="mx-auto max-w-md rounded-lg bg-white border p-3 text-center text-xs text-gray-600">Your 10-minute consultation is about <strong>{consultation.topic}</strong>. Messages are stored with this booking.</div>
+          <div className="mx-auto max-w-md rounded-lg bg-cream-raised border p-3 text-center text-xs text-gray-600">Your 10-minute consultation is about <strong>{consultation.topic}</strong>. Messages are stored with this booking.</div>
           {messages.map((message) => {
             const isOwn = message.sender === role;
             return <div key={message.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-brand text-white' : 'bg-white border text-gray-800'}`}><p>{message.content}</p><p className={`mt-1 text-[10px] ${isOwn ? 'text-rose-200' : 'text-gray-400'}`}>{message.sender === 'lawyer' ? consultation.lawyer.name : consultation.client?.name || 'Client'} · {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
+              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${isOwn ? 'bg-brand text-white' : 'bg-cream-raised border text-gray-800'}`}><p>{message.content}</p><p className={`mt-1 text-[10px] ${isOwn ? 'text-rose-200' : 'text-gray-400'}`}>{message.sender === 'lawyer' ? consultation.lawyer.name : consultation.client?.name || 'Client'} · {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
             </div>;
           })}
           {!messages.length && <p className="text-center text-sm text-gray-400 pt-8">No messages yet. Send your first question when the lawyer joins.</p>}

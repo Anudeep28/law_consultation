@@ -246,7 +246,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
   if (!currentDocument) {
     return (
       <div className="flex items-center justify-center h-full bg-cream">
-        <div className="editor-empty text-center bg-white rounded-2xl border border-line p-8 shadow-sm">
+        <div className="editor-empty text-center bg-cream-raised rounded-2xl border border-line p-8 shadow-sm">
           <h2 className="text-2xl font-bold text-ink mb-4">No Document Open</h2>
           <p className="text-ink-muted mb-6">Create a new document or select a template to get started</p>
           <div className="space-x-4">
@@ -272,7 +272,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
   return (
     <div className="flex min-w-0 flex-col h-full bg-cream">
       {/* Document Title Bar */}
-      <div className="bg-white border-b border-line px-4 py-2 flex flex-wrap items-center gap-3">
+      <div className="bg-cream-raised border-b border-line px-4 py-2 flex flex-wrap items-center gap-3">
         {isEditingTitle ? (
           <input
             ref={titleInputRef}
@@ -317,7 +317,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white border-b border-line px-4 py-2">
+      <div className="bg-cream-raised border-b border-line px-4 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <button

@@ -109,7 +109,7 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
       {deliverables.length > 0 && (
         <ul className="mt-2 space-y-2">
           {deliverables.map((deliverable) => (
-            <li key={deliverable.id} className="flex items-center justify-between gap-3 rounded-lg border border-cream-deep bg-white px-3 py-2">
+            <li key={deliverable.id} className="flex items-center justify-between gap-3 rounded-lg border border-cream-deep bg-cream-raised px-3 py-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-ink">{deliverable.title}</p>
                 <p className="text-xs capitalize text-ink-faint">{deliverable.status === 'delivered' ? `Delivered ${deliverable.deliveredAt ? new Date(deliverable.deliveredAt).toLocaleDateString() : ''}` : 'Draft'}</p>
@@ -122,7 +122,7 @@ export const ConsultationDeliverables: React.FC<ConsultationDeliverablesProps> =
                       value={translationLanguages[deliverable.id] || 'en'}
                       onChange={(event) => setTranslationLanguages((current) => ({ ...current, [deliverable.id]: event.target.value }))}
                       disabled={translatingId === deliverable.id}
-                      className="rounded-lg border border-line-soft bg-white px-2 py-1.5 text-xs text-ink disabled:opacity-50"
+                      className="rounded-lg border border-line-soft bg-cream-raised px-2 py-1.5 text-xs text-ink disabled:opacity-50"
                     >
                       {supportedLanguages.map((language) => <option key={language.code} value={language.code}>{language.nativeName}</option>)}
                     </select>

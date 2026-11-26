@@ -73,7 +73,7 @@ export const AdminLawyerReviewView: React.FC = () => {
           {lawyers.map((lawyer) => (
             <article
               key={lawyer.id}
-              className="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-6"
+              className="rounded-2xl border border-line bg-cream-raised p-4 shadow-sm sm:p-6"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>

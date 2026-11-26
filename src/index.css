@@ -5,6 +5,35 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+  --white: 255 255 255;
+  --on-brand: 255 255 255;
+  --brand: 79 70 229; --brand-dark: 55 48 163; --brand-darker: 30 27 75; --brand-soft: 238 242 255;
+  --accent: 251 191 36; --accent-dark: 146 64 14;
+  --cream: 248 250 252; --cream-raised: 255 255 255; --cream-muted: 241 245 249; --cream-hover: 232 237 245; --cream-deep: 226 232 240;
+  --ink: 23 32 51; --ink-body: 51 65 85; --ink-muted: 71 85 105; --ink-faint: 82 96 120;
+  --line: 220 226 237; --line-soft: 226 232 240; --surface-border: 255 255 255;
+  --warning-bg: 255 247 230; --warning-ink: 133 77 14;
+  --input-border: 135 147 171; --mesh-indigo: 224 231 255; --mesh-amber: 254 243 199;
+  --illustration-paper: 255 255 255; --illustration-soft: 238 242 255;
+  --shimmer: 255 255 255;
+}
+.dark {
+  color-scheme: dark;
+  --on-brand: 11 16 32;
+  --brand: 129 140 248; --brand-dark: 165 180 252; --brand-darker: 199 210 254; --brand-soft: 32 41 75;
+  --accent: 251 191 36; --accent-dark: 253 230 138;
+  --cream: 11 16 32; --cream-raised: 18 26 46; --cream-muted: 24 34 58; --cream-hover: 33 45 73; --cream-deep: 43 57 85;
+  --ink: 241 245 249; --ink-body: 216 225 239; --ink-muted: 184 196 218; --ink-faint: 159 176 203;
+  --line: 52 67 95; --line-soft: 42 55 80; --surface-border: 52 67 95;
+  --warning-bg: 52 37 16; --warning-ink: 253 230 138;
+  --input-border: 107 126 159; --mesh-indigo: 28 32 71; --mesh-amber: 47 35 31;
+  --illustration-paper: 24 34 58; --illustration-soft: 32 41 75;
+  --shimmer: 71 85 105;
+}
+html, body { background-color: rgb(var(--cream)); color: rgb(var(--ink)); }
+
 body {
   margin: 0;
   font-family: 'Inter Variable', sans-serif;
@@ -25,24 +54,44 @@ body {
   :where(#root, [role='dialog'], [aria-label='Notifications']) button:enabled:active { transform: scale(0.98); }
   #root :is(button, a, input, select, textarea):focus-visible,
   [role='dialog'] :is(button, a, input, select, textarea):focus-visible {
-    outline: 2px solid #4f46e5;
+    outline: 2px solid rgb(var(--brand));
     outline-offset: 3px;
   }
   #root [aria-label='Document content']:focus-visible { outline-offset: -3px; }
   :where(#root, [role='dialog']) :is(input:not([type='checkbox']):not([type='radio']), select, textarea):not([aria-label='Document content']) {
     min-height: 2.75rem;
     border-radius: 0.75rem;
-    border-color: #8793ab;
+    border-color: rgb(var(--input-border));
     transition: border-color 180ms, box-shadow 180ms;
   }
   :where(#root, [role='dialog']) input::placeholder,
-  :where(#root, [role='dialog']) textarea::placeholder { color: #526078; opacity: 1; }
+  :where(#root, [role='dialog']) textarea::placeholder { color: rgb(var(--ink-faint)); opacity: 1; }
+  .dark :where(#root, [role='dialog']) :is(input, select, textarea) { background-color: rgb(var(--cream-raised)); color: rgb(var(--ink)); }
+  .dark :is(.bg-brand, .bg-brand-dark, .bg-accent, .hover\:bg-brand-dark:hover, .auth-symbol) { color: rgb(var(--on-brand)); }
+  .dark .directory-hero .bg-brand { color: rgb(var(--cream)); }
+  .dark :is(.bg-red-50) { background-color: #351c2b; }
+  .dark :is(.text-red-400, .text-red-500, .text-red-600, .text-red-700, .text-red-800) { color: #fda4af; }
+  .dark :is(.border-red-200, .border-red-300, .border-red-400) { border-color: #9f5269; }
+  .dark .bg-red-500 { background-color: #b91c1c; }
+  .dark :is(.bg-green-50, .bg-green-100) { background-color: #12352d; }
+  .dark :is(.text-green-600, .text-green-700) { color: #86efac; }
+  .dark :is(.border-green-200, .border-green-300) { border-color: #3d806c; }
+  .dark :is(.bg-blue-50) { background-color: #182e4c; }
+  .dark :is(.text-blue-600, .text-blue-700) { color: #93c5fd; }
+  .dark .bg-amber-50 { background-color: rgb(var(--warning-bg)); }
+  .dark :is(.text-amber-700, .text-amber-800, .text-amber-900) { color: rgb(var(--warning-ink)); }
+  .dark :is(.border-amber-100, .border-amber-200, .border-amber-300, .border-amber-400) { border-color: #9b7932; }
+  .dark :is(.bg-gray-50, .bg-gray-100) { background-color: rgb(var(--cream-muted)); }
+  .dark :is(.text-gray-300, .text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900) { color: rgb(var(--ink-muted)); }
+  .dark :is(.border-gray-200, .border-gray-300, .border-indigo-200) { border-color: rgb(var(--input-border)); }
+  .dark [data-animation] svg { filter: brightness(1.4); }
+  .dark .legal-document { color: rgb(var(--ink-body)); --tw-prose-headings: rgb(var(--ink)); --tw-prose-body: rgb(var(--ink-body)); --tw-prose-bold: rgb(var(--ink)); --tw-prose-links: rgb(var(--brand)); }
 }
 
 @layer components {
   .auth-scene {
     @apply relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-cream px-5 py-8 sm:px-8 lg:py-16;
-    background-image: radial-gradient(ellipse at 5% 15%, #e0e7ff 0, transparent 50%), radial-gradient(ellipse at 95% 85%, #fef3c7 0, transparent 45%);
+    background-image: radial-gradient(ellipse at 5% 15%, rgb(var(--mesh-indigo)) 0, transparent 50%), radial-gradient(ellipse at 95% 85%, rgb(var(--mesh-amber)) 0, transparent 45%);
   }
   .auth-layout { @apply relative mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-2 lg:gap-16; }
   .auth-hero { @apply relative text-center lg:text-left; }
@@ -53,26 +102,26 @@ body {
   .auth-features li { @apply flex items-center gap-1.5; }
   .auth-features svg { @apply h-4 w-4 shrink-0 text-brand; }
   .auth-art { @apply relative mx-auto mt-8 hidden aspect-[52/35] w-full max-w-[520px] lg:block; }
-  .auth-feature-chip { @apply absolute flex items-center gap-2 whitespace-nowrap rounded-2xl border border-white bg-white/85 py-2 pl-2 pr-3 text-xs font-semibold text-ink shadow-lg shadow-indigo-950/5 backdrop-blur-md; }
-  .auth-card { @apply mx-auto w-full max-w-md rounded-3xl border border-white bg-white/85 p-6 shadow-2xl shadow-indigo-950/10 backdrop-blur-xl sm:p-9; }
+  .auth-feature-chip { @apply absolute flex items-center gap-2 whitespace-nowrap rounded-2xl border border-surface bg-cream-raised/85 py-2 pl-2 pr-3 text-xs font-semibold text-ink shadow-lg shadow-indigo-950/5 backdrop-blur-md; }
+  .auth-card { @apply mx-auto w-full max-w-md rounded-3xl border border-surface bg-cream-raised/85 p-6 shadow-2xl shadow-indigo-950/10 backdrop-blur-xl sm:p-9; }
   .auth-card h2 { @apply mt-0 text-2xl font-semibold; }
-  .app-sidebar { @apply bg-white/90 shadow-none backdrop-blur-xl; }
+  .app-sidebar { @apply bg-cream-raised/90 shadow-none backdrop-blur-xl; }
   .app-sidebar nav { @apply overflow-y-auto; }
   .app-sidebar nav button { @apply min-h-11 rounded-xl; }
   .app-sidebar nav button[aria-current='page'] { @apply bg-transparent text-brand; }
-  .app-topbar { @apply relative z-20 bg-white/85 backdrop-blur-xl; }
+  .app-topbar { @apply relative z-20 bg-cream-raised/85 backdrop-blur-xl; }
   .app-topbar h2 { @apply font-semibold; }
   :where(#root, [role='dialog']) button.bg-brand { @apply min-h-11 rounded-xl font-semibold shadow-sm shadow-brand/20; }
   :where(#root, [role='dialog']) button.bg-brand:enabled:hover { box-shadow: 0 4px 14px #4f46e526; }
   .view-transition :is(article, section).border,
-  .view-transition .bg-white.border,
-  .view-transition .bg-white.border-line { border-radius: 1rem; box-shadow: 0 2px 4px #17203303, 0 8px 24px #17203305; }
+  .view-transition .bg-cream-raised.border,
+  .view-transition .bg-cream-raised.border-line { border-radius: 1rem; box-shadow: 0 2px 4px #17203303, 0 8px 24px #17203305; }
   .directory-hero { background: radial-gradient(ellipse at 95% 0, #6366f180, transparent 60%), linear-gradient(120deg, #1e1b4b, #3730a3); }
   .directory-hero h1 { @apply font-display text-4xl font-normal tracking-tight sm:text-5xl; }
   .dialog-panel { box-shadow: 0 24px 80px #0f172a33, 0 4px 12px #0f172a0d; }
   .dialog-close { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl; }
   .toast-message { @apply rounded-2xl shadow-xl shadow-slate-950/10; }
-  .skeleton-bar { @apply h-3 rounded-full bg-cream-deep; background-image: linear-gradient(90deg, transparent, #ffffffb3, transparent); background-size: 200% 100%; }
+  .skeleton-bar { @apply h-3 rounded-full bg-cream-deep; background-image: linear-gradient(90deg, transparent, rgb(var(--shimmer) / .7), transparent); background-size: 200% 100%; }
   .editor-empty { @apply mx-4 w-full max-w-lg; }
   .editor-empty > div { @apply flex flex-wrap justify-center gap-3 space-x-0; }
 }

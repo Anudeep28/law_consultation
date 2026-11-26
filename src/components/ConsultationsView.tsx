@@ -119,9 +119,9 @@ export const ConsultationsView: React.FC = () => {
     <div className="h-full overflow-y-auto bg-cream">
       <section className="directory-hero relative overflow-hidden px-6 py-10 text-white">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent opacity-20" />
-        <div className="absolute -bottom-24 left-1/3 h-48 w-48 rounded-full border-[30px] border-white opacity-5" />
+        <div className="absolute -bottom-24 left-1/3 h-48 w-48 rounded-full border-[30px] border-surface opacity-5" />
         <div className="relative mx-auto max-w-6xl">
-          <span className="inline-flex items-center rounded-full border border-accent/50 bg-white/10 px-3 py-1 text-xs font-semibold text-[#ffe7a3]">VERIFIED LEGAL PROFESSIONALS</span>
+          <span className="inline-flex items-center rounded-full border border-accent/50 bg-cream-raised/10 px-3 py-1 text-xs font-semibold text-[#ffe7a3]">VERIFIED LEGAL PROFESSIONALS</span>
           <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-tight md:text-4xl">Clear legal guidance, when you need it</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-indigo-100 md:text-base">Choose a lawyer by expertise and language, then book a private 10-minute chat or call.</p>
           <div className="mt-6 flex flex-wrap gap-5 text-xs text-indigo-100"><span><strong className="block text-lg text-white">{lawyers.length}</strong>Verified lawyers</span><span><strong className="block text-lg text-white">10 min</strong>Focused sessions</span><span><strong className="block text-lg text-white">Private</strong>Confidential intake</span></div>
@@ -129,7 +129,7 @@ export const ConsultationsView: React.FC = () => {
       </section>
 
       <div className="mx-auto max-w-6xl px-6 py-7 space-y-6">
-        <div className="mb-6 flex w-fit gap-1 rounded-full border border-line bg-white p-1 shadow-sm">
+        <div className="mb-6 flex w-fit gap-1 rounded-full border border-line bg-cream-raised p-1 shadow-sm">
           <button onClick={() => setTab('lawyers')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'lawyers' ? 'bg-brand text-white shadow' : 'text-gray-600 hover:bg-brand-soft'}`}>Consult lawyers</button>
           <button onClick={() => setTab('bookings')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'bookings' ? 'bg-brand text-white shadow' : 'text-gray-600 hover:bg-brand-soft'}`}>My consultations ({consultations.length})</button>
         </div>
@@ -138,7 +138,7 @@ export const ConsultationsView: React.FC = () => {
 
         {tab === 'lawyers' ? (
           <>
-            <div className="mb-6 rounded-2xl border border-line bg-white p-4 shadow-sm">
+            <div className="mb-6 rounded-2xl border border-line bg-cream-raised p-4 shadow-sm">
               <div className="relative">
                 <Search className="absolute left-4 top-3.5 h-4 w-4 text-ink-faint" />
                 <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by lawyer, legal issue, or language" className="w-full rounded-xl border border-line-soft bg-cream-raised py-3 pl-11 pr-4 text-sm outline-none transition focus:border-accent-dark focus:ring-2 focus:ring-accent/30" />
@@ -149,7 +149,7 @@ export const ConsultationsView: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {filteredLawyers.map((lawyer, index) => (
-                <AnimatedArticle index={index} key={lawyer.id} className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm hover:shadow-xl">
+                <AnimatedArticle index={index} key={lawyer.id} className="group overflow-hidden rounded-2xl border border-line bg-cream-raised p-5 shadow-sm hover:shadow-xl">
                   <div className="flex gap-4">
                     {lawyer.avatarUrl ? <img src={lawyer.avatarUrl} alt={`${lawyer.name} profile`} className="h-16 w-16 shrink-0 rounded-2xl border-4 border-brand-soft object-cover shadow-sm" /> : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-brand-soft bg-brand-soft text-lg font-bold text-brand shadow-sm">{lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>}
                     <div className="min-w-0 flex-1">
@@ -191,13 +191,13 @@ export const ConsultationsView: React.FC = () => {
           </>
         ) : (
           <div className="space-y-4">
-            {!consultations.length && <div className="bg-white border rounded-xl p-10 text-center"><DecorativeAnimation kind="empty" /><h3 className="font-semibold text-gray-900">No consultations yet</h3><p className="text-sm text-gray-500 mt-1">Book a 10-minute session with a verified lawyer.</p></div>}
+            {!consultations.length && <div className="bg-cream-raised border rounded-xl p-10 text-center"><DecorativeAnimation kind="empty" /><h3 className="font-semibold text-gray-900">No consultations yet</h3><p className="text-sm text-gray-500 mt-1">Book a 10-minute session with a verified lawyer.</p></div>}
             {consultations.map((consultation, index) => {
               const now = Date.now();
               const upcoming = consultation.status === 'booked' && new Date(consultation.startsAt).getTime() > now;
               const canOpenChat = consultation.mode === 'chat' && consultation.status === 'booked' && new Date(consultation.startsAt).getTime() - 10 * 60 * 1000 <= now && new Date(consultation.endsAt).getTime() > now;
               const canViewHistory = consultation.mode === 'chat' && new Date(consultation.endsAt).getTime() <= now && consultation.status !== 'cancelled';
-              return <AnimatedArticle index={index} key={consultation.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:flex-wrap md:items-center gap-4">
+              return <AnimatedArticle index={index} key={consultation.id} className="bg-cream-raised border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row md:flex-wrap md:items-center gap-4">
                 {confirmedBookingId === consultation.id && <DecorativeAnimation kind="success" className="h-12 w-12" />}
                 <div className="w-12 h-12 shrink-0 rounded-full bg-accent text-brand-darker flex items-center justify-center font-bold">{consultation.lawyer.name.replace('Adv. ', '').split(' ').map((part) => part[0]).join('')}</div>
                 <div className="flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold text-gray-900">{consultation.lawyer.name}</h3><span className={`text-xs px-2 py-0.5 rounded-full ${consultation.status === 'booked' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{consultation.status === 'pending_payment' ? 'awaiting payment' : consultation.status}</span><span className="text-xs capitalize text-gray-500 flex items-center gap-1">{consultation.mode === 'chat' ? <MessageCircle className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}{consultation.mode}</span>{consultation.mode === 'call' && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{consultation.package === 'call_with_document' ? 'Call + legal document' : 'Call only'}</span>}</div><p className="text-sm text-gray-700 mt-1">{consultation.topic}</p><p className="flex items-center gap-1 text-sm text-gray-500 mt-2"><Clock className="w-4 h-4" />{formatDateTime(consultation.startsAt)} · 10 minutes</p></div>
