@@ -52,6 +52,13 @@ test('deduplicates URL, email and telephone labels while retaining hyperlink tar
   expect(document.body.textContent).not.toContain('(tel:');
 });
 
+test.each(['+91 98765-43210', '+91 (98765) 43210', '+91.98765.43210'])('prints the formatted telephone label %s once', label => {
+  const { blocks, html } = parseExportMarkdown(`[${label}](tel:+919876543210)`);
+  expect(blocks[0].runs.map(run => run.text).join('')).toBe(label);
+  expect(blocks[0].runs[0].href).toBe('tel:+919876543210');
+  expect(new DOMParser().parseFromString(html, 'text/html').body.textContent).toBe(label);
+});
+
 test('raw HTML and Markdown images cannot add executable markup or network requests', () => {
   const { html } = parseExportMarkdown('<img src="https://example.test/a" onerror="alert(1)">\n\n![Description](https://example.test/b)\n\n<script>alert(1)</script>\n\n[Unsafe](javascript:alert%281%29)');
   const document = new DOMParser().parseFromString(html, 'text/html');

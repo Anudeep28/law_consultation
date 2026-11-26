@@ -34,12 +34,16 @@ const linkLabel = (children: React.ReactNode): string => React.Children.toArray(
   React.isValidElement<{ children?: React.ReactNode }>(child) ? linkLabel(child.props.children) : String(child)
 ).join('');
 
+const normalizePhone = (value: string): string => value.replace(/[\s().-]/g, '');
+
 export const parseExportMarkdown = (content: string): { html: string; blocks: ExportBlock[] } => {
   const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm, preserveLineBreaks]} urlTransform={url => /^tel:/i.test(url) ? url : defaultUrlTransform(url)} components={{
     img: ({ alt }) => <>{alt}</>,
     a: ({ href, children }) => {
       const label = linkLabel(children);
-      const duplicate = label === href || label === href?.replace(/^(?:mailto:|tel:)/i, '');
+      const target = href?.replace(/^(?:mailto:|tel:)/i, '');
+      const duplicate = label === href || label === target ||
+        (/^tel:/i.test(href || '') && normalizePhone(label) === normalizePhone(target || ''));
       return href ? <a href={href}>{children}{duplicate ? '' : ` (${href})`}</a> : <>{children}</>;
     },
     li: ({ node, ...props }) => {
