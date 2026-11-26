@@ -17,6 +17,7 @@
   --warning-bg: 255 247 230; --warning-ink: 133 77 14;
   --input-border: 135 147 171; --mesh-indigo: 224 231 255; --mesh-amber: 254 243 199;
   --illustration-paper: 255 255 255; --illustration-soft: 238 242 255;
+  --banner-start: 30 27 75; --banner-end: 79 70 229;
   --shimmer: 255 255 255;
 }
 .dark {
@@ -117,6 +118,7 @@ body {
   .view-transition .bg-cream-raised.border,
   .view-transition .bg-cream-raised.border-line { border-radius: 1rem; box-shadow: 0 2px 4px #17203303, 0 8px 24px #17203305; }
   .directory-hero { background: radial-gradient(ellipse at 95% 0, #6366f180, transparent 60%), linear-gradient(120deg, #1e1b4b, #3730a3); }
+  .workspace-hero { background-image: linear-gradient(to right, rgb(var(--banner-start)), rgb(var(--banner-end))); }
   .directory-hero h1 { @apply font-display text-4xl font-normal tracking-tight sm:text-5xl; }
   .dialog-panel { box-shadow: 0 24px 80px #0f172a33, 0 4px 12px #0f172a0d; }
   .dialog-close { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl; }

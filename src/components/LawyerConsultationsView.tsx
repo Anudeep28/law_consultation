@@ -34,7 +34,7 @@ export const LawyerConsultationsView: React.FC<LawyerConsultationsViewProps> = (
 
   return <div className="h-full overflow-y-auto bg-cream p-6">
     <div className="mx-auto max-w-5xl">
-      <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand-darker to-brand p-6 text-white shadow-lg">
+      <div className="workspace-hero mb-6 rounded-2xl p-6 text-white shadow-lg">
         <div className="flex items-center gap-2 text-[#ffe7a3]"><ShieldCheck className="h-5 w-5" /><span className="text-sm font-semibold">LAWYER WORKSPACE</span></div>
         <h1 className="mt-2 text-2xl font-bold">Client consultations</h1>
         <p className="mt-1 text-sm text-indigo-100">Review upcoming matters, join active sessions, and turn consultations into delivered documents.</p>
