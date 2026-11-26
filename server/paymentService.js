@@ -62,7 +62,7 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
 
   const applyRefundStatus = (db, payment, entity) => db.payment.updateMany({
     where: { id: payment.id, status: payment.status, refundAttemptId: payment.refundAttemptId ?? null, refundStatus: { in: ['PENDING', 'FAILED', 'REVIEW'] }, OR: [{ refundId: payment.refundId ?? null }, { refundId: entity.id }] },
-    data: { refundId: entity.id, refundStatus: { processed: 'PROCESSED', failed: 'FAILED', pending: 'PENDING' }[entity.status], status: entity.status === 'processed' ? 'REFUNDED' : 'PAID', refundError: entity.status === 'failed' ? 'Provider reported refund failure; retry is available.' : null },
+    data: { refundId: entity.id, refundStatus: { processed: 'PROCESSED', failed: 'FAILED', pending: 'PENDING' }[entity.status], status: entity.status === 'processed' ? 'REFUNDED' : payment.status, refundError: entity.status === 'failed' ? 'Provider reported refund failure; retry is available.' : null },
   });
 
   const refundEvent = async (entity, orderId) => {
@@ -185,7 +185,8 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
     if (payment.refundStatus === 'REVIEW' && payment.refundId) throw paymentError('Payment refund requires reconciliation before access can be granted', 409);
     const result = await prisma.$transaction(async (tx) => {
-      const claimed = await tx.payment.updateMany({ where: { id: payment.id, status: 'CREATED', refundId: null }, data: { status: 'PAID', razorpayPaymentId: entity.id, refundStatus: null, refundError: null } });
+      const failedRefund = payment.refundStatus === 'FAILED';
+      const claimed = await tx.payment.updateMany({ where: { id: payment.id, status: 'CREATED', refundId: payment.refundId ?? null, ...(failedRefund ? { refundStatus: 'FAILED' } : { refundId: null }) }, data: { status: 'PAID', razorpayPaymentId: entity.id, ...(failedRefund ? { refundId: null } : {}), refundStatus: null, refundError: null } });
       if (claimed.count !== 1) return { applied: false };
       if (payment.consultationId) {
         const now = new Date();

@@ -2,10 +2,12 @@ process.env.JWT_SECRET = 'review-test-jwt';
 process.env.RAZORPAY_ENV = 'test';
 process.env.RAZORPAY_KEY_ID = 'rzp_test_review';
 process.env.RAZORPAY_KEY_SECRET = 'review-test-secret';
+process.env.RAZORPAY_WEBHOOK_SECRET = 'review-test-webhook';
 
-jest.mock('../db', () => ({ user: { findUnique: jest.fn() }, payment: { findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() }, consultation: { updateMany: jest.fn() }, adminAuditLog: { create: jest.fn(), update: jest.fn() }, $transaction: jest.fn() }));
+jest.mock('../db', () => ({ user: { findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() }, payment: { findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() }, consultation: { updateMany: jest.fn(), findUnique: jest.fn() }, adminAuditLog: { create: jest.fn(), update: jest.fn() }, $transaction: jest.fn() }));
 jest.mock('./notifications', () => ({ createNotification: jest.fn(), sendEmail: jest.fn(), setSocketIo: jest.fn() }));
 const http = require('http');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
 const prisma = require('../db');
@@ -15,6 +17,11 @@ let payment, actor, provider, calls, stub, queue, audits;
 const auth = () => `Bearer ${jwt.sign({ userId: actor.id }, process.env.JWT_SECRET)}`;
 const post = (action = 'reconcile', body = {}) => request(app).post(`/api/admin/payments/payment_review/${action}`).set('Authorization', auth()).send(body);
 const refund = status => ({ id: 'rfnd_review', payment_id: 'pay_review', amount: 25000, currency: 'INR', status, notes: { refundAttemptId: 'attempt_review' } });
+const capture = () => ({ id: 'pay_review', order_id: 'order_review', amount: 25000, currency: 'INR', status: 'captured', amount_refunded: 0 });
+const webhook = (event, payload) => {
+  const body = JSON.stringify({ event, payload });
+  return request(app).post('/api/payments/webhook').set('Content-Type', 'application/json').set('X-Razorpay-Signature', crypto.createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET).update(body).digest('hex')).send(body);
+};
 
 beforeAll(async () => {
   stub = http.createServer(async (req, res) => {
@@ -38,11 +45,17 @@ beforeEach(() => {
   prisma.payment.count.mockResolvedValue(1);
   prisma.payment.updateMany.mockImplementation(async ({ where, data }) => {
     if (where.id && where.id !== payment.id || where.status && where.status !== payment.status) return { count: 0 };
+    if (where.OR && !where.OR.some(branch => Object.entries(branch).every(([key, value]) => value?.in ? value.in.includes(payment[key]) : value === payment[key]))) return { count: 0 };
+    if (Object.hasOwn(where, 'refundId') && where.refundId !== payment.refundId) return { count: 0 };
     if (where.refundStatus && (where.refundStatus.in ? !where.refundStatus.in.includes(payment.refundStatus) : payment.refundStatus !== where.refundStatus)) return { count: 0 };
     Object.assign(payment, data); return { count: 1 };
   });
   prisma.adminAuditLog.create.mockImplementation(async ({ data }) => { const entry = { id: `audit_${audits.length}`, ...data }; audits.push(entry); return entry; });
   prisma.adminAuditLog.update.mockImplementation(async ({ where, data }) => Object.assign(audits.find(entry => entry.id === where.id), data));
+  prisma.consultation.findUnique.mockImplementation(async () => payment.consultation);
+  prisma.consultation.updateMany.mockImplementation(async ({ data }) => { Object.assign(payment.consultation, data); return { count: 1 }; });
+  prisma.user.updateMany.mockResolvedValue({ count: 1 });
+  prisma.user.update.mockResolvedValue({});
   prisma.$transaction.mockImplementation(fn => { const run = queue.then(() => fn(prisma)); queue = run.catch(() => {}); return run; });
 });
 
@@ -72,6 +85,22 @@ test.each([['processed', 'REFUNDED', 'PROCESSED'], ['pending', 'PAID', 'PENDING'
 test('concurrent checks apply and notify once but audit both clicks', async () => {
   expect((await Promise.all([post(), post()])).map(response => response.status)).toEqual([200, 200]);
   expect(calls).toHaveLength(1); expect(audits).toHaveLength(2); expect(notifications.createNotification).toHaveBeenCalledTimes(2);
+});
+test.each(['consultation', 'document'])('an external failed refund before capture still allows %s fulfillment', async kind => {
+  payment.status = 'CREATED'; payment.refundStatus = null; payment.refundId = null; payment.refundAttemptId = null;
+  if (kind === 'document') { payment.consultationId = null; payment.consultation = null; payment.plan = 'SINGLE'; }
+  else payment.consultation.status = 'PENDING_PAYMENT';
+  const external = { ...refund('failed'), notes: {} };
+  expect((await webhook('refund.failed', { refund: { entity: external }, payment: { entity: capture() } })).status).toBe(200);
+  expect(payment).toMatchObject({ status: 'CREATED', refundStatus: 'REVIEW' });
+  provider = async () => external;
+  expect((await post()).status).toBe(200);
+  expect(payment.status).toBe('CREATED');
+  expect((await webhook('payment.captured', { payment: { entity: capture() } })).status).toBe(200);
+  expect(payment.status).toBe('PAID');
+  if (kind === 'document') expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ documentCredits: { increment: 1 } }) }));
+  else expect(payment.consultation.status).toBe('BOOKED');
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
 });
 test.each([true, false])('matches refund history by correlation or untracked full amount (%s)', async tracked => {
   payment.refundId = null;
