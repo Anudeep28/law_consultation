@@ -59,6 +59,10 @@ New nullable payment fields record `refundStatus`, `refundId`, `refundAttemptId`
   attempt ID. Imported dashboard failures do not authorize automatic refunds of
   active bookings or document purchases. Each confirmed-failed attempt gets a
   new ID when a refund is explicitly requested or an eligible retry resumes.
+  A failed dashboard refund without the stored attempt's correlation notes
+  cannot retire that attempt: reconciliation retains REVIEW instead, even for
+  cancelled bookings. An unrelated failure is not evidence that the app's
+  ambiguous attempt failed.
 - `REVIEW`: ambiguous network/5xx response, unexpected provider response,
   mismatched capture, or provider-dashboard refund outside tracked attempts.
   This is deliberately not automatically retried with a new key. Reconcile with

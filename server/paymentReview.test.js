@@ -125,6 +125,17 @@ test.each(['REQUIRED', 'FAILED'])('capture replay still resumes an app-initiated
   expect(payment.refundStatus).toBe('PROCESSED');
   expect(calls.filter(call => call.method === 'POST')).toHaveLength(1);
 });
+test('an unrelated dashboard failure cannot retire an existing ambiguous app attempt', async () => {
+  payment.consultation.status = 'CANCELLED'; payment.refundRequestedAt = new Date();
+  const external = { ...refund('failed'), id: 'rfnd_external', notes: {} };
+  expect((await webhook('refund.failed', { refund: { entity: external } })).status).toBe(200);
+  provider = async (req, body) => req.method === 'POST' ? { ...refund('processed'), notes: body.notes } : external;
+  expect((await post()).status).toBe(502);
+  expect(payment).toMatchObject({ refundStatus: 'REVIEW', refundAttemptId: 'attempt_review' });
+  expect((await webhook('payment.captured', { payment: { entity: capture() } })).status).toBe(200);
+  expect(payment.status).toBe('PAID');
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
+});
 test.each([true, false])('matches refund history by correlation or untracked full amount (%s)', async tracked => {
   payment.refundId = null;
   provider = async () => ({ items: [{ ...refund('processed'), notes: tracked ? { refundAttemptId: payment.refundAttemptId } : {} }] });

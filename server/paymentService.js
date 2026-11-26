@@ -142,6 +142,7 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
             }
             if (entity) {
               if (!validId(entity.id) || entity.payment_id !== payment.razorpayPaymentId || entity.amount !== payment.amount || entity.currency !== payment.currency || !['processed', 'pending', 'failed'].includes(entity.status)) throw paymentError('Provider refund validation failed; review retained.', 502);
+              if (entity.status === 'failed' && payment.refundAttemptId && entity.notes?.refundAttemptId !== payment.refundAttemptId) throw paymentError('Failed provider refund is outside the original attempt; review retained.', 502);
               provider = { result: entity.status, refundId: entity.id, paymentId: entity.payment_id, amount: entity.amount, currency: entity.currency };
               const applied = await applyRefundStatus(tx, payment, entity);
               if (applied.count !== 1) throw paymentError('Refund state changed; retry reconciliation.', 409);
