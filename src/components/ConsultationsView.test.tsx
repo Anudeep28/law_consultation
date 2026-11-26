@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { ApiError, apiRequest } from '../services/api';
 import { consultationCheckout } from '../services/razorpayService';
@@ -5,12 +6,12 @@ import { useAuthStore } from '../stores/authStore';
 import { User } from '../types';
 import { ConsultationsView } from './ConsultationsView';
 
-jest.mock('../services/api', () => ({ ...jest.requireActual('../services/api'), apiRequest: jest.fn() }));
-jest.mock('../services/razorpayService', () => ({ consultationCheckout: jest.fn() }));
-jest.mock('./ConsultationChat', () => ({ ConsultationChat: () => null }));
-jest.mock('./ConsultationDeliverables', () => ({ ConsultationDeliverables: () => null }));
-jest.mock('./LawyerReviewForm', () => ({ LawyerReviewForm: () => null }));
-jest.mock('./TrustSection', () => ({ TrustSection: () => null }));
+vi.mock('../services/api', async () => ({ ...(await vi.importActual<typeof import('../services/api')>('../services/api')), apiRequest: vi.fn() }));
+vi.mock('../services/razorpayService', () => ({ consultationCheckout: vi.fn() }));
+vi.mock('./ConsultationChat', () => ({ ConsultationChat: () => null }));
+vi.mock('./ConsultationDeliverables', () => ({ ConsultationDeliverables: () => null }));
+vi.mock('./LawyerReviewForm', () => ({ LawyerReviewForm: () => null }));
+vi.mock('./TrustSection', () => ({ TrustSection: () => null }));
 
 const user: User = {
   id: 'client-1', name: 'Client', email: 'client@example.test', role: 'client', accountStatus: 'active',
@@ -20,7 +21,7 @@ const user: User = {
 
 beforeEach(() => {
   useAuthStore.setState({ user });
-  (apiRequest as jest.Mock).mockImplementation(async (path: string) => {
+  (apiRequest as Mock).mockImplementation(async (path: string) => {
     if (path === '/api/lawyers') return { lawyers: [{
       id: 'lawyer-1', name: 'Test Lawyer', title: 'Advocate', bio: 'Legal guidance',
       practiceAreas: ['Contracts'], languages: ['English'], rating: 5, reviewCount: 0,
@@ -38,7 +39,7 @@ test.each([
   [new ApiError('Invalid payment signature', 400), 'Invalid payment signature'],
   [new Error('Network failure'), 'Unable to book consultation.'],
 ])('shows the appropriate checkout error for %s', async (error, message) => {
-  (consultationCheckout as jest.Mock).mockRejectedValueOnce(error);
+  (consultationCheckout as Mock).mockRejectedValueOnce(error);
   render(<ConsultationsView />);
   fireEvent.click(await screen.findByRole('button', { name: 'Chat' }));
   const slotLabel = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date('2030-01-01T10:00:00.000Z'));

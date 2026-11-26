@@ -8,14 +8,12 @@
     "@prisma/client": "^5.22.0",
     "@sentry/node": "10.55.0",
     "@sentry/react": "10.55.0",
-    "@tailwindcss/postcss7-compat": "^2.2.17",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^13.5.0",
     "@types/file-saver": "^2.0.7",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.126",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "bcrypt": "^6.0.0",
@@ -34,56 +32,43 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
-    "react-scripts": "5.0.1",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
-    "typescript": "^4.9.5",
     "web-push": "^3.6.7",
     "web-vitals": "^2.1.4",
     "zustand": "^5.0.14"
   },
   "scripts": {
-    "start": "craco start",
+    "start": "vite",
     "start:server": "node server.js",
     "start:production": "node server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "build": "craco build",
-    "test": "craco test",
+    "build": "vite build",
+    "test": "node scripts/test.mts",
     "test:server": "jest --config jest.server.config.js --runInBand",
     "test:e2e": "playwright test",
-    "eject": "react-scripts eject"
+    "preview": "vite preview"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
-  "proxy": "http://localhost:3002",
   "devDependencies": {
-    "@craco/craco": "^7.1.0",
     "@playwright/test": "1.65.1",
     "@types/web-push": "^3.6.4",
+    "@vitejs/plugin-react": "6.3.0",
     "autoprefixer": "^10.5.2",
+    "jest": "27.5.1",
+    "jsdom": "31.0.1",
     "postcss": "^8.5.16",
     "supertest": "^7.3.2",
-    "tailwindcss": "^3.4.19"
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.9.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   }
 }

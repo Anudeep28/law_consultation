@@ -295,8 +295,8 @@ export const Dashboard: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
               Need help?{' '}
-              <a href={`mailto:${process.env.REACT_APP_SUPPORT_EMAIL || 'support@consultwithlawyer.in'}`} className="text-brand hover:underline">
-                {process.env.REACT_APP_SUPPORT_EMAIL || 'support@consultwithlawyer.in'}
+              <a href={`mailto:${import.meta.env.REACT_APP_SUPPORT_EMAIL || 'support@consultwithlawyer.in'}`} className="text-brand hover:underline">
+                {import.meta.env.REACT_APP_SUPPORT_EMAIL || 'support@consultwithlawyer.in'}
               </a>
             </span>
             <div className="flex flex-wrap gap-4">

@@ -22,12 +22,12 @@ and recreate only the dedicated E2E database when cleanup is wanted.
 
 Stop any unrelated backend on **3002** before running. Playwright starts an isolated
 `node server.js` child with fixed test keys and `RAZORPAY_API_URL` pointing to the
-HTTP order stub on **3901**, plus CRA on **3000** (`BROWSER=none`). Its readiness URL
+HTTP order stub on **3901**, plus Vite on **3000**. Its readiness URL
 belongs to the stub/backend pair and is database-specific: an existing ordinary
 backend is never silently reused (port conflicts fail startup). Outside CI an
-already-running matching E2E stack and CRA server can be reused. Tests run serially,
+already-running matching E2E stack and Vite server can be reused. Tests run serially,
 select slots more than an hour ahead, and retain screenshots/traces on failure in
-ignored `test-results/`. CRA Jest/TypeScript only include `src/`; server Jest only
+ignored `test-results/`. Vitest/TypeScript only include `src/`; server Jest only
 includes `server/`, so neither collects the Playwright suite.
 
 For application deployments, `RAZORPAY_API_URL` is optional and defaults to
@@ -79,7 +79,7 @@ A subscription-based web application for Indian lawyers to create legal document
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 24.15+ (CI uses Node 24)
 - ElevenLabs API key (for speech transcription)
 - Razorpay account and API keys (for payments)
 - PostgreSQL 13+ or a managed PostgreSQL connection string
@@ -224,21 +224,39 @@ await elevenLabsService.startRecording();
 ## Development
 
 ### Available Scripts
-- `npm start` - Start the React development server
+- `npm start` - Start Vite on port 3000 (fails if occupied); `/api` and `/socket.io` proxy to port 3002, including WebSockets
 - `npm run start:server` - Start the API and payment server
 - `npm run db:generate` - Generate the Prisma client
 - `npm run db:migrate -- --name <name>` - Create and apply a development migration
 - `npm run db:deploy` - Apply committed migrations
 - `npm run db:studio` - Open Prisma's database browser
 - `npm run build` - Build for production
-- `npm test` - Run tests
-- `npm run eject` - Eject from Create React App
+- `npm test` - Run client tests once with Vitest + jsdom; `npm test -- --watchAll=false` remains supported
+- `npm run test:server` - Run the independent server Jest suite
+- `npx tsc --noEmit` - Typecheck with TypeScript 5, without emitting files
+- `npm run preview` - Preview the built frontend on Vite's default port 4173 (not a production API server)
+
+Vite replaces CRA/craco; there is no eject command or dependency Babel workaround.
+Tailwind 3 uses `postcss.config.js`. Client tests use `vi.*` and jest-dom's Vitest
+integration; the DOCX packing mock is test-only. Server Jest configuration is unchanged.
+
+Keep deployment variable names such as `REACT_APP_SUPPORT_EMAIL` and
+`REACT_APP_SENTRY_DSN`; Vite exposes only the `REACT_APP_` prefix. Browser code
+reads `import.meta.env.REACT_APP_*`, not `process.env`. These public values are
+embedded at build time: restart Vite after changing `.env`, and rebuild for
+production. Never prefix server secrets with `REACT_APP_`. The root `index.html`
+is the entry point; assets in `public/` retain their root URLs (including the
+service worker and audio worklet). Vite targets modern browsers, not CRA's former
+Browserslist configuration.
 
 ### Building for Production
 ```bash
 npm run build
 ```
-This creates an optimized production build in the `build` folder.
+This creates an optimized production build in the `build` folder, still served
+by `NODE_ENV=production node server.js`. CI runs typechecking separately before
+the build. Module scripts are external and the modulepreload polyfill is disabled;
+the existing Helmet CSP is unchanged.
 
 ### HTTP Security Headers
 
@@ -273,7 +291,7 @@ Authorization/cookie headers and structured fields whose names contain password,
 Sentry is opt-in:
 
 - `SENTRY_DSN`: enables backend error-handler and process-error reporting with `@sentry/node`. Empty/unset means no SDK initialization or reporting.
-- `REACT_APP_SENTRY_DSN`: public browser DSN for `@sentry/react`, embedded by CRA **at build time**. Empty/unset disables initialization and boundary-error reporting. Rebuild after changing it. The top-level accessible error fallback and reload button work without Sentry.
+- `REACT_APP_SENTRY_DSN`: public browser DSN for `@sentry/react`, embedded by Vite **at build time**. Empty/unset disables initialization and boundary-error reporting. Rebuild after changing it. The top-level accessible error fallback and reload button work without Sentry.
 - Provide the same `REACT_APP_SENTRY_DSN` to Express at runtime so the production CSP matches the browser build. `connect-src` adds only the HTTP(S) ingest origins parsed from configured DSNs, without their credentials or project paths; no monitoring origin is allowed when both variables are unset. Self-hosted Sentry DSNs are supported. No wildcard CSP allowance is added.
 
 Both SDKs use `sendDefaultPii: false`. Before sending, request bodies, headers, cookies, query strings, user context, and breadcrumbs are removed. Backend JSON-parser exception messages are also sanitized. Do not enable session replay or add sensitive document/user data to error messages or SDK contexts. No Sentry account or live event is required for local tests; SDK initialization, capture, scrubbing and conditional CSP allowances are covered with mocks.

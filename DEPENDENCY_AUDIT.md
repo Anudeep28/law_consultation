@@ -4,7 +4,40 @@ Baseline: `bbc6fdc` (`devin/1795093345-ci`). Validation used Node 24.22.2.
 Counts below are npm's vulnerable-package counts, including propagated parent
 findings, not unique advisories or demonstrated exploitable vulnerabilities.
 
-## Before and after
+## Vite migration (current)
+
+Baseline: PR #11 head `f4f896a`. Migrated CRA/craco to Vite 8.3.8 with
+`@vitejs/plugin-react` 6.3.0, Vitest 5.1.1 and TypeScript 5.9.3, pinned in the
+lockfile. Removed `react-scripts`, `@craco/craco` and unused
+`@tailwindcss/postcss7-compat`, including their webpack, Workbox and PostCSS 7
+chains. No `.mjs` Babel workaround is needed. Tailwind remains on version 3.
+
+| Audit | Low before → after | Moderate before → after | High before → after | Critical before → after | Total before → after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `npm audit --json` | 9 → 9 | 10 → 0 | 16 → 0 | 0 → 0 | **35 → 9** |
+| `npm audit --omit=dev --json` | 9 → 0 | 9 → 0 | 16 → 0 | 0 → 0 | **34 → 0** |
+
+No high or critical findings remain. The nine remaining low findings are all
+in the unchanged server Jest 27 chain:
+`jest` → `jest-cli` / `@jest/core` → `jest-config` / `jest-runner` →
+`jest-environment-jsdom` → its nested `jsdom` → `http-proxy-agent` →
+`@tootallnate/once` (GHSA-vpq2-c234-7xj6). These are development/test-only and
+not installed by `npm ci --omit=dev`. npm recommends a Jest major upgrade;
+server Jest is deliberately unchanged in this migration. The frontend's
+separate jsdom 31 dependency is not affected.
+
+Express, dotenv and Prisma are production dependencies as of `f4f896a`.
+Vite, Vitest, jsdom, TypeScript and the explicit server Jest dependency are
+development dependencies. The older dependency-classification notes and
+remaining-high table below describe the pre-Vite historical snapshot, **not
+the current dependency tree**. No audit suppressions or overrides were added.
+
+Validation uses Node 24.22.2, a clean `npm ci`, typechecking, all 77 client
+tests, 110 server tests, a production build, seven E2E tests with all 17
+migrations applied to a new disposable PostgreSQL 16 database, and a browser
+check against Express serving the production build under Helmet CSP.
+
+## Previous dependency remediation (historical)
 
 | Audit | State | Low | Moderate | High | Critical | Total |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
