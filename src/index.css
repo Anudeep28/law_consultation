@@ -67,7 +67,7 @@ body {
   :where(#root, [role='dialog']) input::placeholder,
   :where(#root, [role='dialog']) textarea::placeholder { color: rgb(var(--ink-faint)); opacity: 1; }
   .dark :where(#root, [role='dialog']) :is(input, select, textarea) { background-color: rgb(var(--cream-raised)); color: rgb(var(--ink)); }
-  .dark :is(.bg-brand, .bg-brand-dark, .bg-accent, .hover\:bg-brand-dark:hover, .auth-symbol) { color: rgb(var(--on-brand)); }
+  .dark :is(.bg-brand, .bg-brand-dark, .bg-brand-darker, .bg-accent, .bg-accent-dark, .bg-warning-ink, .bg-ink-faint, .bg-ink-muted, .hover\:bg-brand-dark:hover, .hover\:bg-warning-ink:hover, .hover\:bg-ink-muted:hover, .auth-symbol) { color: rgb(var(--on-brand)); }
   .dark .directory-hero .bg-brand { color: rgb(var(--cream)); }
   .dark :is(.bg-red-50) { background-color: #351c2b; }
   .dark :is(.text-red-400, .text-red-500, .text-red-600, .text-red-700, .text-red-800) { color: #fda4af; }
