@@ -240,6 +240,28 @@ npm run build
 ```
 This creates an optimized production build in the `build` folder.
 
+### HTTP Security Headers
+
+Express applies Helmet before routes and body parsers, including the raw-body Razorpay webhook. `NODE_ENV=production` enables HSTS and CSP upgrade-insecure-requests; both are omitted in development/test so local HTTP remains usable. Serve production behind HTTPS.
+
+The CSP permits only same-origin application scripts and Razorpay's checkout script/CDN origins. It never permits inline scripts or `unsafe-eval`. Inline **styles** remain necessary for Razorpay's injected checkout stylesheet and the editor/PDF export. Fonts are local/system fonts; no font CDN is allowed.
+
+Browser resource inventory:
+
+| Resource | Allowed origins / schemes |
+| --- | --- |
+| API, Socket.IO, service worker, audio worklet | Same origin; explicit `ws://<request host>` and `wss://<request host>` for WebSocket compatibility |
+| Speech-to-text | `wss://api.elevenlabs.io` |
+| Razorpay scripts and loader fallback/CDN requests | `https://checkout.razorpay.com`, `https://checkout-static.razorpay.com`, `https://checkout-static-next.razorpay.com` |
+| Razorpay risk-detection script | `https://cdn.razorpay.com/static/cx/razorpay-risk-detection/` (path restricted) |
+| Razorpay API and checkout frames | `https://api.razorpay.com`, `https://checkout.razorpay.com` |
+| Razorpay loader telemetry | `https://lumberjack.razorpay.com` |
+| Images | Same-origin, HTTPS user-provided lawyer avatars, data/blob images used by document rendering/export |
+
+Jitsi meeting URLs and the Razorpay privacy policy are navigation links, not embedded resources. MSG91, DeepSeek, Resend, and the ElevenLabs token API are server-side requests and need no browser CSP exceptions. Documentation/comment URLs in `public/` are not runtime dependencies.
+
+Helmet's other default headers are retained, including same-origin framing, COOP and CORP. COEP is not enabled by Helmet's defaults. Razorpay's [integration guide](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/integration-steps/) and [FAQ](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/troubleshooting-faqs/) do not provide a CSP-specific allowlist; the explicit checkout/CDN/API/telemetry origins above come from the hosted checkout loader and production browser checks. Recheck them against a production build whenever the provider changes its checkout integration.
+
 ## Contributing
 
 1. Fork the repository
