@@ -121,6 +121,112 @@ test('a conflicting terminal webhook requests redelivery instead of losing the u
   expect((await webhook('refund.processed', { refund: { entity: refund('processed') } })).status).toBe(200);
   expect(payment.refundStatus).toBe('PROCESSED');
 });
+test.each(['failed', 'processed'])('an original %s webhook cannot clear review of another partial refund', async status => {
+  const partial = { ...refund('processed'), id: 'rfnd_partial', amount: 5000, notes: {} };
+  expect((await webhook('refund.processed', { refund: { entity: partial } })).status).toBe(200);
+  expect(payment).toMatchObject({ refundStatus: 'REVIEW', refundId: partial.id });
+  expect((await webhook(`refund.${status}`, { refund: { entity: refund(status) } })).status).toBe(200);
+  expect(payment).toMatchObject({ status: 'PAID', refundStatus: 'REVIEW', refundId: partial.id });
+  expect(calls).toHaveLength(0);
+});
+test('stale pending reconciliation sends one processed confirmation per participant', async () => {
+  payment.refundStatus = 'PENDING'; payment.updatedAt = new Date(Date.now() - 16 * 60000);
+  const responses = await Promise.all([post(), post()]);
+  expect(responses.map(response => response.status)).toEqual([200, 200]);
+  expect(payment.refundStatus).toBe('PROCESSED');
+  expect(notifications.createNotification).toHaveBeenCalledTimes(2);
+  expect(notifications.createNotification.mock.calls.map(([entry]) => entry.userId)).toEqual(['client_review', 'lawyer_review']);
+});
+
+const transitionEvents = ['api_pending', 'api_processed', 'api_failed', 'api_rejected', 'api_timeout', 'same_processed', 'same_failed', 'other_processed', 'other_failed', 'external_partial', 'reconcile_processed', 'reconcile_pending', 'reconcile_failed', 'reconcile_empty', 'reconcile_old_empty', 'reconcile_error', 'manual_processed', 'manual_clear'];
+const completionRows = [
+  ['PENDING',       'P X F F R'],
+  ['STALE_PENDING', 'P X F F R'],
+  ['FAILED',        'F X F F F'],
+  ['REVIEW',        'R X F R R'],
+  ['OTHER_REVIEW',  'R R R R R'],
+  ['PROCESSED',     'X X X X X'],
+];
+test.each(completionRows.flatMap(([state, row]) => row.split(' ').map((expected, index) => [state, ['pending', 'processed', 'failed', 'rejected', 'timeout'][index], expected])))('in-flight API completion matrix: %s × %s → %s', async (state, outcome, expected) => {
+  payment.refundStatus = 'REQUIRED'; payment.refundId = null; payment.refundAttemptId = null; payment.consultation.status = 'CANCELLED';
+  const complete = jest.fn(async (_method, _path, body) => {
+    payment.refundAttemptId = body.notes.refundAttemptId;
+    payment.refundStatus = state === 'STALE_PENDING' ? 'PENDING' : state === 'OTHER_REVIEW' ? 'REVIEW' : state;
+    payment.status = state === 'PROCESSED' ? 'REFUNDED' : 'PAID';
+    payment.refundId = state === 'OTHER_REVIEW' ? 'rfnd_partial' : 'rfnd_review';
+    if (outcome === 'rejected' || outcome === 'timeout') throw Object.assign(new Error('Provider unavailable'), outcome === 'rejected' ? { providerStatus: 400 } : {});
+    return { ...refund(outcome), notes: body.notes };
+  });
+  const service = require('./paymentService')({ prisma, request: complete, notifications, logger: { error: jest.fn() }, meetings: {}, pendingTtl: 900000 });
+  try { await service.settle({ ...payment }, capture()); } catch (error) { expect(error.status).toBe(502); }
+  expect(payment.refundStatus).toBe({ P: 'PENDING', X: 'PROCESSED', F: 'FAILED', R: 'REVIEW' }[expected]);
+  expect(payment.status).toBe(expected === 'X' ? 'REFUNDED' : 'PAID');
+  if (state === 'OTHER_REVIEW') expect(payment.refundId).toBe('rfnd_partial');
+  expect(complete).toHaveBeenCalledTimes(1);
+  expect(notifications.sendEmail).toHaveBeenCalledTimes(!['rejected', 'timeout'].includes(outcome) && ['P', 'X'].includes(expected) ? 1 : 0);
+  expect(notifications.createNotification).not.toHaveBeenCalled();
+});
+const transitionRows = [
+  ['NONE',             'K K K K K E R E R R K K K K K K K K'],
+  ['REQUIRED',         'P X F F R E R E R R K K K K K K K K'],
+  ['PENDING',          'K K K K K X F K K R K K K K K K K K'],
+  ['STALE_PENDING',    'K K K K K X F K K R X P F R F R K K'],
+  ['FAILED',           'P X F F R X F K K R K K K K K K K K'],
+  ['REVIEW',           'K K K K K X F K K R X P F R F R X N'],
+  ['OTHER_REVIEW',     'K K K K K K K K K R X P F R F R X N'],
+  ['PROCESSED',        'K K K K K K K K K K K K K K K K K K'],
+  ['CREATED_REVIEW',   'K K K K K X F K K R X P F R F R X N'],
+  ['CREATED_OTHER',    'K K K K K K K K K R X P F R F R X N'],
+];
+test.each(transitionRows.flatMap(([state, row]) => row.split(' ').map((expected, index) => [state, transitionEvents[index], expected])))('refund transition matrix: %s × %s → %s', async (state, event, expected) => {
+  const initialRefundStatus = { NONE: null, REQUIRED: 'REQUIRED', PENDING: 'PENDING', STALE_PENDING: 'PENDING', FAILED: 'FAILED', REVIEW: 'REVIEW', OTHER_REVIEW: 'REVIEW', PROCESSED: 'PROCESSED', CREATED_REVIEW: 'REVIEW', CREATED_OTHER: 'REVIEW' }[state];
+  payment.refundStatus = initialRefundStatus;
+  payment.status = state === 'PROCESSED' ? 'REFUNDED' : state.startsWith('CREATED') ? 'CREATED' : 'PAID';
+  payment.refundAttemptId = ['NONE', 'REQUIRED'].includes(state) ? null : 'attempt_review';
+  payment.refundId = ['NONE', 'REQUIRED'].includes(state) ? null : state.includes('OTHER') ? 'rfnd_dashboard' : 'rfnd_review';
+  payment.refundRequestedAt = new Date(Date.now() - (event === 'reconcile_old_empty' ? 25 * 3600000 : 60000));
+  payment.updatedAt = new Date(Date.now() - (state === 'STALE_PENDING' ? 16 * 60000 : 60000));
+  payment.consultation.status = ['REQUIRED', 'FAILED'].includes(state) ? 'CANCELLED' : 'COMPLETED';
+  const initial = { status: payment.status, refundStatus: payment.refundStatus, refundId: payment.refundId };
+  const eligible = initialRefundStatus === 'REVIEW' || state === 'STALE_PENDING';
+  const manual = event.startsWith('manual_');
+  const api = event.startsWith('api_');
+  const reconcile = event.startsWith('reconcile_');
+  provider = async (req, body) => {
+    if (req.method === 'POST') {
+      if (event === 'api_rejected') return { error: true, httpStatus: 400 };
+      if (event === 'api_timeout') return { error: true, httpStatus: 504 };
+      return { ...refund(event.slice(4)), notes: body.notes };
+    }
+    if (event === 'reconcile_error') return { error: true, httpStatus: 503 };
+    if (event.includes('empty')) return req.url.includes('/refunds?') ? { items: [] } : req.url.startsWith('/v1/refunds/') ? { error: true, httpStatus: 404 } : capture();
+    const status = event.slice('reconcile_'.length);
+    if (req.url.includes('/refunds?')) return { items: [{ ...refund('failed'), id: 'rfnd_dashboard', notes: {} }, refund(status)] };
+    return { ...refund(status), id: initial.refundId, notes: state.includes('OTHER') ? {} : { refundAttemptId: 'attempt_review' } };
+  };
+  const deliver = () => {
+    if (api) return webhook('payment.captured', { payment: { entity: capture() } });
+    if (reconcile) return post();
+    if (manual) return post('resolve', { outcome: event === 'manual_processed' ? 'REFUNDED' : 'NO_REFUND_NEEDED', note: 'Verified provider records for transition matrix' });
+    const status = event.endsWith('failed') ? 'failed' : 'processed';
+    return webhook(`refund.${status}`, { refund: { entity: { ...refund(status), ...(event.startsWith('other_') ? { id: 'rfnd_different' } : {}), ...(event === 'external_partial' ? { id: 'rfnd_partial', amount: 5000, notes: {} } : {}) } } });
+  };
+  await deliver();
+  await deliver();
+  const expectedRefundStatus = { P: 'PENDING', X: 'PROCESSED', F: 'FAILED', R: 'REVIEW', E: 'REVIEW', N: null }[expected];
+  expect(payment.refundStatus).toBe(expected === 'K' ? initial.refundStatus : expectedRefundStatus);
+  expect(payment.status).toBe(['X', 'E'].includes(expected) ? 'REFUNDED' : initial.status);
+  if (expected === 'K') expect(payment.refundId).toBe(initial.refundId);
+  if (state.includes('OTHER') && event.startsWith('same_')) expect(payment.refundId).toBe('rfnd_dashboard');
+  const posts = calls.filter(call => call.method === 'POST');
+  const claimed = api && ['REQUIRED', 'FAILED'].includes(state);
+  expect(posts).toHaveLength(claimed ? ['api_failed', 'api_rejected'].includes(event) ? 2 : 1 : 0);
+  for (const call of posts) expect(call.key).toBe(call.body.notes.refundAttemptId);
+  if (posts.length === 2) expect(posts[0].key).not.toBe(posts[1].key);
+  const processedConfirmation = expected === 'X' && !api && (manual || reconcile) && eligible;
+  expect(notifications.createNotification).toHaveBeenCalledTimes(processedConfirmation ? 2 : 0);
+  expect(notifications.sendEmail).toHaveBeenCalledTimes(claimed && ['api_pending', 'api_processed'].includes(event) ? 1 : 0);
+});
 test('a stale pending refund with unavailable provider status remains reviewable', async () => {
   payment.refundStatus = 'PENDING'; payment.updatedAt = new Date(Date.now() - 16 * 60000);
   provider = async () => ({ error: 'Unavailable' });

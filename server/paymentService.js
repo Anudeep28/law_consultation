@@ -64,8 +64,8 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
   };
 
-  const applyRefundStatus = (db, payment, entity) => db.payment.updateMany({
-    where: { id: payment.id, status: payment.status, refundAttemptId: payment.refundAttemptId ?? null, refundStatus: { in: ['PENDING', 'FAILED', 'REVIEW'] }, OR: [{ refundId: payment.refundId ?? null }, { refundId: entity.id }] },
+  const applyRefundStatus = (db, payment, entity, reconciled = false) => db.payment.updateMany({
+    where: { id: payment.id, status: payment.status, refundAttemptId: payment.refundAttemptId ?? null, refundStatus: { in: ['PENDING', 'FAILED', 'REVIEW'] }, OR: [{ refundId: reconciled ? payment.refundId ?? null : null }, { refundId: entity.id }] },
     data: { refundId: entity.id, refundStatus: { processed: 'PROCESSED', failed: 'FAILED', pending: 'PENDING' }[entity.status], status: entity.status === 'processed' ? 'REFUNDED' : payment.status, refundError: entity.status === 'failed' ? 'Provider reported refund failure; retry is available.' : null },
   });
 
@@ -96,7 +96,7 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     const applied = await applyRefundStatus(prisma, payment, entity);
     if (applied.count !== 1) {
       const current = await prisma.payment.findUnique({ where: { id: payment.id } });
-      if (current?.status === 'REFUNDED' || current?.refundStatus === 'PROCESSED' || current?.refundAttemptId !== payment.refundAttemptId) return;
+      if (current?.status === 'REFUNDED' || current?.refundStatus === 'PROCESSED' || current?.refundAttemptId !== payment.refundAttemptId || current?.refundStatus === 'REVIEW' && current?.refundId && current.refundId !== entity.id) return;
       throw paymentError('Refund state changed; retry delivery', 503);
     }
   };
@@ -156,7 +156,7 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
               if (!validId(entity.id) || entity.payment_id !== payment.razorpayPaymentId || entity.amount !== payment.amount || entity.currency !== payment.currency || !['processed', 'pending', 'failed'].includes(entity.status)) throw paymentError('Provider refund validation failed; review retained.', 502);
               if (entity.status === 'failed' && payment.refundAttemptId && entity.notes?.refundAttemptId !== payment.refundAttemptId) throw paymentError('Failed provider refund is outside the original attempt; review retained.', 502);
               provider = { result: entity.status, refundId: entity.id, paymentId: entity.payment_id, amount: entity.amount, currency: entity.currency };
-              const applied = await applyRefundStatus(tx, payment, entity);
+              const applied = await applyRefundStatus(tx, payment, entity, true);
               if (applied.count !== 1) throw paymentError('Refund state changed; retry reconciliation.', 409);
             } else {
               const capture = await request('GET', `/v1/payments/${encodeURIComponent(payment.razorpayPaymentId)}`);
@@ -177,11 +177,12 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
       }
       const after = await tx.payment.findUnique({ where: { id } });
       const audit = await tx.adminAuditLog.create({ data: { adminId, targetUserId: payment.userId, action: resolution ? 'PAYMENT_REVIEW_RESOLVE' : 'PAYMENT_RECONCILE', reason: JSON.stringify({ paymentId: id, before, after: reviewState(after), provider, note: resolution?.note || null }) } });
-      return { payment: { ...after, consultation: payment.consultation }, changed: before.refundStatus === 'REVIEW' && after.refundStatus !== 'REVIEW', failure, autoRefund, auditId: audit.id, before, provider };
+      return { payment: { ...after, consultation: payment.consultation }, changed: before.refundStatus !== 'PROCESSED' && after.refundStatus === 'PROCESSED', failure, autoRefund, auditId: audit.id, before, provider };
     }, { maxWait: 10000, timeout: 65000 });
     if (result.autoRefund && !result.failure) {
       try { await refund(id); } catch (error) { result.failure = error; }
       result.payment = await prisma.payment.findUnique({ where: { id }, include: { consultation: { include: { lawyer: true } } } });
+      result.changed = result.before.refundStatus !== 'PROCESSED' && result.payment.refundStatus === 'PROCESSED';
       await prisma.adminAuditLog.update({ where: { id: result.auditId }, data: { reason: JSON.stringify({ paymentId: id, before: result.before, after: reviewState(result.payment), provider: { ...result.provider, refundStatus: result.payment.refundStatus }, note: null }) } });
     }
     if (result.changed) await reviewNotification(result.payment);
