@@ -54,8 +54,11 @@ New nullable payment fields record `refundStatus`, `refundId`, `refundAttemptId`
   new refund. Processed/failed webhooks finish it; monitor old pending rows for
   reconciliation if the initiating process died or webhooks are unavailable.
 - `FAILED`: explicit provider rejection or a matching failed webhook. The owning
-  client's cancellation endpoint can retry; a captured event replay can also
-  resume an eligible failed refund. Each confirmed-failed attempt gets a new ID.
+  client's cancellation endpoint can retry. Capture replays only resume refunds
+  owed for CANCELLED consultations: REQUIRED, or FAILED with an app-generated
+  attempt ID. Imported dashboard failures do not authorize automatic refunds of
+  active bookings or document purchases. Each confirmed-failed attempt gets a
+  new ID when a refund is explicitly requested or an eligible retry resumes.
 - `REVIEW`: ambiguous network/5xx response, unexpected provider response,
   mismatched capture, or provider-dashboard refund outside tracked attempts.
   This is deliberately not automatically retried with a new key. Reconcile with

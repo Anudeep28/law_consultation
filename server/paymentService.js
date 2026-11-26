@@ -173,6 +173,8 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     return { payment: result.payment, message: result.autoRefund ? 'Late payment refund requested.' : result.provider.result === 'already_reconciled' ? 'Payment already reconciled.' : result.provider.result === 'no_refund_found' ? 'No provider refund found. Refund can be retried.' : resolution ? 'Payment review resolved.' : `Provider refund is ${result.provider.result}.` };
   };
 
+  const canResumeRefund = payment => payment?.consultation?.status === 'CANCELLED' && (payment.refundStatus === 'REQUIRED' || payment.refundStatus === 'FAILED' && Boolean(payment.refundAttemptId));
+
   const settle = async (payment, entity) => {
     if (!validId(entity.id) || entity.order_id !== payment.razorpayOrderId || entity.amount !== payment.amount || entity.currency !== payment.currency || entity.status !== 'captured') {
       await prisma.payment.updateMany({ where: { id: payment.id, status: 'CREATED' }, data: { refundStatus: 'REVIEW', refundError: 'Captured payment validation failed. Reconcile amount, currency and order with Razorpay.' } });
@@ -180,7 +182,7 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
     }
     if (payment.razorpayPaymentId && payment.razorpayPaymentId !== entity.id) throw paymentError('Payment ID mismatch');
     if (payment.status !== 'CREATED') {
-      if (['REQUIRED', 'FAILED'].includes(payment.refundStatus)) await refund(payment.id);
+      if (canResumeRefund(payment)) await refund(payment.id);
       return { applied: false };
     }
     if (payment.refundStatus === 'REVIEW' && payment.refundId) throw paymentError('Payment refund requires reconciliation before access can be granted', 409);
@@ -211,8 +213,8 @@ module.exports = ({ prisma, request, meetings, notifications, logger, pendingTtl
         : { subscriptionPlan: timedAccess ? user.subscriptionPlan : 'SINGLE', documentCredits: { increment: 1 } } });
       return { applied: true };
     });
-    const current = await prisma.payment.findUnique({ where: { id: payment.id } });
-    if (['REQUIRED', 'FAILED'].includes(current?.refundStatus)) await refund(payment.id);
+    const current = await prisma.payment.findUnique({ where: { id: payment.id }, include: { consultation: true } });
+    if (canResumeRefund(current)) await refund(payment.id);
     if (result.consultation?.lawyer?.userId) {
       const consultation = result.consultation;
       try {

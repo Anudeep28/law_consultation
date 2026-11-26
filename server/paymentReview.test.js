@@ -102,6 +102,29 @@ test.each(['consultation', 'document'])('an external failed refund before captur
   else expect(payment.consultation.status).toBe('BOOKED');
   expect(calls.every(call => call.method === 'GET')).toBe(true);
 });
+test.each(['BOOKED', 'COMPLETED', 'CANCELLED', 'SINGLE', 'MONTHLY'])('imported failed refunds cannot auto-refund %s on capture replay', async kind => {
+  payment.refundStatus = null; payment.refundId = null; payment.refundAttemptId = null;
+  if (['SINGLE', 'MONTHLY'].includes(kind)) { payment.consultationId = null; payment.consultation = null; payment.plan = kind; }
+  else payment.consultation.status = kind;
+  const external = { ...refund('failed'), notes: {} };
+  expect((await webhook('refund.failed', { refund: { entity: external } })).status).toBe(200);
+  provider = async (req, body) => req.method === 'POST' ? { ...refund('processed'), notes: body.notes } : external;
+  expect((await post()).status).toBe(200);
+  expect(payment.refundStatus).toBe('FAILED');
+  expect((await webhook('payment.captured', { payment: { entity: capture() } })).status).toBe(200);
+  expect(payment.status).toBe('PAID');
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
+  expect(prisma.user.update).not.toHaveBeenCalled();
+  if (payment.consultation) expect(payment.consultation.status).toBe(kind);
+});
+test.each(['REQUIRED', 'FAILED'])('capture replay still resumes an app-initiated %s refund of a cancelled booking', async refundStatus => {
+  payment.refundStatus = refundStatus; payment.consultation.status = 'CANCELLED';
+  if (refundStatus === 'REQUIRED') payment.refundAttemptId = null;
+  provider = async (_req, body) => ({ ...refund('processed'), notes: body.notes });
+  expect((await webhook('payment.captured', { payment: { entity: capture() } })).status).toBe(200);
+  expect(payment.refundStatus).toBe('PROCESSED');
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(1);
+});
 test.each([true, false])('matches refund history by correlation or untracked full amount (%s)', async tracked => {
   payment.refundId = null;
   provider = async () => ({ items: [{ ...refund('processed'), notes: tracked ? { refundAttemptId: payment.refundAttemptId } : {} }] });
