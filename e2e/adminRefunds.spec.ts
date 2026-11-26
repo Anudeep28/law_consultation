@@ -41,4 +41,17 @@ test('administrator refunds a booked consultation through Payments & Refunds', a
   const audit = await prisma.adminAuditLog.findFirstOrThrow({ where: { adminId: admin.id, action: 'CONSULTATION_REFUND' } });
   expect(JSON.parse(audit.reason)).toMatchObject({ reason: 'LAWYER_NO_SHOW', amount: order.amount, consultationId: consultation.id });
   expect(await prisma.notification.count({ where: { consultationId: consultation.id, type: 'CONSULTATION_REFUND' } })).toBe(2);
+
+  const payment = await prisma.payment.update({ where: { consultationId: consultation.id }, data: { refundStatus: 'REVIEW', refundError: 'Synthetic ambiguous response for provider reconciliation.' } });
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await page.getByRole('button', { name: /Needs review/ }).click();
+  const check = page.getByRole('button', { name: `Check with Razorpay for payment ${payment.id}` });
+  await expect(check).toBeVisible();
+  const concurrent = request.post(`${apiUrl}/api/admin/payments/${payment.id}/reconcile`, { headers: { Authorization: `Bearer ${token(admin.id)}` } });
+  await check.click();
+  expect((await concurrent).status()).toBe(200);
+  await expect(page.getByText('No payments found.', { exact: true })).toBeVisible();
+  expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).refundStatus).toBe('PROCESSED');
+  expect(await prisma.adminAuditLog.count({ where: { adminId: admin.id, action: 'PAYMENT_RECONCILE' } })).toBe(2);
+  expect(await prisma.notification.count({ where: { consultationId: consultation.id, type: 'CONSULTATION_REFUND' } })).toBe(4);
 });
