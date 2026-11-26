@@ -1,14 +1,14 @@
 process.env.JWT_SECRET = 'test-secret';
 
 jest.mock('../db', () => ({
-  user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+  user: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), create: jest.fn(), upsert: jest.fn() },
   consultation: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
   consultationMessage: {},
   payment: { findMany: jest.fn() },
   document: { findMany: jest.fn(), deleteMany: jest.fn() },
   deliverable: {},
   emailVerificationToken: { deleteMany: jest.fn() },
-  passwordResetToken: { deleteMany: jest.fn() },
+  passwordResetToken: { deleteMany: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), upsert: jest.fn() },
   notification: { findMany: jest.fn(), deleteMany: jest.fn() },
   pushSubscription: { deleteMany: jest.fn() },
   lawyerReview: { findMany: jest.fn(), updateMany: jest.fn() },
@@ -16,11 +16,13 @@ jest.mock('../db', () => ({
   lawyer: { findUnique: jest.fn(), update: jest.fn() },
   $transaction: jest.fn(),
 }));
+jest.mock('./notifications', () => ({ ...jest.requireActual('./notifications'), sendEmail: jest.fn().mockResolvedValue({ ok: true }) }));
 
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
-const { app, ensureDeploymentAdmin } = require('../app');
+const { app, ensureDeploymentAdmin, io } = require('../app');
 const prisma = require('../db');
+const { sendEmail } = require('./notifications');
 
 const activeUser = { id: 'user-1', accountStatus: 'ACTIVE', role: 'CLIENT', name: 'Test User', email: 'test@example.com' };
 const authHeader = () => `Bearer ${jwt.sign({ userId: activeUser.id }, process.env.JWT_SECRET)}`;
@@ -49,6 +51,29 @@ describe('billable endpoint protection', () => {
 });
 
 describe('auth endpoints', () => {
+  it('returns a safe 500 rather than revoking a valid session when the authentication lookup fails', async () => {
+    prisma.user.findUnique.mockRejectedValueOnce(new Error('Private database connection details'));
+    const result = await request(app).get('/api/auth/me').set('Authorization', authHeader()).set('x-request-id', 'auth-lookup-failure');
+    expect(result.status).toBe(500);
+    expect(result.body).toEqual({ error: 'Internal server error', requestId: 'auth-lookup-failure' });
+  });
+
+  it('returns 401 for a signed JWT whose payload is not valid JSON', async () => {
+    const crypto = require('crypto');
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const body = Buffer.from('{bad').toString('base64url');
+    const signature = crypto.createHmac('sha256', process.env.JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+    const result = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${header}.${body}.${signature}`);
+    expect(result.status).toBe(401);
+  });
+
+  it.each(['malformed', 'expired', 'future', 'missing-user'])('still returns 401 for %s JWTs without a database lookup', async (kind) => {
+    const token = kind === 'malformed' ? 'not-a-jwt' : kind === 'missing-user' ? jwt.sign({}, process.env.JWT_SECRET) : jwt.sign({ userId: activeUser.id }, process.env.JWT_SECRET, kind === 'expired' ? { expiresIn: -1 } : { notBefore: '1h' });
+    const result = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+    expect(result.status).toBe(401);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
   it.each(['deleted+victim@deleted.invalid', 'deleted+victim@DeLeTeD.InVaLiD'])('rejects registration using reserved email %s', async (email) => {
     const res = await request(app).post('/api/auth/register').send({ name: 'Test', email, phone: '9999999999', password: 'secret123', role: 'client' });
     expect(res.status).toBe(400);
@@ -76,6 +101,21 @@ describe('auth endpoints', () => {
     expect(res.body.ok).toBe(true);
   });
 
+  it.each(['x'.repeat(73), 'é'.repeat(37)])('rejects deployment administrator passwords exceeding 72 UTF-8 bytes before looking up the account', async (password) => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    const previousPassword = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_EMAIL = 'admin@example.test';
+    process.env.ADMIN_PASSWORD = password;
+    try {
+      await expect(ensureDeploymentAdmin()).rejects.toThrow(/ADMIN_PASSWORD.*72.*byte/);
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.upsert).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+      if (previousPassword === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previousPassword;
+    }
+  });
+
   it('rate limits repeated login attempts', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     let last;
@@ -85,6 +125,195 @@ describe('auth endpoints', () => {
         .send({ email: 'a@b.com', password: 'secret1', role: 'client' });
     }
     expect(last.status).toBe(429);
+  });
+});
+
+describe('password and session hardening', () => {
+  const bcrypt = require('bcrypt');
+  let user;
+  let clock = Date.now() + 3600000;
+  let disconnectSockets;
+  const token = (version = user.tokenVersion) => jwt.sign({ userId: activeUser.id, tokenVersion: version }, process.env.JWT_SECRET);
+  const me = (value) => request(app).get('/api/auth/me').set('Authorization', `Bearer ${value}`);
+  const change = (newPassword = 'Fresh-river-copper!', currentPassword = 'short') => request(app).post('/api/account/password').set('Authorization', `Bearer ${token()}`).send({ currentPassword, newPassword });
+  const login = (email = user.email, password = 'wrong') => request(app).post('/api/auth/login').send({ email, password });
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    clock += 20 * 60000;
+    jest.spyOn(Date, 'now').mockImplementation(() => clock);
+    disconnectSockets = jest.fn();
+    jest.spyOn(io, 'in').mockReturnValue({ disconnectSockets });
+    user = { ...activeUser, tokenVersion: 0, subscriptionPlan: 'TRIAL', documentCredits: 0, passwordHash: await bcrypt.hash('short', 4) };
+    prisma.user.findUnique.mockImplementation(async ({ where }) => where.email && where.email.toLowerCase() !== user.email ? null : { ...user });
+    prisma.user.update.mockImplementation(async ({ where, data }) => {
+      if (where.tokenVersion !== undefined && where.tokenVersion !== user.tokenVersion) throw Object.assign(new Error('Race'), { code: 'P2025' });
+      if (data.passwordHash) user.passwordHash = data.passwordHash;
+      if (data.tokenVersion?.increment) user.tokenVersion += data.tokenVersion.increment;
+      return { ...user };
+    });
+    prisma.$transaction.mockImplementation((callback) => callback(prisma));
+    prisma.passwordResetToken.findUnique.mockImplementation(async () => ({ id: 'reset', userId: user.id, user: { ...user }, expiresAt: new Date(clock + 3600000) }));
+    prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 1 });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  test.each([
+    ['', /10.*128/], [undefined, /10.*128/], [null, /10.*128/], [{ value: 'password123' }, /10.*128/],
+    ['short', /10.*128/], ['x'.repeat(129), /10.*128/], ['x'.repeat(73), /72.*byte/], ['é'.repeat(37), /72.*byte/],
+    ['password123', /common/i], ['TEST-copper-river', /email/i],
+  ])('register, reset and change share policy rejection for %s', async (password, message) => {
+    const registered = await request(app).post('/api/auth/register').send({ name: 'Test', email: user.email, phone: '9999999999', password });
+    const reset = await request(app).post('/api/auth/reset-password').send({ token: 'reset', password });
+    const changed = await request(app).post('/api/account/password').set('Authorization', `Bearer ${token()}`).send({ currentPassword: 'short', newPassword: password });
+    for (const result of [registered, reset, changed]) {
+      expect(result.status).toBe(400);
+      expect(result.body.error).toMatch(message);
+    }
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  test.each(['CLIENT', 'ADMIN'])('%s changes own password and keeps only the fresh session', async (role) => {
+    user.role = role;
+    const old = token();
+    const response = await change('R'.repeat(72));
+    expect(response.status).toBe(200);
+    const payload = jwt.verify(response.body.token, process.env.JWT_SECRET);
+    expect(payload.tokenVersion).toBe(1);
+    expect(payload.exp - payload.iat).toBe(7 * 86400);
+    expect(await bcrypt.compare('R'.repeat(72), user.passwordHash)).toBe(true);
+    expect((await me(old)).status).toBe(401);
+    expect((await me(response.body.token)).status).toBe(200);
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  test('deployment admin must rotate using ADMIN_PASSWORD rather than change or reset endpoints', async () => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = ` ${user.email.toUpperCase()} `;
+    user.role = 'ADMIN';
+    try {
+      const changed = await change();
+      const reset = await request(app).post('/api/auth/reset-password').send({ token: 'reset', password: 'Fresh-river-copper!' });
+      for (const result of [changed, reset]) {
+        expect([400, 403]).toContain(result.status);
+        expect(result.body.error).toMatch(/rotate.*ADMIN_PASSWORD/i);
+      }
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.passwordResetToken.updateMany).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+    }
+  });
+
+  test('forgot-password does not create or email deployment-admin reset links and returns the generic response', async () => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = ` ${user.email.toUpperCase()} `;
+    user.role = 'ADMIN';
+    try {
+      const admin = await request(app).post('/api/auth/forgot-password').send({ email: ` ${user.email.toUpperCase()} ` });
+      prisma.user.findUnique.mockResolvedValueOnce(null);
+      const unknown = await request(app).post('/api/auth/forgot-password').send({ email: 'unknown@example.test' });
+      expect(admin.status).toBe(200);
+      expect(admin.body).toEqual({ ok: true });
+      expect(admin.status).toBe(unknown.status);
+      expect(admin.body).toEqual(unknown.body);
+      expect(prisma.passwordResetToken.upsert).not.toHaveBeenCalled();
+      expect(sendEmail).not.toHaveBeenCalled();
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+    }
+  });
+
+  test.each(['CLIENT', 'ADMIN'])('forgot-password still sends reset links to non-deployment %s accounts', async (role) => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = 'deployment@example.test';
+    user.role = role;
+    try {
+      const response = await request(app).post('/api/auth/forgot-password').send({ email: user.email });
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ ok: true });
+      expect(prisma.passwordResetToken.upsert).toHaveBeenCalledTimes(1);
+      expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: user.email }));
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+    }
+  });
+
+  test.each([true, false])('deployment startup rotates credentials and revokes sessions only when password changes (%s)', async (changed) => {
+    const previousEmail = process.env.ADMIN_EMAIL;
+    const previousPassword = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_EMAIL = user.email;
+    process.env.ADMIN_PASSWORD = changed ? 'Deployment-rotated-secret' : 'short-existing-secret';
+    user.role = 'ADMIN';
+    user.passwordHash = await bcrypt.hash('short-existing-secret', 4);
+    prisma.user.upsert.mockImplementation(async ({ update }) => prisma.user.update({ where: { id: user.id }, data: update }));
+    try {
+      const old = token();
+      await ensureDeploymentAdmin();
+      expect(await bcrypt.compare(process.env.ADMIN_PASSWORD, user.passwordHash)).toBe(true);
+      expect(user.tokenVersion).toBe(changed ? 1 : 0);
+      expect((await me(old)).status).toBe(changed ? 401 : 200);
+      expect(disconnectSockets).toHaveBeenCalledTimes(changed ? 1 : 0);
+    } finally {
+      if (previousEmail === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = previousEmail;
+      if (previousPassword === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previousPassword;
+    }
+  });
+
+  test('requires auth/current password, rate limits changes per user, and does not mutate on failure', async () => {
+    expect((await request(app).post('/api/account/password').send({})).status).toBe(401);
+    expect((await change(undefined, 'wrong')).status).toBe(401);
+    for (let i = 0; i < 5; i++) await change(undefined, 'wrong');
+    expect((await change()).status).toBe(429);
+    expect(user.tokenVersion).toBe(0);
+  });
+
+  test('reset consumes the token once and revokes prior sessions', async () => {
+    const old = token();
+    const reset = () => request(app).post('/api/auth/reset-password').send({ token: 'reset', password: 'Fresh-river-copper!' });
+    expect((await reset()).status).toBe(200);
+    expect(prisma.passwordResetToken.updateMany).toHaveBeenCalledWith({ where: { id: 'reset', token: 'reset', usedAt: null, expiresAt: { gt: expect.any(Date) } }, data: { usedAt: expect.any(Date) } });
+    expect((await me(old)).status).toBe(401);
+    prisma.passwordResetToken.updateMany.mockResolvedValueOnce({ count: 0 });
+    expect((await reset()).status).toBe(400);
+    expect(user.tokenVersion).toBe(1);
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  test.each([null, { usedAt: new Date(), expiresAt: new Date(Date.now() + 3600000) }, { expiresAt: new Date(0) }])('rejects missing, used or expired reset records', async (record) => {
+    prisma.passwordResetToken.findUnique.mockResolvedValueOnce(record);
+    const result = await request(app).post('/api/auth/reset-password').send({ token: 'reset', password: 'Fresh-river-copper!' });
+    expect(result.status).toBe(400);
+    expect(user.tokenVersion).toBe(0);
+  });
+
+  test('logout-all revokes the current token and removes push subscriptions', async () => {
+    const old = token();
+    const result = await request(app).post('/api/account/logout-all').set('Authorization', `Bearer ${old}`);
+    expect(result.status).toBe(204);
+    expect((await me(old)).status).toBe(401);
+    expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({ where: { userId: user.id } });
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  test('short existing passwords can log in; success resets failed attempts', async () => {
+    for (let i = 0; i < 4; i++) expect((await login()).status).toBe(401);
+    const result = await login(user.email, 'short');
+    expect(result.status).toBe(200);
+    expect(jwt.verify(result.body.token, process.env.JWT_SECRET).tokenVersion).toBe(0);
+    for (let i = 0; i < 4; i++) expect((await login()).status).toBe(401);
+  });
+
+  test.each(['test@example.com', 'unknown@example.com'])('locks %s generically after five failures, including normalized email and role changes', async (email) => {
+    const compare = jest.spyOn(bcrypt, 'compare');
+    for (let i = 0; i < 5; i++) expect((await login(email)).status).toBe(401);
+    expect(compare).toHaveBeenCalledTimes(5);
+    expect(typeof compare.mock.calls[0][1]).toBe('string');
+    const result = await request(app).post('/api/auth/login').send({ email: ` ${email.toUpperCase()} `, password: 'short', role: 'admin' });
+    expect(result.status).toBe(429);
+    expect(result.body).toEqual({ error: 'Too many attempts. Please try again later.' });
+    clock += 15 * 60000;
+    expect((await login(email)).status).toBe(401);
   });
 });
 

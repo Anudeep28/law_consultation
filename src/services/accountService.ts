@@ -1,5 +1,16 @@
 import { saveAs } from 'file-saver';
-import { apiRequest } from './api';
+import { apiRequest, setAuthToken } from './api';
+import { refreshSocketAuthentication } from './socket';
+
+export const changePassword = async (currentPassword: string, newPassword: string) => {
+  const result = await apiRequest<{ token: string }>('/api/account/password', {
+    method: 'POST', body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  setAuthToken(result.token);
+  refreshSocketAuthentication();
+};
+
+export const logoutAllDevices = () => apiRequest<void>('/api/account/logout-all', { method: 'POST' });
 
 export const exportAccountData = async () => {
   const data = await apiRequest<{ exportedAt: string }>('/api/account/export');

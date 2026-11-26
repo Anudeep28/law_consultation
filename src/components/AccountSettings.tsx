@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { exportAccountData, deleteAccount } from '../services/accountService';
+import { changePassword, logoutAllDevices, exportAccountData, deleteAccount } from '../services/accountService';
 import { useAuthStore } from '../stores/authStore';
 import { Modal } from './ui/Modal';
 import { notify } from './ui/Toasts';
+import { PasswordRules } from './Auth/PasswordRules';
 
 export const AccountSettings: React.FC = () => {
   const logout = useAuthStore((state) => state.logout);
@@ -13,6 +14,43 @@ export const AccountSettings: React.FC = () => {
   const [downloadError, setDownloadError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [sessionError, setSessionError] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+
+  const updatePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSessionError('');
+    if (newPassword !== confirmPassword) {
+      setSessionError('Passwords do not match');
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      notify('Password changed. Your other sessions have been signed out.', 'success');
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : 'Unable to change password.');
+    } finally { setSavingPassword(false); }
+  };
+
+  const revokeSessions = async () => {
+    setSessionError('');
+    setRevoking(true);
+    try {
+      await logoutAllDevices();
+      logout();
+      notify('You have been logged out of all devices.', 'info');
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : 'Unable to log out all devices.');
+    } finally { setRevoking(false); }
+  };
 
   const download = async () => {
     setDownloading(true);
@@ -52,6 +90,19 @@ export const AccountSettings: React.FC = () => {
           <p className="my-4 text-sm text-ink-muted">Download a JSON copy of your profile, documents, consultations, payments, reviews, and notifications. Keep this file secure: it contains personal and legal information.</p>
           <button type="button" disabled={downloading || deleting} onClick={download} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-50">{downloading ? 'Preparing download...' : 'Download my data'}</button>
           {downloadError && <p role="alert" className="mt-3 text-sm text-brand">{downloadError}</p>}
+        </section>
+        <section className="rounded-2xl border border-line bg-white p-6">
+          <h2 className="font-bold">Password &amp; sessions</h2>
+          <form onSubmit={updatePassword} className="mt-4 space-y-4">
+            <PasswordRules />
+            <label className="block text-sm font-medium">Current password<input type="password" autoComplete="current-password" required value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-1 block w-full rounded-lg border border-line p-2" /></label>
+            <label className="block text-sm font-medium">New password<input type="password" autoComplete="new-password" required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-1 block w-full rounded-lg border border-line p-2" /></label>
+            <label className="block text-sm font-medium">Confirm new password<input type="password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-1 block w-full rounded-lg border border-line p-2" /></label>
+            <button type="submit" disabled={savingPassword || revoking} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">{savingPassword ? 'Changing password...' : 'Change password'}</button>
+          </form>
+          <p className="my-4 text-sm text-ink-muted">Changing your password signs out other sessions. Log out of all devices also signs you out here and removes push subscriptions on all devices.</p>
+          <button type="button" disabled={savingPassword || revoking} onClick={revokeSessions} className="rounded-lg border border-brand px-4 py-2 font-semibold text-brand disabled:opacity-50">{revoking ? 'Logging out...' : 'Log out of all devices'}</button>
+          {sessionError && <p role="alert" className="mt-3 text-sm text-brand">{sessionError}</p>}
         </section>
         <section className="rounded-2xl border border-brand bg-brand-soft p-6">
           <h2 className="font-bold text-brand">Danger zone</h2>

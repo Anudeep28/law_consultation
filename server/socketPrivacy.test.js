@@ -94,6 +94,16 @@ test('a deleted user is rejected by events on an existing connection', async () 
   expect((await emit(socket, 'chat:join', { consultationId: 'consultation' })).error).toBeTruthy();
 });
 
+test('token version mismatch rejects new connections and existing socket events', async () => {
+  const socket = await openSocket();
+  participant.tokenVersion = 1;
+  expect((await emit(socket, 'chat:join', { consultationId: 'consultation' })).error).toBeTruthy();
+  expect((await emit(socket, 'chat:message', { consultationId: 'consultation', content: 'Revoked' })).error).toBeTruthy();
+  await expect(openSocket()).rejects.toThrow();
+  const fresh = jwt.sign({ userId: 'client', tokenVersion: 1 }, process.env.JWT_SECRET);
+  expect((await emit(await openSocket(fresh), 'chat:join', { consultationId: 'consultation' })).ok).toBe(true);
+});
+
 test('chat:leave removes only the requested consultation room and validates empty IDs', async () => {
   const socket = await openSocket();
   await emit(socket, 'chat:join', { consultationId: 'consultation' });

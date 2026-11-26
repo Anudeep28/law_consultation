@@ -1,11 +1,11 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AccountSettings } from './AccountSettings';
-import { deleteAccount, exportAccountData } from '../services/accountService';
+import { changePassword, logoutAllDevices, deleteAccount, exportAccountData } from '../services/accountService';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from './ui/Toasts';
 
-jest.mock('../services/accountService', () => ({ deleteAccount: jest.fn(), exportAccountData: jest.fn() }));
+jest.mock('../services/accountService', () => ({ changePassword: jest.fn(), logoutAllDevices: jest.fn(), deleteAccount: jest.fn(), exportAccountData: jest.fn() }));
 
 const openDeletion = async () => {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Delete account' })); });
@@ -57,4 +57,44 @@ test('shows download errors', async () => {
   render(<AccountSettings />);
   fireEvent.click(screen.getByRole('button', { name: 'Download my data' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts');
+});
+
+test('changes password, clears credential inputs, and stays logged in', async () => {
+  const logout = jest.fn();
+  useAuthStore.setState({ logout });
+  (changePassword as jest.Mock).mockResolvedValue(undefined);
+  render(<AccountSettings />);
+  expect(screen.getByText(/10–128 characters/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old' } });
+  fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'Fresh-river-copper!' } });
+  fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'Fresh-river-copper!' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Change password' }));
+  await waitFor(() => expect(changePassword).toHaveBeenCalledWith('old', 'Fresh-river-copper!'));
+  await waitFor(() => expect(screen.getByLabelText('Current password')).toHaveValue(''));
+  expect(logout).not.toHaveBeenCalled();
+});
+
+test('password mismatch and server policy errors appear inline', async () => {
+  render(<AccountSettings />);
+  fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old' } });
+  fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'password123' } });
+  fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'different' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Change password' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Passwords do not match');
+  (changePassword as jest.Mock).mockRejectedValue(new Error('This password is too common.'));
+  fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'password123' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Change password' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('too common');
+});
+
+test('logout-all logs out locally only after the server succeeds', async () => {
+  const logout = jest.fn();
+  useAuthStore.setState({ logout });
+  (logoutAllDevices as jest.Mock).mockRejectedValueOnce(new Error('Try again later')).mockResolvedValueOnce(undefined);
+  render(<AccountSettings />);
+  fireEvent.click(screen.getByRole('button', { name: 'Log out of all devices' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Try again later');
+  expect(logout).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Log out of all devices' }));
+  await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
 });

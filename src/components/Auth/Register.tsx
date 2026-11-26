@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
+import { PasswordRules } from './PasswordRules';
 
 interface RegisterProps {
   onToggleMode: () => void;
@@ -24,11 +25,6 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
     
     if (password !== confirmPassword) {
       setError('Passwords do not match');
-      return;
-    }
-    
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
       return;
     }
     
@@ -119,7 +115,8 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
                 type="password"
                 required
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-line-soft placeholder-ink-weakest text-ink bg-cream-raised rounded-md focus:outline-none focus:border-accent-dark focus:ring-2 focus:ring-accent/30 sm:text-sm"
-                placeholder="Password (min 6 characters)"
+                placeholder="Password (10–128 characters)"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -141,6 +138,7 @@ export const Register: React.FC<RegisterProps> = ({ onToggleMode }) => {
             </div>
           </div>
 
+          <PasswordRules />
           <div>
             <button
               type="submit"
