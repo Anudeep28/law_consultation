@@ -1,14 +1,104 @@
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource/instrument-serif/latin-400.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter Variable', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@layer base {
+  #root { @apply bg-cream text-ink; }
+  #root :where(h1, h2, h3), [role='dialog'] :where(h1, h2, h3) {
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+  :where(#root, [role='dialog'], [aria-label='Notifications']) button {
+    min-height: 2.5rem;
+    transition: background-color 180ms, border-color 180ms, box-shadow 180ms, transform 180ms;
+  }
+  :where(#root, [role='dialog'], [aria-label='Notifications']) button:enabled:active { transform: scale(0.98); }
+  #root :is(button, a, input, select, textarea):focus-visible,
+  [role='dialog'] :is(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 3px;
+  }
+  #root [aria-label='Document content']:focus-visible { outline-offset: -3px; }
+  :where(#root, [role='dialog']) :is(input:not([type='checkbox']):not([type='radio']), select, textarea):not([aria-label='Document content']) {
+    min-height: 2.75rem;
+    border-radius: 0.75rem;
+    border-color: #8793ab;
+    transition: border-color 180ms, box-shadow 180ms;
+  }
+  :where(#root, [role='dialog']) input::placeholder,
+  :where(#root, [role='dialog']) textarea::placeholder { color: #526078; opacity: 1; }
+}
+
+@layer components {
+  .auth-scene {
+    @apply relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-cream px-5 py-8 sm:px-8 lg:py-16;
+    background-image: radial-gradient(ellipse at 5% 15%, #e0e7ff 0, transparent 50%), radial-gradient(ellipse at 95% 85%, #fef3c7 0, transparent 45%);
+  }
+  .auth-layout { @apply relative mx-auto grid w-full max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-24; }
+  .auth-hero { @apply relative text-center lg:text-left; }
+  .auth-wordmark { @apply mb-6 inline-flex items-center gap-3 text-lg font-semibold tracking-tight text-ink lg:mb-12; }
+  .auth-symbol { @apply flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white shadow-lg shadow-brand/20; }
+  .auth-hero h1 { @apply mx-auto max-w-lg font-display text-4xl leading-[1.05] text-ink sm:text-6xl lg:text-7xl; }
+  .auth-art { @apply relative mx-auto mt-10 hidden h-44 max-w-sm lg:block; }
+  .auth-art::before, .auth-art::after { content: ''; position: absolute; border: 1px solid #c7d2fe; border-radius: 1.5rem; background: #ffffff80; box-shadow: 0 16px 48px #312e8110; }
+  .auth-art::before { inset: 0 15% 15% 0; transform: rotate(-8deg); }
+  .auth-art::after { inset: 12% 0 0 15%; transform: rotate(5deg); background: linear-gradient(135deg, #ffffffa0, #eef2ff90); }
+  .auth-card { @apply mx-auto w-full max-w-md rounded-3xl border border-white bg-white/85 p-6 shadow-2xl shadow-indigo-950/10 backdrop-blur-xl sm:p-9; }
+  .auth-card h2 { @apply mt-0 text-2xl font-semibold; }
+  .app-sidebar { @apply bg-white/90 shadow-none backdrop-blur-xl; }
+  .app-sidebar nav { @apply overflow-y-auto; }
+  .app-sidebar nav button { @apply min-h-11 rounded-xl; }
+  .app-sidebar nav button.bg-warning-bg { @apply bg-brand-soft text-brand ring-1 ring-brand/10; }
+  .app-topbar { @apply relative z-20 bg-white/85 backdrop-blur-xl; }
+  .app-topbar h2 { @apply font-semibold; }
+  :where(#root, [role='dialog']) button.bg-brand { @apply min-h-11 rounded-xl font-semibold shadow-sm shadow-brand/20; }
+  :where(#root, [role='dialog']) button.bg-brand:enabled:hover { box-shadow: 0 4px 14px #4f46e526; }
+  .view-transition :is(article, section).border,
+  .view-transition .bg-white.border,
+  .view-transition .bg-white.border-line { border-radius: 1rem; box-shadow: 0 2px 4px #17203303, 0 8px 24px #17203305; }
+  .view-transition .grid > article:nth-child(2), .view-transition .grid > div:nth-child(2) { animation-delay: 35ms; }
+  .view-transition .grid > article:nth-child(3), .view-transition .grid > div:nth-child(3) { animation-delay: 70ms; }
+  .directory-hero { background: radial-gradient(ellipse at 95% 0, #6366f180, transparent 60%), linear-gradient(120deg, #1e1b4b, #3730a3); }
+  .directory-hero h1 { @apply font-display text-4xl font-normal tracking-tight sm:text-5xl; }
+  .dialog-panel { box-shadow: 0 24px 80px #0f172a33, 0 4px 12px #0f172a0d; }
+  .dialog-close { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl; }
+  .toast-stack { view-transition-name: toast-stack; }
+  .toast-message { @apply rounded-2xl shadow-xl shadow-slate-950/10; }
+  .skeleton-bar { @apply h-3 rounded-full bg-cream-deep; background-image: linear-gradient(90deg, transparent, #ffffffb3, transparent); background-size: 200% 100%; }
+  .editor-empty { @apply mx-4 w-full max-w-lg; }
+  .editor-empty > div { @apply flex flex-wrap justify-center gap-3 space-x-0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .view-transition, .auth-card { animation: reveal 220ms ease-out both; }
+  .view-transition .grid > :is(article, .group) { animation: reveal 220ms ease-out both; }
+  .skeleton-bar { animation: shimmer 1.6s ease-in-out infinite; }
+  .dialog-panel, .toast-message { transition: opacity 180ms ease-out, transform 180ms ease-out; }
+  .dialog-panel[data-closed], .toast-message[data-closed] { opacity: 0; transform: translateY(10px) scale(0.98); }
+  .dialog-backdrop { transition: opacity 180ms ease-out; }
+  .dialog-backdrop[data-closed] { opacity: 0; }
+  ::view-transition-group(toast-stack) { animation-duration: 180ms; }
+  ::view-transition-old(toast-stack) { animation: toast-out 180ms ease-in both; }
+  ::view-transition-new(toast-stack) { animation: reveal 180ms ease-out both; }
+}
+:root { view-transition-name: none; }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  #root *, [role='dialog'] *, [aria-label='Notifications'] * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  #root button, [role='dialog'] button { transform: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 
 code {

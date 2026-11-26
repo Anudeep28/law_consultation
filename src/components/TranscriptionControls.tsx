@@ -213,7 +213,7 @@ export const TranscriptionControls: React.FC = () => {
             <>
               <button
                 onClick={isPaused ? handleResume : handlePause}
-                className="flex items-center space-x-2 px-4 py-2 bg-accent-dark text-white rounded-lg hover:bg-[#9a7328] transition"
+                className="flex items-center space-x-2 px-4 py-2 bg-accent-dark text-white rounded-lg hover:bg-warning-ink transition"
               >
                 {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
                 <span>{isPaused ? 'Resume' : 'Pause'}</span>
@@ -221,7 +221,7 @@ export const TranscriptionControls: React.FC = () => {
               <button
                 onClick={handleStop}
                 disabled={isTranscribing}
-                className="flex items-center space-x-2 px-4 py-2 bg-brand-darker text-white rounded-lg hover:bg-[#2a0d16] disabled:opacity-50 transition"
+                className="flex items-center space-x-2 px-4 py-2 bg-brand-darker text-white rounded-lg hover:bg-brand-dark disabled:opacity-50 transition"
               >
                 <Square className="w-5 h-5" />
                 <span>{isTranscribing ? 'Transcribing...' : 'Stop'}</span>

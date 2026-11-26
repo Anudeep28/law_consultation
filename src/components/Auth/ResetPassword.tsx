@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { resetPassword } from '../../services/notificationService';
 import { PasswordRules } from './PasswordRules';
 import { useAuthStore } from '../../stores/authStore';
+import { AuthLayout } from '../ui/AuthLayout';
 
 interface ResetPasswordProps {
   token: string;
@@ -35,7 +36,7 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cream py-12 px-4 sm:px-6 lg:px-8">
+    <AuthLayout>
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-ink">Choose a new password</h2>
@@ -105,6 +106,6 @@ export const ResetPassword: React.FC<ResetPasswordProps> = ({ token, onDone }) =
           </form>
         )}
       </div>
-    </div>
+    </AuthLayout>
   );
 };

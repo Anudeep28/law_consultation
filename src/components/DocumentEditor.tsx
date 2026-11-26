@@ -246,7 +246,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ openTemplateSele
   if (!currentDocument) {
     return (
       <div className="flex items-center justify-center h-full bg-cream">
-        <div className="text-center bg-white rounded-2xl border border-line p-8 shadow-sm">
+        <div className="editor-empty text-center bg-white rounded-2xl border border-line p-8 shadow-sm">
           <h2 className="text-2xl font-bold text-ink mb-4">No Document Open</h2>
           <p className="text-ink-muted mb-6">Create a new document or select a template to get started</p>
           <div className="space-x-4">
