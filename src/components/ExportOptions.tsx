@@ -1,10 +1,10 @@
 import { notify } from './ui/Toasts';
 import React, { useState } from 'react';
 import { Document } from '../types';
-import type { TextRun } from 'docx';
 import type { jsPDF } from 'jspdf';
 import { getDocumentFontName, getDocumentFontFamily } from '../utils/documentFonts';
 import { Modal } from './ui/Modal';
+import { parseExportMarkdown } from '../utils/exportMarkdown';
 
 interface ExportOptionsProps {
   document: Document;
@@ -24,63 +24,27 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
 
   const documentFont = getDocumentFontName(document.language);
 
-  const parseInlineRuns = (text: string, TextRun: typeof import('docx').TextRun): TextRun[] => {
-    const runs: TextRun[] = [];
-    const regex = /\*\*(.*?)\*\*|\*(.*?)\*/g;
-    let last = 0;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(text)) !== null) {
-      if (match.index > last) {
-        runs.push(new TextRun({ text: text.substring(last, match.index), font: documentFont }));
-      }
-      if (match[1] !== undefined) {
-        runs.push(new TextRun({ text: match[1], bold: true, font: documentFont }));
-      } else if (match[2] !== undefined) {
-        runs.push(new TextRun({ text: match[2], italics: true, font: documentFont }));
-      }
-      last = match.index + match[0].length;
-    }
-    if (last < text.length) runs.push(new TextRun({ text: text.substring(last), font: documentFont }));
-    return runs.length ? runs : [new TextRun({ text, font: documentFont })];
-  };
-
   const exportAsDocx = async () => {
     try {
       const [{ Document: DocxDocument, Packer, Paragraph, TextRun }, { saveAs }] = await Promise.all([
         import('docx'), import('file-saver'),
       ]);
-      const lines = document.content.split('\n');
-      const paragraphs = lines.map(line => {
-        if (line.startsWith('# ')) {
-          return new Paragraph({
-            children: [new TextRun({ text: line.substring(2), bold: true, size: 32, font: documentFont })],
-            heading: 'Title',
-          });
-        } else if (line.startsWith('## ')) {
-          return new Paragraph({
-            children: [new TextRun({ text: line.substring(3), bold: true, size: 28, font: documentFont })],
-            heading: 'Heading1',
-          });
-        } else if (line.startsWith('### ')) {
-          return new Paragraph({
-            children: [new TextRun({ text: line.substring(4), bold: true, size: 24, font: documentFont })],
-            heading: 'Heading2',
-          });
-        } else if (line.startsWith('- ')) {
-          return new Paragraph({
-            children: parseInlineRuns(line.substring(2), TextRun),
-            bullet: { level: 0 },
-          });
-        } else if (line.match(/^\d+\. /)) {
-          return new Paragraph({
-            children: parseInlineRuns(line, TextRun),
-          });
-        } else if (line.trim() === '') {
-          return new Paragraph({ children: [new TextRun({ text: '', font: documentFont })] });
-        } else {
-          return new Paragraph({ children: parseInlineRuns(line, TextRun) });
-        }
+      const { blocks } = parseExportMarkdown(document.content);
+      const paragraphs = blocks.map(block => {
+        if (block.kind === 'rule') return new Paragraph({ children: [], border: { bottom: { color: '999999', style: 'single', size: 6, space: 1 } } });
+        const heading = block.kind === 'heading';
+        const size = heading ? block.level === 1 ? 32 : block.level === 2 ? 28 : 24 : undefined;
+        return new Paragraph({
+          children: [
+            ...(block.prefix ? [new TextRun({ text: block.prefix, font: documentFont })] : []),
+            ...block.runs.map(run => new TextRun({ ...run, bold: heading || run.bold, size, font: documentFont })),
+          ],
+          ...(heading ? { heading: block.level === 1 ? 'Title' : block.level === 2 ? 'Heading1' : 'Heading2' } : {}),
+          ...(block.depth ? { indent: { left: block.depth * 360 } } : {}),
+          spacing: { after: 160 },
+        });
       });
+      if (!paragraphs.length) paragraphs.push(new Paragraph({ children: [new TextRun({ text: '', font: documentFont })] }));
 
       const doc = new DocxDocument({
         sections: [
@@ -118,27 +82,13 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     }
   };
 
-  const markdownToHtml = (content: string): string => {
-    return content
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/^- (.+)$/gm, '<li style="margin-left:20px">• $1</li>')
-      .replace(/^\d+\. (.+)$/gm, '<li style="margin-left:20px">$1</li>')
-      .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #ccc;margin:12px 0"/>')
-      .replace(/\n\n/g, '<br/><br/>')
-      .replace(/\n/g, '<br/>');
-  };
-
   const exportAsPdfCanvas = async () => {
     try {
       const [{ jsPDF }, { default: html2canvas }] = await Promise.all([
         import('jspdf'), import('html2canvas'),
       ]);
       const fontFamily = getDocumentFontFamily(document.language);
-      const htmlContent = markdownToHtml(document.content);
+      const { html: htmlContent } = parseExportMarkdown(document.content);
 
       const container = window.document.createElement('div');
       container.style.cssText = `
@@ -146,14 +96,19 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
         width: 640px; padding: 40px;
         font-family: ${fontFamily};
         font-size: 14px; line-height: 1.7; color: #000;
-        background: #fff;
+        background: #fff; color-scheme: light;
       `;
+      container.className = 'document-export';
       container.innerHTML = `
         <style>
-          h1 { font-size: 22px; font-weight: bold; margin: 16px 0 8px; }
-          h2 { font-size: 18px; font-weight: bold; margin: 14px 0 6px; }
-          h3 { font-size: 16px; font-weight: bold; margin: 12px 0 4px; }
-          li { margin: 4px 0; }
+          .document-export h1 { font-size: 22px; font-weight: bold; margin: 16px 0 8px; }
+          .document-export h2 { font-size: 18px; font-weight: bold; margin: 14px 0 6px; }
+          .document-export h3 { font-size: 16px; font-weight: bold; margin: 12px 0 4px; }
+          .document-export p { margin: 8px 0; }
+          .document-export ul { list-style: disc; padding-left: 20px; }
+          .document-export ol { list-style: decimal; padding-left: 20px; }
+          .document-export li { margin: 4px 0; }
+          .document-export hr { border-top: 1px solid #999; margin: 12px 0; }
         </style>
         ${htmlContent}
       `;
@@ -219,7 +174,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
     try {
       const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-      const contentLines = document.content.split('\n');
+      const { blocks } = parseExportMarkdown(document.content);
       let yPosition = 25;
       const lineHeight = 7;
       const pageHeight = pdf.internal.pageSize.height;
@@ -244,22 +199,17 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
         yPosition += extraSpacing;
       };
 
-      contentLines.forEach((line) => {
-        if (line.startsWith('# ')) {
-          addWrappedText(line.substring(2), 20, 'bold', lineHeight * 0.5);
-        } else if (line.startsWith('## ')) {
-          addWrappedText(line.substring(3), 16, 'bold', lineHeight * 0.25);
-        } else if (line.startsWith('### ')) {
-          addWrappedText(line.substring(4), 14, 'bold', lineHeight * 0.25);
-        } else if (line.startsWith('- ')) {
-          const clean = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
-          addWrappedText('• ' + clean.substring(2), 12, 'normal');
-        } else if (line.trim() === '') {
-          yPosition += lineHeight * 0.5;
-        } else {
-          const clean = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
-          addWrappedText(clean, 12, 'normal');
+      blocks.forEach(block => {
+        if (block.kind === 'rule') {
+          if (yPosition > pageHeight - bottomMargin) { pdf.addPage(); yPosition = 25; }
+          pdf.setDrawColor(153, 153, 153);
+          pdf.line(marginLeft, yPosition, pageWidth - marginRight, yPosition);
+          yPosition += lineHeight;
+          return;
         }
+        const text = (block.prefix || '') + block.runs.map(run => run.text).join('');
+        const heading = block.kind === 'heading';
+        addWrappedText(text, heading ? block.level === 1 ? 20 : block.level === 2 ? 16 : 14 : 12, heading ? 'bold' : 'normal', lineHeight * (heading ? 0.5 : 0.25));
       });
 
       addPageNumbers(pdf);
