@@ -1,3 +1,4 @@
+import { notify } from './ui/Toasts';
 import React, { useState } from 'react';
 import { Document } from '../types';
 import { saveAs } from 'file-saver';
@@ -88,12 +89,11 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
         ],
       });
 
-      const buffer = await Packer.toBuffer(doc);
-      const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const blob = await Packer.toBlob(doc);
       saveAs(blob, `${filename}.docx`);
     } catch (error) {
       console.error('Error exporting DOCX:', error);
-      alert('Failed to export as DOCX. Please try again.');
+      throw error;
     }
   };
 
@@ -206,7 +206,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
       pdf.save(`${filename}.pdf`);
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      alert('Failed to export as PDF. Please try again.');
+      throw error;
     }
   };
 
@@ -260,7 +260,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
       pdf.save(`${filename}.pdf`);
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      alert('Failed to export as PDF. Please try again.');
+      throw error;
     }
   };
 
@@ -290,7 +290,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
       onClose();
     } catch (error) {
       console.error('Export error:', error);
-      alert('Export failed. Please try again.');
+      notify('Export failed. Please try again.', 'error');
     } finally {
       setIsExporting(false);
     }

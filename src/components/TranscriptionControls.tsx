@@ -152,27 +152,29 @@ export const TranscriptionControls: React.FC = () => {
   return (
     <div className="bg-white border-t border-[#eadbc1] px-4 pt-3 pb-4">
       {/* Language selectors — always visible */}
-      <div className="flex items-center gap-4 mb-3">
-        <div className="flex items-center gap-2 flex-1">
+      <div className="flex flex-wrap items-center gap-4 mb-3">
+        <div className="flex min-w-0 items-center gap-2 flex-1">
           <label className="text-xs font-medium text-[#8c6b54] whitespace-nowrap">🎙 Speak in</label>
           <select
+            aria-label="Spoken language"
             value={inputLanguage}
             onChange={(e) => setInputLanguage(e.target.value)}
             disabled={isConnected}
-            className="flex-1 px-2 py-1.5 text-sm border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 disabled:opacity-50"
+            className="min-w-0 flex-1 px-2 py-1.5 text-sm border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 disabled:opacity-50"
           >
             {supportedLanguages.map((lang) => (
               <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex min-w-0 items-center gap-2 flex-1">
           <label className="text-xs font-medium text-[#8c6b54] whitespace-nowrap">📄 Output in</label>
           <select
+            aria-label="Transcription output language"
             value={outputLanguage}
             onChange={(e) => setOutputLanguage(e.target.value)}
             disabled={isConnected}
-            className="flex-1 px-2 py-1.5 text-sm border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 disabled:opacity-50"
+            className="min-w-0 flex-1 px-2 py-1.5 text-sm border border-[#e6d8c2] rounded-lg bg-[#fffcf6] text-[#32151b] focus:outline-none focus:border-[#b8862d] focus:ring-2 focus:ring-[#f4c95d]/30 disabled:opacity-50"
           >
             {supportedLanguages.map((lang) => (
               <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
@@ -183,9 +185,9 @@ export const TranscriptionControls: React.FC = () => {
 
       {/* Error message */}
       {errorMessage && (
-        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+        <div role="alert" className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
           <span className="text-sm text-red-700">{errorMessage}</span>
-          <button onClick={() => setErrorMessage('')} className="text-red-400 hover:text-red-600 ml-2 text-xs">✕</button>
+          <button aria-label="Dismiss transcription error" onClick={() => setErrorMessage('')} className="text-red-400 hover:text-red-600 ml-2 text-xs">✕</button>
         </div>
       )}
 
@@ -197,8 +199,8 @@ export const TranscriptionControls: React.FC = () => {
       )}
 
       {/* Recording controls */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {!isConnected ? (
             <button
               onClick={handleStart}

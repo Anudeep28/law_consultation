@@ -54,7 +54,7 @@ export const PhoneVerification: React.FC = () => {
           <button type="button" disabled={isLoading} onClick={otpSent ? verifyOtp : sendOtp} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#701f2f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{otpSent && <CheckCircle className="h-4 w-4" />}{isLoading ? 'Please wait...' : otpSent ? 'Verify OTP' : 'Send OTP'}</button>
         </div>
       </div>
-      {message && <p className="mx-auto mt-2 max-w-5xl text-xs text-amber-900">{message}</p>}
+      {message && <p role="alert" className="mx-auto mt-2 max-w-5xl text-xs text-amber-900">{message}</p>}
     </div>
   );
 };

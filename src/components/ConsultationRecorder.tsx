@@ -71,6 +71,7 @@ export const ConsultationRecorder: React.FC<ConsultationRecorderProps> = ({ cons
           {isRecording ? (isStopping ? 'Stopping...' : 'Stop recording') : 'Record consultation'}
         </button>
         <select
+          aria-label="Recording language"
           value={language}
           onChange={(event) => setLanguage(event.target.value)}
           disabled={isRecording}
@@ -88,7 +89,7 @@ export const ConsultationRecorder: React.FC<ConsultationRecorderProps> = ({ cons
         )}
       </div>
       {buffer && <p className="mt-2 text-xs italic text-[#765116]">{buffer}</p>}
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   );
 };

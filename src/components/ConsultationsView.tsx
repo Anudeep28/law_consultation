@@ -126,7 +126,7 @@ export const ConsultationsView: React.FC = () => {
           <button onClick={() => setTab('bookings')} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${tab === 'bookings' ? 'bg-[#701f2f] text-white shadow' : 'text-gray-600 hover:bg-[#fff6e3]'}`}>My consultations ({consultations.length})</button>
         </div>
 
-        {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">{error}</div>}
+        {error && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">{error}</div>}
 
         {tab === 'lawyers' ? (
           <>
@@ -230,7 +230,7 @@ export const ConsultationsView: React.FC = () => {
                 <span className="flex items-center gap-1"><CreditCard className="h-3.5 w-3.5 text-[#701f2f]" /> Powered by Razorpay</span>
                 <span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-[#b8862d]" /> 100% encrypted</span>
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
               {!user?.isEmailVerified && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   <div className="flex items-start gap-2">

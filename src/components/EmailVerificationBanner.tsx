@@ -30,8 +30,8 @@ export const EmailVerificationBanner: React.FC = () => {
           <Mail className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
           <div>
             <p className="text-sm font-semibold text-amber-900">Verify your email address</p>
-            <p className="text-xs text-amber-800">
-              {status === 'sent'
+            <p role={status === 'error' ? 'alert' : undefined} className="text-xs text-amber-800">
+              {(status === 'sent' || status === 'error')
                 ? message
                 : 'Please verify your email to receive consultation reminders and updates.'}
             </p>
