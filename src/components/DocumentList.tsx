@@ -1,3 +1,5 @@
+import { AnimatedCard, PrimaryButton } from './ui/MotionPrimitives';
+import { DecorativeAnimation } from './ui/DecorativeAnimation';
 import { notify } from './ui/Toasts';
 import React, { useState } from 'react';
 import { useDocumentStore } from '../stores/documentStore';
@@ -107,7 +109,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
         {/* Documents Grid */}
         {filteredDocuments.length === 0 ? (
           <div className="rounded-2xl border border-line bg-white p-12 text-center shadow-sm">
-            <FileText aria-hidden="true" className="w-16 h-16 text-brand mx-auto mb-4 rounded-2xl bg-brand-soft p-4" />
+            <DecorativeAnimation kind="empty" />
             <h3 className="text-lg font-semibold text-ink mb-2">
               {searchTerm ? 'No documents found' : 'No documents yet'}
             </h3>
@@ -118,21 +120,21 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
               }
             </p>
             {!searchTerm && (
-              <button
+              <PrimaryButton
                 onClick={onNewDocument}
                 className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark"
               >
                 Create Document
-              </button>
+              </PrimaryButton>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredDocuments.map((document) => (
-              <div
+            {filteredDocuments.map((document, index) => (
+              <AnimatedCard index={index}
                 key={document.id}
                 onClick={() => handleOpenDocument(document)}
-                className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
+                className="group overflow-hidden rounded-2xl border border-line bg-white p-5 shadow-sm hover:shadow-xl cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
@@ -195,7 +197,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onNewDocument, onEdi
                     </span>
                   </div>
                 </div>
-              </div>
+              </AnimatedCard>
             ))}
           </div>
         )}

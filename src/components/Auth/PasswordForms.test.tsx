@@ -48,7 +48,7 @@ test.each([true, false])('reset revalidates the existing session (revoked: %s) b
   (resetPassword as Mock).mockResolvedValueOnce(undefined);
   window.history.replaceState({}, '', '/reset-password?token=reset-token');
   render(<App />);
-  fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'Fresh-river-copper!' } });
+  fireEvent.change(await screen.findByLabelText('New password'), { target: { value: 'Fresh-river-copper!' } });
   fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'Fresh-river-copper!' } });
   fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
   await screen.findByText(/Your password has been updated/);

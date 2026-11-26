@@ -1,3 +1,4 @@
+import { AnimatedArticle, PrimaryButton } from './ui/MotionPrimitives';
 import React, { useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '../services/api';
 import { Modal } from './ui/Modal';
@@ -54,24 +55,24 @@ export const AdminPaymentsView: React.FC = () => {
     <p className="text-sm text-ink-muted">Full consultation refunds only. Showing up to 100 most recently updated payments; search to narrow results.</p>
     <form onSubmit={event => { event.preventDefault(); void load(query); }} className="mt-5 flex flex-wrap gap-2">
       <input aria-label="Search payments" placeholder="Client email, lawyer or consultation ID" value={query} onChange={event => setQuery(event.target.value)} maxLength={200} className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2" />
-      <button className="rounded-lg bg-brand px-4 py-2 text-white" disabled={loading}>Search</button>
+      <PrimaryButton className="rounded-lg bg-brand px-4 py-2 text-white" disabled={loading}>Search</PrimaryButton>
       <button type="button" onClick={() => void load(query)} disabled={loading} className="rounded-lg border border-line px-4 py-2 text-ink">Refresh</button>
     </form>
     {error && <p role="alert" className="mt-4 rounded-lg bg-brand-soft p-3 text-brand">{error}</p>}
-    {loading ? <p role="status" className="mt-4 text-ink-muted">Loading payments…</p> : !error && payments.length === 0 ? <p className="mt-4 text-ink-muted">No payments found.</p> : <div className="mt-5 space-y-3">{payments.map(payment => <article key={payment.id} className="rounded-xl border border-line bg-white p-4 shadow-sm">
+    {loading ? <p role="status" className="mt-4 text-ink-muted">Loading payments…</p> : !error && payments.length === 0 ? <p className="mt-4 text-ink-muted">No payments found.</p> : <div className="mt-5 space-y-3">{payments.map((payment, index) => <AnimatedArticle index={index} key={payment.id} className="rounded-xl border border-line bg-white p-4 shadow-sm">
       <div className="flex flex-wrap justify-between gap-3"><div className="min-w-0 break-words"><h2 className="font-bold text-ink">{payment.user.email}</h2><p className="text-sm text-ink-muted">{payment.consultation?.lawyer.name || payment.plan} · {amount(payment)}</p><p className="text-xs text-ink-faint">Payment: {payment.id}</p>{payment.consultation && <p className="text-xs text-ink-faint">Consultation: {payment.consultation.id} · {payment.consultation.status}</p>}</div><span className="h-fit rounded-full bg-cream-muted px-3 py-1 text-sm font-semibold text-ink">{payment.refundStatus || payment.status}</span></div>
       {payment.refundStatus === 'REVIEW' && <p className="mt-2 font-semibold text-brand">Needs review — reconcile with Razorpay before retrying.</p>}
       {payment.refundError && <p className="mt-2 text-sm text-brand">{payment.refundError}</p>}
       {payment.refundId && <p className="mt-2 break-all text-xs text-ink-muted">Refund: {payment.refundId}</p>}
-      {payment.consultation && payment.status === 'PAID' && (!payment.refundStatus || ['FAILED', 'REQUIRED'].includes(payment.refundStatus)) && <button onClick={() => { setSelected(payment); setReason(''); setNote(''); setValidation(''); }} aria-label={`Refund consultation ${payment.consultation.id}`} className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">{payment.refundStatus === 'FAILED' ? 'Retry refund' : 'Refund'}</button>}
-    </article>)}</div>}
+      {payment.consultation && payment.status === 'PAID' && (!payment.refundStatus || ['FAILED', 'REQUIRED'].includes(payment.refundStatus)) && <PrimaryButton onClick={() => { setSelected(payment); setReason(''); setNote(''); setValidation(''); }} aria-label={`Refund consultation ${payment.consultation.id}`} className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">{payment.refundStatus === 'FAILED' ? 'Retry refund' : 'Refund'}</PrimaryButton>}
+    </AnimatedArticle>)}</div>}
     <Modal open={selected !== null} onClose={() => { if (!busy) setSelected(null); }} title="Confirm full refund" panelClassName="overflow-y-auto">
       {selected && <form onSubmit={refund} noValidate className="space-y-4 p-6">
         <p className="font-semibold text-ink">Full amount: {amount(selected)}</p><p className="text-sm text-brand">This cannot be undone. Upcoming consultations will be cancelled; past records will be retained.</p>
         <label className="block text-sm font-medium text-ink">Refund reason<select aria-label="Refund reason" value={reason} onChange={event => setReason(event.target.value)} disabled={busy} required className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">Choose a reason</option><option value="LAWYER_NO_SHOW">Lawyer no-show</option><option value="TECHNICAL_FAILURE">Technical failure</option><option value="OTHER">Other</option></select></label>
         <label className="block text-sm font-medium text-ink">Administrative note (10–500 characters)<textarea aria-label="Administrative note" value={note} onChange={event => setNote(event.target.value)} required minLength={10} maxLength={500} disabled={busy} rows={4} className="mt-1 w-full rounded-lg border border-line px-3 py-2" /></label>
         {validation && <p role="alert" className="text-sm text-brand">{validation}</p>}
-        <div className="flex flex-wrap justify-end gap-2"><button type="button" disabled={busy} onClick={() => setSelected(null)} className="rounded-lg border border-line px-4 py-2 text-ink">Cancel</button><button type="submit" disabled={busy} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">{busy ? 'Requesting refund…' : 'Confirm refund'}</button></div>
+        <div className="flex flex-wrap justify-end gap-2"><button type="button" disabled={busy} onClick={() => setSelected(null)} className="rounded-lg border border-line px-4 py-2 text-ink">Cancel</button><PrimaryButton type="submit" disabled={busy} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">{busy ? 'Requesting refund…' : 'Confirm refund'}</PrimaryButton></div>
       </form>}
     </Modal>
   </div></div>;
