@@ -10,7 +10,7 @@ test('DOCX and PDF preserve clause numbers, chronology lines and link destinatio
   expect(login.status()).toBe(200);
   const { token } = await login.json();
   await page.addInitScript(value => localStorage.setItem('law-writer-token', value), token);
-  const content = '# **AFFIDAVIT** {{full_name}}\n\n1. First\n2. Second\n5. Fifth\n\n01 Jan: Filed\n02 Jan: Served\n03 Jan: Heard\n\n[Court filing](https://example.test/case)\n\nadvocate@example.test\n\n[+919876543210](tel:+919876543210)\n\nhttps://example.test/contact';
+  const content = '# **AFFIDAVIT** {{full_name}}\n\n1. A\n2. B\n5. C\n\n01 Jan: Filed\n02 Jan: Served\n03 Jan: Heard\n\n[Court filing](https://example.test/case)\n\nadvocate@example.test\n\n[+919876543210](tel:+919876543210)\n\nhttps://example.test/contact';
   await page.route('**/api/documents', route => route.fulfill({ json: { documents: [{
     id: 'export-regression', title: 'Export regression fixture', content, language: 'en', userId: bookingLawyer.id,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -32,8 +32,11 @@ test('DOCX and PDF preserve clause numbers, chronology lines and link destinatio
       const archive = await JSZip.loadAsync(bytes);
       const xml: string = await archive.file('word/document.xml').async('string');
       const text = [...xml.matchAll(/<w:t(?:\s[^>]*)?>(.*?)<\/w:t>/g)].map(match => match[1]).join('');
-      expect(text).toContain('5. Fifth');
-      expect(text).not.toContain('3. Fifth');
+      const clauses = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)]
+        .map(match => [...match[0].matchAll(/<w:t(?:\s[^>]*)?>(.*?)<\/w:t>/g)].map(run => run[1]).join(''))
+        .filter(paragraph => /^\d+\. [ABC]$/.test(paragraph));
+      expect(clauses).toEqual(['1. A', '2. B', '5. C']);
+      console.log('DOCX literal clauses:', JSON.stringify(clauses));
       expect(text).toContain('Court filing (https://example.test/case)');
       expect(text).toContain('AFFIDAVIT {{full_name}}');
       expect(xml.match(/<w:br\s*\/>/g)).toHaveLength(2);
@@ -48,9 +51,12 @@ test('DOCX and PDF preserve clause numbers, chronology lines and link destinatio
       const lines = [...bytes.toString('latin1').matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/g)]
         .map(match => match[1].replace(/\\([\\()])/g, '$1'));
       expect(lines).toEqual(expect.arrayContaining([
-        '5. Fifth', '01 Jan: Filed', '02 Jan: Served', '03 Jan: Heard', 'Court filing (https://example.test/case)',
+        '01 Jan: Filed', '02 Jan: Served', '03 Jan: Heard', 'Court filing (https://example.test/case)',
         'advocate@example.test', '+919876543210', 'https://example.test/contact',
       ]));
+      const clauses = lines.filter(line => /^\d+\. [ABC]$/.test(line));
+      expect(clauses).toEqual(['1. A', '2. B', '5. C']);
+      console.log('PDF literal clauses:', JSON.stringify(clauses));
       expect(lines.join('\n')).not.toContain('**');
       expect(lines.join('\n')).not.toContain('mailto:');
       expect(lines.join('\n')).not.toContain('tel:');
