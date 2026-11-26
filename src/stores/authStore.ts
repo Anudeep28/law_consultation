@@ -4,6 +4,7 @@ import { apiRequest, ApiError, getAuthToken, setAuthToken } from '../services/ap
 import { User, UserRole } from '../types';
 import { useDocumentStore } from './documentStore';
 import { useToastStore } from '../components/ui/Toasts';
+import { unsubscribeFromPushNotifications } from '../services/notificationService';
 
 interface AuthState {
   user: User | null;
@@ -56,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        void unsubscribeFromPushNotifications(getAuthToken()).catch(() => {});
         setAuthToken(null);
         useDocumentStore.getState().clearDocuments();
         useToastStore.setState({ toasts: [] });

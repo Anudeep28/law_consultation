@@ -175,7 +175,8 @@ model Consultation {
   payment                 Payment?
   review                  LawyerReview?
 
-  @@unique([lawyerId, startsAt])
+  // Active-slot uniqueness is enforced by the partial index in 20261118190000_private_consultation_slots.
+  @@index([lawyerId, startsAt])
   @@index([userId, startsAt])
 }
 
