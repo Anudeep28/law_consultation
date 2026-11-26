@@ -5,13 +5,14 @@ process.env.RAZORPAY_KEY_SECRET = 'payment-edges-secret';
 process.env.RAZORPAY_WEBHOOK_SECRET = 'payment-edges-webhook';
 
 const mockTx = {
+  adminAuditLog: { create: jest.fn() },
   payment: { updateMany: jest.fn(), update: jest.fn() },
   consultation: { updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
   user: { updateMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
 };
 jest.mock('../db', () => ({
   user: { findUnique: jest.fn() },
-  payment: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
+  payment: { findFirst: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
   consultation: { findUnique: jest.fn() },
   $transaction: jest.fn(fn => fn(mockTx)),
 }));
@@ -63,12 +64,13 @@ beforeEach(() => {
   refundResponse = { id: 'rfnd_edge', payment_id: 'pay_edge', amount: 25000, currency: 'INR', status: 'processed' };
   prisma.user.findUnique.mockImplementation(async () => user);
   prisma.payment.findFirst.mockImplementation(async () => payment);
-  prisma.payment.findUnique.mockImplementation(async () => payment);
+  prisma.payment.findUnique.mockImplementation(async ({ select }) => select ? Object.fromEntries(Object.keys(select).map(key => [key, payment[key]])) : payment);
   prisma.consultation.findUnique.mockImplementation(async () => consultation);
   mockTx.consultation.findUnique.mockImplementation(async () => consultation);
   mockTx.consultation.findFirst.mockImplementation(async ({ where }) => where.userId === consultation.userId ? consultation : null);
   const updatePayment = async ({ where, data }) => {
     if (where.status && where.status !== payment.status) return { count: 0 };
+    if (where.OR && !where.OR.some(branch => Object.entries(branch).every(([key, value]) => value?.in ? value.in.includes(payment[key]) : value === payment[key]))) return { count: 0 };
     if (Object.hasOwn(where, 'refundStatus')) {
       if (where.refundStatus?.in ? !where.refundStatus.in.includes(payment.refundStatus) : where.refundStatus !== payment.refundStatus) return { count: 0 };
     }
@@ -79,11 +81,109 @@ beforeEach(() => {
   prisma.payment.updateMany.mockImplementation(updatePayment);
   mockTx.payment.updateMany.mockImplementation(updatePayment);
   mockTx.payment.update.mockImplementation(async ({ data }) => Object.assign(payment, data));
-  mockTx.consultation.updateMany.mockImplementation(async ({ data }) => { Object.assign(consultation, data); return { count: 1 }; });
+  mockTx.consultation.updateMany.mockImplementation(async ({ where, data }) => {
+    if (where.startsAt?.gt && consultation.startsAt <= where.startsAt.gt || where.startsAt?.lte && consultation.startsAt > where.startsAt.lte) return { count: 0 };
+    if (where.status?.in && !where.status.in.includes(consultation.status)) return { count: 0 };
+    Object.assign(consultation, data); return { count: 1 };
+  });
   mockTx.consultation.update.mockImplementation(async ({ data }) => Object.assign(consultation, data));
   mockTx.user.findUnique.mockImplementation(async () => user);
   mockTx.user.updateMany.mockResolvedValue({ count: 1 });
   mockTx.user.update.mockResolvedValue(user);
+});
+
+describe('admin consultation refunds', () => {
+  const data = { reason: 'LAWYER_NO_SHOW', note: 'Verified lawyer absence with client' };
+  const adminRefund = (body = data) => request(app).post('/api/admin/consultations/cons_edge/refund').set('Authorization', auth()).send(body);
+  beforeEach(() => {
+    user = { ...user, id: `admin_${crypto.randomUUID()}`, role: 'ADMIN' };
+    payment.status = 'PAID'; payment.razorpayPaymentId = 'pay_edge'; consultation.status = 'BOOKED';
+    mockTx.adminAuditLog.create.mockResolvedValue({ id: 'audit_edge' });
+    prisma.payment.findMany.mockResolvedValue([]);
+  });
+  test('rejects anonymous and non-admin refund and listing requests', async () => {
+    expect((await request(app).post('/api/admin/consultations/cons_edge/refund').send(data)).status).toBe(401);
+    expect((await request(app).get('/api/admin/payments')).status).toBe(401);
+    for (const role of ['CLIENT', 'LAWYER']) {
+      user.role = role;
+      expect((await adminRefund()).status).toBe(403);
+      expect((await request(app).get('/api/admin/payments').set('Authorization', auth())).status).toBe(403);
+    }
+    expect(calls).toHaveLength(0);
+  });
+  test.each([{ reason: 'INVALID', note: data.note }, { reason: 'OTHER', note: '' }, { reason: 'OTHER', note: 'short' }, { reason: 'OTHER', note: 'a'.repeat(501) }])('validates reason and note %j', async body => {
+    expect((await adminRefund(body)).status).toBe(400);
+    expect(mockTx.adminAuditLog.create).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
+  });
+  test.each(['PENDING', 'PROCESSED', 'REVIEW'])('rejects ineligible %s state', async status => {
+    payment.refundStatus = status;
+    expect((await adminRefund()).status).toBe(409);
+    expect(calls).toHaveLength(0);
+    expect(mockTx.adminAuditLog.create).not.toHaveBeenCalled();
+  });
+  test.each(['CREATED', 'REFUNDED'])('rejects payment status %s', async status => {
+    payment.status = status;
+    expect((await adminRefund()).status).toBe(409);
+    expect(calls).toHaveLength(0);
+  });
+  test('rejects a consultation without a payment', async () => {
+    prisma.payment.findUnique.mockResolvedValue(null);
+    expect((await adminRefund()).status).toBe(409);
+  });
+  test('concurrent double clicks issue one full refund and one audit record', async () => {
+    const responses = await Promise.all([adminRefund(), adminRefund()]);
+    expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body.amount).toBe(25000);
+    expect(consultation.status).toBe('CANCELLED');
+    expect(mockTx.adminAuditLog.create).toHaveBeenCalledTimes(1);
+    const audit = mockTx.adminAuditLog.create.mock.calls[0][0].data;
+    expect(audit).toMatchObject({ adminId: user.id, targetUserId: payment.userId, action: 'CONSULTATION_REFUND' });
+    expect(JSON.parse(audit.reason)).toMatchObject({ ...data, amount: 25000, paymentId: payment.id, consultationId: consultation.id });
+    expect(notifications.createNotification.mock.calls.map(([entry]) => entry.userId)).toEqual([payment.userId, consultation.lawyer.userId]);
+  });
+  test('past consultations are closed without deleting history', async () => {
+    consultation.startsAt = new Date(Date.now() - 3600000);
+    expect((await adminRefund({ ...data, reason: 'TECHNICAL_FAILURE' })).status).toBe(200);
+    expect(consultation.status).toBe('COMPLETED');
+    expect(payment.status).toBe('REFUNDED');
+    expect(consultation.notes).toBe('Synthetic booking');
+  });
+  test('provider rejection returns 502 and keeps an audited retryable failure', async () => {
+    refundHttpStatus = 400; refundResponse = { error: { description: 'Unavailable' } };
+    expect((await adminRefund()).status).toBe(502);
+    expect(payment).toMatchObject({ status: 'PAID', refundStatus: 'FAILED' });
+    expect(mockTx.adminAuditLog.create).toHaveBeenCalledTimes(1);
+    refundHttpStatus = 200; refundResponse = { id: 'rfnd_retry', payment_id: 'pay_edge', amount: 25000, currency: 'INR', status: 'processed' };
+    expect((await adminRefund()).status).toBe(200);
+    expect(payment.status).toBe('REFUNDED');
+  });
+  test('a pending provider result remains pending and notification errors do not undo it', async () => {
+    refundResponse.status = 'pending'; notifications.createNotification.mockRejectedValueOnce(new Error('offline'));
+    expect((await adminRefund()).status).toBe(200);
+    expect(payment.refundStatus).toBe('PENDING');
+    expect(notifications.createNotification).toHaveBeenCalledTimes(2);
+  });
+  test('audit persistence failure prevents the provider call', async () => {
+    mockTx.adminAuditLog.create.mockRejectedValueOnce(new Error('database unavailable'));
+    expect((await adminRefund()).status).toBe(500);
+    expect(calls).toHaveLength(0);
+  });
+  test('listing searches client email, consultation ID and lawyer and handles empty results', async () => {
+    const response = await request(app).get('/api/admin/payments?q=example').set('Authorization', auth());
+    expect(response.status).toBe(200); expect(response.body).toEqual({ payments: [] });
+    expect(prisma.payment.findMany.mock.calls[0][0]).toMatchObject({ take: 100, where: { OR: [{ user: { email: { contains: 'example' } } }, { consultationId: { contains: 'example' } }, { consultation: { lawyer: { OR: [{ name: { contains: 'example' } }, { id: 'example' }] } } }] } });
+  });
+  test('listing failures return a safe error', async () => {
+    prisma.payment.findMany.mockRejectedValueOnce(new Error('private details'));
+    const response = await request(app).get('/api/admin/payments').set('Authorization', auth());
+    expect(response.status).toBe(500); expect(response.body.error).toBe('Unable to load payments');
+  });
+  test('refund requests are rate limited per administrator', async () => {
+    for (let i = 0; i < 10; i++) expect((await adminRefund({ reason: 'OTHER', note: '' })).status).toBe(400);
+    expect((await adminRefund()).status).toBe(429);
+  });
 });
 
 describe('validated settlement', () => {

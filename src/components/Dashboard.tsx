@@ -21,10 +21,11 @@ const LawyerProfileView = lazy(() => import('./LawyerProfileView').then(module =
 const AdminLawyerReviewView = lazy(() => import('./AdminLawyerReviewView').then(module => ({ default: module.AdminLawyerReviewView })));
 const AdminUsersView = lazy(() => import('./AdminUsersView').then(module => ({ default: module.AdminUsersView })));
 const AdminReviewsView = lazy(() => import('./AdminReviewsView').then(module => ({ default: module.AdminReviewsView })));
+const AdminPaymentsView = lazy(() => import('./AdminPaymentsView').then(module => ({ default: module.AdminPaymentsView })));
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews' | 'account'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
+  const [activeView, setActiveView] = useState<'editor' | 'documents' | 'consultations' | 'subscription' | 'profile' | 'admin' | 'admin-users' | 'admin-reviews' | 'admin-payments' | 'account'>(user?.role === 'admin' ? 'admin' : user?.role === 'lawyer' ? 'profile' : 'consultations');
   const [showNewDocModal, setShowNewDocModal] = useState(false);
   const [openTemplateSelector, setOpenTemplateSelector] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -137,6 +138,7 @@ export const Dashboard: React.FC = () => {
 
         <nav className="mt-6 flex-1">
           <div className="px-4 space-y-2">
+            {user?.role === 'admin' && <button onClick={() => setActiveView('admin-payments')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-payments' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><CreditCard className="w-5 h-5" /><span>Payments &amp; Refunds</span></button>}
             <button onClick={() => setActiveView('account')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'account' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><UserCircle className="w-5 h-5" /><span>Account &amp; Privacy</span></button>
             {user?.role === 'admin' && <><button onClick={() => setActiveView('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><ShieldCheck className="w-5 h-5" /><span>Lawyer Applications</span></button><button onClick={() => setActiveView('admin-users')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-users' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><Users className="w-5 h-5" /><span>User Management</span></button><button onClick={() => setActiveView('admin-reviews')} className={`w-full flex items-center space-x-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'admin-reviews' ? 'bg-warning-bg text-brand' : 'text-ink-muted hover:bg-cream'}`}><MessageSquareText className="w-5 h-5" /><span>Review Moderation</span></button></>}
             {user?.role === 'lawyer' && <>
@@ -236,6 +238,7 @@ export const Dashboard: React.FC = () => {
                 {activeView === 'admin' && 'Lawyer Applications'}
                 {activeView === 'admin-users' && 'User Management'}
                 {activeView === 'admin-reviews' && 'Review Moderation'}
+                {activeView === 'admin-payments' && 'Payments & Refunds'}
               </h2>
               <p className="mt-1 hidden text-sm text-ink-muted sm:block">
                 {activeView === 'account' && 'Download your data and manage your account'}
@@ -288,6 +291,7 @@ export const Dashboard: React.FC = () => {
           {activeView === 'admin' && <AdminLawyerReviewView />}
           {activeView === 'admin-users' && <AdminUsersView />}
           {activeView === 'admin-reviews' && <AdminReviewsView />}
+          {activeView === 'admin-payments' && <AdminPaymentsView />}
           </Suspense>
         </div>
 
