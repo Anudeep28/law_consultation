@@ -2,10 +2,27 @@ jest.mock('../db', () => ({}));
 
 const request = require('supertest');
 const originalNodeEnv = process.env.NODE_ENV;
+const originalSentryDsn = process.env.REACT_APP_SENTRY_DSN;
 
 afterEach(() => {
   if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = originalNodeEnv;
+  if (originalSentryDsn === undefined) delete process.env.REACT_APP_SENTRY_DSN;
+  else process.env.REACT_APP_SENTRY_DSN = originalSentryDsn;
+});
+
+test.each([
+  ['https://public-key@o123.ingest.sentry.io/456', 'https://o123.ingest.sentry.io'],
+  ['not-a-dsn', null],
+  ['javascript:alert(1)', null],
+])('only allows a configured valid Sentry ingest origin for %s', async (dsn, origin) => {
+  process.env.REACT_APP_SENTRY_DSN = dsn;
+  const response = await request(loadApp('test')).get('/api/account/export');
+  const policy = response.headers['content-security-policy'];
+  if (origin) expect(policy.split(';').find((directive) => directive.startsWith('connect-src')).split(' ')).toContain(origin);
+  else expect(policy).not.toContain(dsn);
+  expect(policy).not.toContain('public-key');
+  expect(policy).not.toContain('unsafe-eval');
 });
 
 const loadApp = (environment) => {

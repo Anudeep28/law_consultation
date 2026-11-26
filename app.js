@@ -10,9 +10,12 @@ const jwt = require('jsonwebtoken');
 const { Server: SocketServer } = require('socket.io');
 const prisma = require('./db');
 const notifications = require('./server/notifications');
+const { logger, createRequestLogging, errorHandler } = require('./server/logger');
+const { sentryIngestOrigins } = require('./server/monitoring');
 
 const app = express();
 app.disable('x-powered-by');
+app.use(createRequestLogging());
 app.use(helmet({
   strictTransportSecurity: process.env.NODE_ENV === 'production',
   contentSecurityPolicy: {
@@ -34,6 +37,7 @@ app.use(helmet({
         'https://checkout-static.razorpay.com',
         'https://checkout-static-next.razorpay.com',
         'https://lumberjack.razorpay.com',
+        ...sentryIngestOrigins(),
       ],
       frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
       workerSrc: ["'self'"],
@@ -42,6 +46,16 @@ app.use(helmet({
   },
 }));
 const PENDING_PAYMENT_TTL_MS = 15 * 60 * 1000;
+
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok' });
+  } catch (err) {
+    req.log.error({ err }, 'Database health check failed');
+    res.status(503).json({ status: 'unavailable' });
+  }
+});
 
 const razorpayCredentials = () => {
   const live = process.env.RAZORPAY_ENV === 'live';
@@ -170,7 +184,7 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
     res.json({ received: true });
   } catch (error) {
     if (error.code === 'P2002' || error.code === 'P2025') return res.json({ received: true });
-    console.error('Payment webhook error:', error);
+    req.log.error({ err: error }, 'Payment webhook error:');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -253,7 +267,7 @@ app.get('/api/account/export', authenticate, rateLimit((req) => `account-export:
       documents, clientConsultations, lawyerConsultations, payments, reviews, notifications: userNotifications,
     });
   } catch (error) {
-    console.error('Account export failed:', error);
+    req.log.error({ err: error }, 'Account export failed:');
     res.status(500).json({ error: 'Unable to export your account data. Please try again.' });
   }
 });
@@ -296,7 +310,7 @@ app.delete('/api/account', authenticate, rateLimit((req) => `account-delete:${re
     io.in(`user:${req.user.id}`).disconnectSockets(true);
     res.status(204).end();
   } catch (error) {
-    console.error('Account deletion failed:', error);
+    req.log.error({ err: error }, 'Account deletion failed:');
     res.status(500).json({ error: 'Unable to delete your account. Please try again.' });
   }
 });
@@ -377,7 +391,7 @@ app.post('/api/auth/register', rateLimit((req) => `register:${clientIp(req)}`, 1
       include: { lawyerProfile: true },
     });
     // Send verification email asynchronously; don't block registration if it fails
-    sendVerificationEmail(user).catch((err) => console.error('[email-verify] Failed to send verification email:', err));
+    sendVerificationEmail(user).catch((err) => req.log.error({ err }, '[email-verify] Failed to send verification email:'));
     res.status(201).json({ token: signToken(user.id), user: serializeUser(user) });
   } catch (error) {
     if (error.code === 'P2002') return res.status(409).json({ error: 'An account with this email or enrollment number already exists' });
@@ -424,7 +438,7 @@ app.post('/api/auth/send-verification-email', authenticate, async (req, res) => 
     await sendVerificationEmail(req.user);
     res.json({ message: 'Verification email sent' });
   } catch (error) {
-    console.error('[email-verify] Resend verification failed:', error);
+    req.log.error({ err: error }, '[email-verify] Resend verification failed:');
     res.status(500).json({ error: 'Unable to send verification email' });
   }
 });
@@ -484,7 +498,7 @@ app.post('/api/auth/forgot-password', rateLimit((req) => `forgot:${clientIp(req)
       });
     }
   } catch (err) {
-    console.error('[forgot-password] Failed:', err);
+    req.log.error({ err }, '[forgot-password] Failed:');
   }
   // Always succeed — do not reveal whether the account exists
   res.json({ ok: true });
@@ -1358,7 +1372,7 @@ app.post('/api/consultations/:id/deliverables/:deliverableId/deliver', authentic
       title: 'Your document is ready',
       body: `"${deliverable.title}" has been delivered for your consultation.`,
       channels: ['IN_APP', 'EMAIL'],
-    }).catch((err) => console.error('[deliver] Failed to send deliverable notification:', err));
+    }).catch((err) => req.log.error({ err }, '[deliver] Failed to send deliverable notification:'));
     res.json({ deliverable: serializeDeliverable(updated, { includeDocument: true }) });
   } catch {
     res.status(500).json({ error: 'Unable to deliver document' });
@@ -1380,7 +1394,7 @@ app.patch('/api/consultations/:id/cancel', authenticate, requireRole('CLIENT'), 
         });
         await prisma.payment.update({ where: { id: consultation.payment.id }, data: { status: 'REFUNDED' } });
       } catch (err) {
-        console.error('Consultation refund failed:', err);
+        req.log.error({ err }, 'Consultation refund failed:');
         return res.status(502).json({ error: 'Unable to refund the payment. Please try again or contact support.' });
       }
     }
@@ -1630,14 +1644,14 @@ app.get('/api/scribe-token', authenticate, rateLimit((req) => `scribe:${req.user
 
     if (!response.ok) {
       const err = await response.text();
-      console.error('ElevenLabs token error:', err);
+      req.log.error({ err: new Error('ElevenLabs token request failed'), statusCode: response.status }, 'ElevenLabs token error:');
       return res.status(response.status).json({ error: err });
     }
 
     const data = await response.json();
     res.json({ token: data.token });
   } catch (err) {
-    console.error('Token endpoint error:', err);
+    req.log.error({ err }, 'Token endpoint error:');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1658,17 +1672,9 @@ app.post('/api/translate', authenticate, rateLimit((req) => `translate:${req.use
     );
     res.json({ text: translated || text });
   } catch (err) {
-    console.error('Translate endpoint error:', err);
+    req.log.error({ err }, 'Translate endpoint error:');
     res.status(502).json({ error: 'Translation service unavailable' });
   }
-});
-
-// Global error handler — must be registered after all routes
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error('Unhandled request error:', err);
-  if (res.headersSent) return;
-  res.status(500).json({ error: 'Internal server error' });
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -1676,6 +1682,8 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(buildPath));
   app.get('*', (req, res) => res.sendFile(path.join(buildPath, 'index.html')));
 }
+
+app.use(errorHandler);
 
 const findChatConsultation = (consultationId, user, { withinWindow = false } = {}) => {
   const now = new Date();
@@ -1740,7 +1748,7 @@ io.on('connection', (socket) => {
       socket.join(`consultation:${consultation.id}`);
       callback?.({ ok: true });
     } catch (err) {
-      console.error('chat:join error:', err);
+      logger.error({ err }, 'chat:join error:');
       callback?.({ error: 'Unable to join chat' });
     }
   });
@@ -1782,7 +1790,7 @@ io.on('connection', (socket) => {
 
       callback?.({ ok: true });
     } catch (err) {
-      console.error('chat:message error:', err);
+      logger.error({ err }, 'chat:message error:');
       callback?.({ error: 'Unable to send message' });
     }
   });
