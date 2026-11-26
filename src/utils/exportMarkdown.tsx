@@ -12,8 +12,26 @@ export interface ExportBlock {
   depth?: number;
 }
 
+interface MarkdownNode { type: string; value?: string; children?: MarkdownNode[] }
+
+const preserveLineBreaks = () => (tree: MarkdownNode) => {
+  const visit = (node: MarkdownNode) => {
+    if (!node.children) return;
+    node.children = node.children.flatMap(child => {
+      if (child.type === 'text' && child.value?.includes('\n')) {
+        return child.value.split('\n').flatMap((value, index) => [
+          ...(index ? [{ type: 'break' }] : []), { type: 'text', value },
+        ]);
+      }
+      visit(child);
+      return [child];
+    });
+  };
+  visit(tree);
+};
+
 export const parseExportMarkdown = (content: string): { html: string; blocks: ExportBlock[] } => {
-  const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+  const html = renderToStaticMarkup(<ReactMarkdown remarkPlugins={[remarkGfm, preserveLineBreaks]} components={{
     img: ({ alt }) => <>{alt}</>,
     li: ({ node, ...props }) => {
       const offset = node?.position?.start.offset;
@@ -24,7 +42,10 @@ export const parseExportMarkdown = (content: string): { html: string; blocks: Ex
   const body = new DOMParser().parseFromString(html, 'text/html').body;
   const blocks: ExportBlock[] = [];
   const inline = (nodes: Node[], bold = false, italics = false): ExportRun[] => nodes.flatMap(node => {
-    if (node.nodeType === Node.TEXT_NODE) return [{ text: (node.textContent || '').replace(/\n/g, ' '), bold, italics }];
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.previousSibling?.nodeName === 'BR' ? (node.textContent || '').replace(/^\n/, '') : node.textContent || '';
+      return [{ text: text.replace(/\n/g, ' '), bold, italics }];
+    }
     if (node.nodeType !== Node.ELEMENT_NODE) return [];
     const element = node as Element;
     if (['UL', 'OL'].includes(element.tagName)) return [];

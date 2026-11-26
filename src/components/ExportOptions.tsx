@@ -37,7 +37,7 @@ export const ExportOptions: React.FC<ExportOptionsProps> = ({ document, onClose 
         return new Paragraph({
           children: [
             ...(block.prefix ? [new TextRun({ text: block.prefix, font: documentFont })] : []),
-            ...block.runs.map(run => new TextRun({ ...run, bold: heading || run.bold, size, font: documentFont })),
+            ...block.runs.flatMap(run => run.text.split('\n').map((text, index) => new TextRun({ ...run, text, break: index ? 1 : undefined, bold: heading || run.bold, size, font: documentFont }))),
           ],
           ...(heading ? { heading: block.level === 1 ? 'Title' : block.level === 2 ? 'Heading1' : 'Heading2' } : {}),
           ...(block.depth ? { indent: { left: block.depth * 360 } } : {}),

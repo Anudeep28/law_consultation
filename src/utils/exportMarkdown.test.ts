@@ -22,6 +22,13 @@ test('preserves skipped and nested clause numbers in the export model and HTML',
   expect([...document.querySelectorAll('ol > li')].map(item => item.getAttribute('value'))).toEqual(['1', '2', '5', '1', '4']);
 });
 
+test('preserves consecutive single lines and explicit Markdown breaks in export text and HTML', () => {
+  const { blocks, html } = parseExportMarkdown('01 Jan: Filed\n02 Jan: Served\n03 Jan: Heard\n\n**Signed**  \n{{signature}}');
+  expect(blocks[0].runs.map(run => run.text).join('')).toBe('01 Jan: Filed\n02 Jan: Served\n03 Jan: Heard');
+  expect(blocks[1].runs.map(run => run.text).join('')).toBe('Signed\n{{signature}}');
+  expect(new DOMParser().parseFromString(html, 'text/html').querySelectorAll('br')).toHaveLength(3);
+});
+
 test('raw HTML and Markdown images cannot add executable markup or network requests', () => {
   const { html } = parseExportMarkdown('<img src="https://example.test/a" onerror="alert(1)">\n\n![Description](https://example.test/b)\n\n<script>alert(1)</script>');
   const document = new DOMParser().parseFromString(html, 'text/html');

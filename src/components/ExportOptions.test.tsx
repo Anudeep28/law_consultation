@@ -41,6 +41,17 @@ const mockDocument = (language = 'en'): Document => ({
 describe('ExportOptions', () => {
   const formattedContent = '# **AFFIDAVIT** {{full_name}}\n\n## *Details*\n\n---\n\n- **First** item\n\n3. _Second_ item\n\nPlain *italics* and **bold**.';
 
+  it('encodes chronology lines as DOCX breaks rather than spaces', async () => {
+    const onClose = vi.fn();
+    render(<ExportOptions document={{ ...mockDocument(), content: '01 Jan: Filed\n02 Jan: Served\n03 Jan: Heard' }} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: /^export$/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const packed = (Packer.toBlob as Mock).mock.calls[0][0] as unknown as { sections: { children: { props: { children: { props: { text: string; break?: number } }[] } }[] }[] };
+    const runs = packed.sections[0].children[0].props.children.map(run => run.props);
+    expect(runs.filter(run => run.break).length).toBe(2);
+    expect(runs.map(run => run.text).join('')).toBe('01 Jan: Filed02 Jan: Served03 Jan: Heard');
+  });
+
   it('renders heading inline formatting, rules and list text in DOCX without leaking Markdown', async () => {
     const onClose = vi.fn();
     render(<ExportOptions document={{ ...mockDocument(), content: formattedContent }} onClose={onClose} />);
